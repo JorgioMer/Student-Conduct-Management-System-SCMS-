@@ -1,0 +1,355 @@
+# =============================================================================
+#  SCMS — Pink Slip Page  (Once per Semester)
+# =============================================================================
+from PyQt5.QtWidgets import (
+    QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
+    QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
+    QHeaderView, QTextEdit, QTabWidget, QWidget,
+    QFrame, QGroupBox, QGridLayout
+)
+from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtGui import QFont, QColor
+
+from ui.styles import (
+    NAVY, GOLD, WHITE, OFF_WHITE, LIGHT_GRAY,
+    MID_GRAY, TEXT_DARK, PINK_SLIP,
+    btn_primary, btn_outline, btn_danger, btn_pink
+)
+from ui.components import (
+    SectionTitle, SubTitle, Divider,
+    FieldLabel, add_shadow, ConfirmDialog, InfoDialog, StatTile
+)
+from ui.pages.base_page import BasePage, page_header, build_record_table
+
+
+class PinkSlipPage(BasePage):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._build()
+
+    def _build(self):
+        self.main_layout.addWidget(page_header(
+            "pink",
+            "📕  Pink Slip Management",
+            "Track penalty slips — issued only ONCE per student per semester"
+        ))
+
+        tabs = QTabWidget()
+        tabs.setStyleSheet(f"""
+            QTabBar::tab:selected {{
+                background: {PINK_SLIP};
+                color: white;
+                font-weight: bold;
+            }}
+            QTabBar::tab {{
+                background: {LIGHT_GRAY};
+                color: {TEXT_DARK};
+                padding: 10px 26px;
+                margin-right: 4px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                font-size: 13px;
+            }}
+            QTabBar::tab:hover:!selected {{ background: #F48FB1; color: white; }}
+            QTabWidget::pane {{
+                border: 1px solid {LIGHT_GRAY};
+                border-radius: 10px;
+                background: {WHITE};
+                top: -1px;
+            }}
+        """)
+
+        tabs.addTab(self._build_record_tab(), "📋  New Pink Slip Record")
+        tabs.addTab(self._build_tracker_tab(), "📊  Pink Slip Tracker")
+        tabs.addTab(self._build_summary_tab(), "📈  Summary & Charts")
+
+        self.main_layout.addWidget(tabs)
+        self.main_layout.addStretch()
+
+    # ── Record tab ────────────────────────────────────────────────────────────
+    def _build_record_tab(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(16)
+
+        warning = QLabel(
+            "⚠  Important: A student may only receive ONE Pink Slip per semester. "
+            "Verify the student's record before filing. Multiple violations may escalate the action."
+        )
+        warning.setWordWrap(True)
+        warning.setFont(QFont("Segoe UI", 11))
+        warning.setStyleSheet(f"""
+            background: #FCE4EC;
+            border-left: 4px solid {PINK_SLIP};
+            border-radius: 6px;
+            padding: 10px 14px;
+            color: #880E4F;
+        """)
+        lay.addWidget(warning)
+
+        form_group = QGroupBox("New Pink Slip Record")
+        form_group.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        form_group.setStyleSheet(f"""
+            QGroupBox {{
+                border: 1.5px solid {PINK_SLIP}60;
+                border-radius: 10px;
+                margin-top: 18px;
+                padding: 16px 14px;
+                background: {WHITE};
+                color: {PINK_SLIP};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 16px; top: -2px;
+                padding: 0 8px;
+                background: {WHITE};
+                color: {PINK_SLIP};
+            }}
+        """)
+
+        form_lay = QGridLayout(form_group)
+        form_lay.setSpacing(12)
+        form_lay.setColumnStretch(1, 1)
+        form_lay.setColumnStretch(3, 1)
+
+        def lbl(text, req=False):
+            return FieldLabel(text, required=req)
+
+        # Row 0
+        form_lay.addWidget(lbl("Student Number", True), 0, 0)
+        self.pink_no = QLineEdit()
+        self.pink_no.setPlaceholderText("e.g. 2024-0001")
+        self.pink_no.setFixedHeight(38)
+        form_lay.addWidget(self.pink_no, 0, 1)
+
+        form_lay.addWidget(lbl("Student Name", True), 0, 2)
+        self.pink_name = QLineEdit()
+        self.pink_name.setPlaceholderText("Last, First Middle")
+        self.pink_name.setFixedHeight(38)
+        form_lay.addWidget(self.pink_name, 0, 3)
+
+        # Row 1
+        form_lay.addWidget(lbl("Grade & Section"), 1, 0)
+        grade_row = QHBoxLayout()
+        self.pink_grade = QComboBox()
+        self.pink_grade.addItems(["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"])
+        self.pink_grade.setFixedHeight(38)
+        self.pink_section = QLineEdit()
+        self.pink_section.setPlaceholderText("Section")
+        self.pink_section.setFixedHeight(38)
+        grade_row.addWidget(self.pink_grade)
+        grade_row.addWidget(self.pink_section)
+        form_lay.addLayout(grade_row, 1, 1)
+
+        form_lay.addWidget(lbl("Semester", True), 1, 2)
+        self.pink_sem = QComboBox()
+        self.pink_sem.addItems([
+            "1st Semester — S.Y. 2024–2025",
+            "2nd Semester — S.Y. 2024–2025",
+            "1st Semester — S.Y. 2023–2024",
+            "2nd Semester — S.Y. 2023–2024",
+        ])
+        self.pink_sem.setFixedHeight(38)
+        form_lay.addWidget(self.pink_sem, 1, 3)
+
+        # Row 2
+        form_lay.addWidget(lbl("Date Issued", True), 2, 0)
+        self.pink_date = QDateEdit(QDate.currentDate())
+        self.pink_date.setCalendarPopup(True)
+        self.pink_date.setFixedHeight(38)
+        self.pink_date.setDisplayFormat("MMMM d, yyyy")
+        form_lay.addWidget(self.pink_date, 2, 1)
+
+        form_lay.addWidget(lbl("Violation / Reason", True), 2, 2)
+        self.pink_violation = QComboBox()
+        self.pink_violation.addItems([
+            "Uniform Violation",
+            "Tardiness",
+            "Misconduct",
+            "Prohibited Items",
+            "Disrespect",
+            "Other (specify in remarks)",
+        ])
+        self.pink_violation.setFixedHeight(38)
+        form_lay.addWidget(self.pink_violation, 2, 3)
+
+        # Row 3
+        form_lay.addWidget(lbl("Description / Remarks"), 3, 0)
+        self.pink_remarks = QTextEdit()
+        self.pink_remarks.setPlaceholderText("Provide additional details about the violation...")
+        self.pink_remarks.setFixedHeight(75)
+        form_lay.addWidget(self.pink_remarks, 3, 1, 1, 3)
+
+        # Row 4
+        form_lay.addWidget(lbl("Action Taken"), 4, 0)
+        self.pink_action = QComboBox()
+        self.pink_action.addItems([
+            "Warning",
+            "Parent Notification",
+            "Community Service",
+            "Suspension",
+            "Other",
+        ])
+        self.pink_action.setFixedHeight(38)
+        form_lay.addWidget(self.pink_action, 4, 1)
+
+        form_lay.addWidget(lbl("Officer in Charge", True), 4, 2)
+        self.pink_officer = QLineEdit()
+        self.pink_officer.setPlaceholderText("Name of prefect / officer")
+        self.pink_officer.setFixedHeight(38)
+        form_lay.addWidget(self.pink_officer, 4, 3)
+
+        lay.addWidget(form_group)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+
+        check_btn = QPushButton("🔍  Check Student Record")
+        check_btn.setStyleSheet(btn_outline())
+        check_btn.setFixedHeight(40)
+        check_btn.setToolTip("Verify if student has already received a Pink Slip this semester")
+        check_btn.clicked.connect(lambda: InfoDialog(
+            "Record Check",
+            "No existing Pink Slip found for this student\nin the selected semester.\n\nYou may proceed to save.",
+            parent=self).exec_())
+
+        clear_btn = QPushButton("Clear")
+        clear_btn.setStyleSheet(btn_outline())
+        clear_btn.setFixedHeight(40)
+
+        save_btn = QPushButton("💾  Save Record")
+        save_btn.setStyleSheet(btn_pink())
+        save_btn.setFixedHeight(40)
+        save_btn.clicked.connect(self._save_pink)
+
+        btn_row.setSpacing(10)
+        btn_row.addWidget(check_btn)
+        btn_row.addWidget(clear_btn)
+        btn_row.addWidget(save_btn)
+        lay.addLayout(btn_row)
+
+        return w
+
+    def _save_pink(self):
+        if not self.pink_no.text().strip():
+            InfoDialog("Missing Fields",
+                       "Please fill in all required fields.",
+                       success=False, parent=self).exec_()
+            return
+        dlg = ConfirmDialog("Confirm Save",
+                            "Save this Pink Slip record?\nPlease confirm the student has not already\nreceived a Pink Slip this semester.",
+                            parent=self)
+        if dlg.exec_():
+            InfoDialog("Record Saved",
+                       "Pink Slip record has been saved successfully!",
+                       parent=self).exec_()
+
+    # ── Tracker tab ───────────────────────────────────────────────────────────
+    def _build_tracker_tab(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+
+        lay.addWidget(SectionTitle("Pink Slip Record Tracker"))
+        lay.addWidget(SubTitle("Track all issued pink slips — one per student per semester"))
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(10)
+        search = QLineEdit()
+        search.setPlaceholderText("🔍  Search student...")
+        search.setFixedHeight(38)
+
+        sem_filter = QComboBox()
+        sem_filter.addItems(["All Semesters", "1st Sem 2024–25", "2nd Sem 2024–25"])
+        sem_filter.setFixedHeight(38)
+        sem_filter.setFixedWidth(190)
+
+        top_row.addWidget(search, 1)
+        top_row.addWidget(sem_filter)
+
+        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn.setStyleSheet(btn_outline())
+        refresh_btn.setFixedHeight(38)
+        top_row.addWidget(refresh_btn)
+        lay.addLayout(top_row)
+
+        headers = ["Student No.", "Student Name", "Grade", "Section",
+                   "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
+        sample = [
+            ("2024-0033", "Garcia, Paolo B.", "Grade 11", "St. Luke",
+             "1st Sem 24–25", "Nov 15, 2024", "Uniform Violation", "Warning", "Ms. Reyes"),
+            ("2024-0112", "Reyes, Carlo L.",  "Grade 9",  "St. Mark",
+             "1st Sem 24–25", "Nov 10, 2024", "Tardiness",        "Parent Notif.", "Mr. Santos"),
+            ("2024-0256", "Aquino, Diana P.", "Grade 10", "St. John",
+             "1st Sem 24–25", "Oct 25, 2024", "Misconduct",       "Community Svc.", "Ms. Cruz"),
+        ]
+        table = build_record_table(headers, sample)
+        table.setMinimumHeight(260)
+        lay.addWidget(table)
+
+        action_row = QHBoxLayout()
+        action_row.addStretch()
+        view_btn = QPushButton("👁  View")
+        view_btn.setStyleSheet(btn_outline())
+        view_btn.setFixedHeight(38)
+        del_btn = QPushButton("🗑  Delete")
+        del_btn.setStyleSheet(btn_danger())
+        del_btn.setFixedHeight(38)
+        action_row.addWidget(view_btn)
+        action_row.addWidget(del_btn)
+        lay.addLayout(action_row)
+        lay.addStretch()
+        return w
+
+    # ── Summary tab ───────────────────────────────────────────────────────────
+    def _build_summary_tab(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+
+        lay.addWidget(SectionTitle("Pink Slip Summary"))
+
+        tiles_row = QHBoxLayout()
+        tiles_row.setSpacing(14)
+        for label, val, colour in [
+            ("Total Pink Slips (Sem)",   "11", PINK_SLIP),
+            ("Students Issued",          "11", "#C2185B"),
+            ("Most Common Violation",    "—",  "#880E4F"),
+            ("Pending Action",           "3",  "#F57F17"),
+        ]:
+            tile = StatTile(label, val, colour)
+            tiles_row.addWidget(tile)
+        lay.addLayout(tiles_row)
+
+        chart_frame = QFrame()
+        chart_frame.setFixedHeight(280)
+        chart_frame.setStyleSheet(f"""
+            QFrame {{
+                background: #FCE4EC;
+                border: 2px dashed {PINK_SLIP}80;
+                border-radius: 12px;
+            }}
+        """)
+        c_lay = QVBoxLayout(chart_frame)
+        c_lay.setAlignment(Qt.AlignCenter)
+        c_icon = QLabel("📊")
+        c_icon.setFont(QFont("Segoe UI", 48))
+        c_icon.setAlignment(Qt.AlignCenter)
+        c_icon.setStyleSheet("background: transparent;")
+        c_text = QLabel("Pink Slip charts will be displayed here\n(Bar chart by violation type, Pie by grade level)")
+        c_text.setFont(QFont("Segoe UI", 12))
+        c_text.setAlignment(Qt.AlignCenter)
+        c_text.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+        c_lay.addWidget(c_icon)
+        c_lay.addWidget(c_text)
+        lay.addWidget(chart_frame)
+
+        lay.addStretch()
+        return w
