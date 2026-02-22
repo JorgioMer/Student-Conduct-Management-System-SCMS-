@@ -166,7 +166,7 @@ class DashboardPage(QWidget):
 
         for i, (color, title, desc, fa_icon, page_idx) in enumerate(cards_info):
             card = SlipCard(color, title, desc, fa_icon)   # pass fa_icon name
-            card.clicked.connect(lambda _, idx=page_idx: self.navigate_to.emit(idx))
+            card.clicked.connect(lambda idx=page_idx: self.navigate_to.emit(idx))
             row, col = divmod(i, 3)
             cards_grid.addWidget(card, row, col)
 
