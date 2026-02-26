@@ -134,13 +134,13 @@ class BlueSlipPage(BasePage):
         form_lay.addWidget(self.blue_name, 0, 3)
 
         # Row 1
-        form_lay.addWidget(lbl("Grade & Section"), 1, 0)
+        form_lay.addWidget(lbl("Course & Year"), 1, 0)
         grade_row = QHBoxLayout()
         self.blue_grade = QComboBox()
-        self.blue_grade.addItems(["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"])
+        self.blue_grade.addItems(["1st","2nd","3rd","4th"])
         self.blue_grade.setFixedHeight(38)
         self.blue_section = QLineEdit()
-        self.blue_section.setPlaceholderText("Section")
+        self.blue_section.setPlaceholderText("Course")
         self.blue_section.setFixedHeight(38)
         grade_row.addWidget(self.blue_grade)
         grade_row.addWidget(self.blue_section)
