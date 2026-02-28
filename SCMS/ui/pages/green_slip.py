@@ -21,6 +21,13 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 
+# Backend database imports
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from backend.db_green_slip import add_green_slip, get_green_slips
+from backend.db_students import add_student, get_student
+
 
 class GreenSlipPage(BasePage):
     def __init__(self, parent=None):
@@ -199,6 +206,13 @@ class GreenSlipPage(BasePage):
         self.disp_status.setFixedHeight(38)
         form_lay.addWidget(self.disp_status, 4, 3)
 
+        # Row 5
+        form_lay.addWidget(lbl("Semester", True), 5, 0)
+        self.disp_semester = QComboBox()
+        self.disp_semester.addItems(["1st", "2nd", "Summer"])
+        self.disp_semester.setFixedHeight(38)
+        form_lay.addWidget(self.disp_semester, 5, 1)
+
         lay.addWidget(form_group)
 
         # Buttons
@@ -241,10 +255,90 @@ class GreenSlipPage(BasePage):
         dlg = ConfirmDialog("Confirm Save",
                             "Save this Dispensation Green Slip record?", parent=self)
         if dlg.exec_():
-            InfoDialog("Record Saved",
-                       "Dispensation Green Slip record has been saved successfully!",
-                       success=True, parent=self).exec_()
-            self._clear_dispensation()
+            try:
+                # Prepare data from form
+                stud_num = self.disp_stud_no.text().strip()
+                stud_name = self.disp_stud_name.text().strip()
+                stud_grade = self.disp_grade.currentText()  # e.g., "Grade 9"
+                slip_type = "Dispensation"
+                date_avail = self.disp_date.date().toPyDate()
+                days = self.disp_days.value()
+                status = self.disp_status.currentText()
+                expiry = self.disp_expiry.date().toPyDate()
+                purpose = self.disp_reason.toPlainText().strip()
+                semester = self.disp_semester.currentText()
+                remarks = ""
+                absence_type = ""
+                dates_absence = ""
+                supp_doc = ""
+                auth_by = self.disp_auth.text().strip()
+                
+                # Save to database (student will be auto-added if doesn't exist)
+                add_green_slip(stud_num, slip_type, date_avail, days, status,
+                              expiry, purpose, remarks, absence_type,
+                              dates_absence, supp_doc, auth_by, 
+                              stud_name=stud_name, stud_course="", stud_year=stud_grade, semester=semester)
+                
+                InfoDialog("Record Saved",
+                           "Dispensation Green Slip record has been saved successfully!",
+                           success=True, parent=self).exec_()
+                self._clear_dispensation()
+            except Exception as e:
+                InfoDialog("Error",
+                           f"Failed to save record: {str(e)}",
+                           success=False, parent=self).exec_()
+
+    def _clear_excuse(self):
+        self.exc_stud_no.clear()
+        self.exc_stud_name.clear()
+        self.exc_section.clear()
+        self.exc_abs_date.clear()
+        self.exc_remarks.clear()
+        self.exc_auth.clear()
+        self.exc_type.setCurrentIndex(0)
+        self.exc_doc.setCurrentIndex(0)
+
+    def _save_excuse(self):
+        if not self.exc_stud_no.text().strip() or not self.exc_stud_name.text().strip():
+            InfoDialog("Missing Fields",
+                       "Please fill in the required fields\n(Student Number and Name).",
+                       success=False, parent=self).exec_()
+            return
+        dlg = ConfirmDialog("Confirm Save",
+                            "Save this Excuse Green Slip record?", parent=self)
+        if dlg.exec_():
+            try:
+                # Prepare data from form
+                stud_num = self.exc_stud_no.text().strip()
+                stud_name = self.exc_stud_name.text().strip()
+                stud_grade = self.exc_grade.currentText()
+                slip_type = "Excuse"  # Set to Excuse for this tab
+                date_avail = self.exc_date.date().toPyDate()
+                days = 0  # Not applicable for excuse
+                status = "Active"  # Default status for excuse
+                expiry = self.exc_date.date().toPyDate()  # Same as date available for excuse
+                purpose = ""  # Not applicable for excuse
+                remarks = self.exc_remarks.toPlainText().strip()
+                absence_type = self.exc_type.currentText()
+                dates_absence = self.exc_abs_date.text().strip()
+                supp_doc = self.exc_doc.currentText()
+                auth_by = self.exc_auth.text().strip()
+                semester = self.exc_semester.currentText()
+                
+                # Save to database (student will be auto-added if doesn't exist)
+                add_green_slip(stud_num, slip_type, date_avail, days, status,
+                              expiry, purpose, remarks, absence_type,
+                              dates_absence, supp_doc, auth_by,
+                              stud_name=stud_name, stud_course="", stud_year=stud_grade, semester=semester)
+                
+                InfoDialog("Record Saved",
+                           "Excuse Green Slip record has been saved successfully!",
+                           success=True, parent=self).exec_()
+                self._clear_excuse()
+            except Exception as e:
+                InfoDialog("Error",
+                           f"Failed to save record: {str(e)}",
+                           success=False, parent=self).exec_()
 
     # ── Excuse tab ────────────────────────────────────────────────────────────
     def _build_excuse_tab(self) -> QWidget:
@@ -362,6 +456,13 @@ class GreenSlipPage(BasePage):
         self.exc_doc.setFixedHeight(38)
         form_lay.addWidget(self.exc_doc, 4, 3)
 
+        # Row 5
+        form_lay.addWidget(lbl("Semester", True), 5, 0)
+        self.exc_semester = QComboBox()
+        self.exc_semester.addItems(["1st", "2nd", "Summer"])
+        self.exc_semester.setFixedHeight(38)
+        form_lay.addWidget(self.exc_semester, 5, 1)
+
         lay.addWidget(form_group)
 
         btn_row = QHBoxLayout()
@@ -372,15 +473,13 @@ class GreenSlipPage(BasePage):
         clear_btn.setStyleSheet(btn_outline())
         clear_btn.setFixedHeight(40)
         clear_btn.setFixedWidth(110)
+        clear_btn.clicked.connect(self._clear_excuse)
 
         save_btn = QPushButton("💾  Save Record")
         save_btn.setStyleSheet(btn_green())
         save_btn.setFixedHeight(40)
         save_btn.setFixedWidth(160)
-        save_btn.clicked.connect(lambda: InfoDialog(
-            "Record Saved",
-            "Excuse Green Slip record has been saved successfully!",
-            parent=self).exec_())
+        save_btn.clicked.connect(self._save_excuse)
 
         btn_row.addWidget(clear_btn)
         btn_row.addWidget(save_btn)

@@ -21,6 +21,12 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 
+# Backend database imports
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from backend.db_blue_slip import add_blue_slip, get_blue_slips
+
 
 class BlueSlipPage(BasePage):
     def __init__(self, parent=None):
@@ -231,12 +237,19 @@ class BlueSlipPage(BasePage):
         self.blue_witnesses.setFixedHeight(38)
         form_lay.addWidget(self.blue_witnesses, 5, 3)
 
+        # Row 6
+        form_lay.addWidget(lbl("Semester", True), 6, 0)
+        self.blue_semester = QComboBox()
+        self.blue_semester.addItems(["1st", "2nd", "Summer"])
+        self.blue_semester.setFixedHeight(38)
+        form_lay.addWidget(self.blue_semester, 6, 1)
+
         # Escalation flag
         self.blue_escalate_chk = QCheckBox(
             " ⚠  Flag as ESCALATED (repeated same violation)")
         self.blue_escalate_chk.setFont(QFont("Segoe UI", 12, QFont.Bold))
         self.blue_escalate_chk.setStyleSheet(f"color: {RED_ERR}; background: transparent;")
-        form_lay.addWidget(self.blue_escalate_chk, 6, 0, 1, 4)
+        form_lay.addWidget(self.blue_escalate_chk, 7, 0, 1, 4)
 
         lay.addWidget(form_group)
 
@@ -285,9 +298,34 @@ class BlueSlipPage(BasePage):
             return
         dlg = ConfirmDialog("Confirm Save", "Save this Blue Slip violation record?", parent=self)
         if dlg.exec_():
-            InfoDialog("Record Saved",
-                       "Blue Slip violation record has been saved successfully!",
-                       parent=self).exec_()
+            try:
+                # Prepare data from form
+                stud_num = self.blue_no.text().strip()
+                stud_name = self.blue_name.text().strip()
+                stud_course = self.blue_section.text().strip()  # Course field
+                stud_year = self.blue_grade.currentText()  # Year/Grade
+                semester = self.blue_semester.currentText()
+                violation_type = self.blue_vtype.currentText()
+                date_of_violation = self.blue_date.date().toPyDate()
+                severity = self.blue_severity.currentText()
+                action_taken = self.blue_action.currentText()
+                status = self.blue_status.currentText()
+                violation_desc = self.blue_desc.toPlainText().strip()
+                witnesses = self.blue_witnesses.text().strip()
+                
+                # Save to database (student will be auto-added if doesn't exist)
+                add_blue_slip(stud_num, violation_type, date_of_violation, severity,
+                             action_taken, status=status, violation_desc=violation_desc,
+                             witnesses=witnesses, stud_name=stud_name, 
+                             stud_course=stud_course, stud_year=stud_year, semester=semester)
+                
+                InfoDialog("Record Saved",
+                           "Blue Slip violation record has been saved successfully!",
+                           success=True, parent=self).exec_()
+            except Exception as e:
+                InfoDialog("Error",
+                           f"Failed to save record: {str(e)}",
+                           success=False, parent=self).exec_()
 
     # ── Tracker tab ───────────────────────────────────────────────────────────
     def _build_tracker_tab(self) -> QWidget:

@@ -21,6 +21,12 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 
+# Backend database imports
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from backend.db_pink_slip import add_pink_slip, get_pink_slips
+
 
 class PinkSlipPage(BasePage):
     def __init__(self, parent=None):
@@ -146,12 +152,7 @@ class PinkSlipPage(BasePage):
 
         form_lay.addWidget(lbl("Semester", True), 1, 2)
         self.pink_sem = QComboBox()
-        self.pink_sem.addItems([
-            "1st Semester — S.Y. 2024–2025",
-            "2nd Semester — S.Y. 2024–2025",
-            "1st Semester — S.Y. 2023–2024",
-            "2nd Semester — S.Y. 2023–2024",
-        ])
+        self.pink_sem.addItems(["1st", "2nd", "Summer"])
         self.pink_sem.setFixedHeight(38)
         form_lay.addWidget(self.pink_sem, 1, 3)
 
@@ -243,9 +244,33 @@ class PinkSlipPage(BasePage):
                             "Save this Pink Slip record?\nPlease confirm the student has not already\nreceived a Pink Slip this semester.",
                             parent=self)
         if dlg.exec_():
-            InfoDialog("Record Saved",
-                       "Pink Slip record has been saved successfully!",
-                       parent=self).exec_()
+            try:
+                # Prepare data from form
+                stud_num = self.pink_no.text().strip()
+                stud_name = self.pink_name.text().strip()
+                stud_grade = self.pink_grade.currentText()
+                date_issued = self.pink_date.date().toPyDate()
+                violation = self.pink_violation.currentText()
+                action_taken = self.pink_action.currentText()
+                officer = self.pink_officer.text().strip()
+                sem = self.pink_sem.currentText()
+                remarks = self.pink_remarks.toPlainText().strip()
+                
+                # Save to database (student will be auto-added if doesn't exist)
+                add_pink_slip(stud_num, date_issued, violation, action_taken, officer,
+                             sem=sem, remarks=remarks, stud_name=stud_name, 
+                             stud_course="", stud_year=stud_grade)
+                
+                InfoDialog("Record Saved",
+                           "Pink Slip record has been saved successfully!",
+                           success=True, parent=self).exec_()
+            except Exception as e:
+                InfoDialog("Error",
+                           f"Failed to save record: {str(e)}",
+                           success=False, parent=self).exec_()
+                InfoDialog("Error",
+                           f"Failed to save record: {str(e)}",
+                           success=False, parent=self).exec_()
 
     # ── Tracker tab ───────────────────────────────────────────────────────────
     def _build_tracker_tab(self) -> QWidget:

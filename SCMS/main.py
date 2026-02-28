@@ -8,8 +8,9 @@
 
   Requirements:
     pip install PyQt5
+    pip install pyodbc
 
-  Phase: UI Prototype (No database/backend)
+  Phase: UI Prototype with Database Integration
 ================================================================================
 """
 import sys
@@ -24,6 +25,9 @@ from PyQt5.QtGui import QFont
 
 from ui.styles import GLOBAL_STYLE
 from ui.login_window import LoginWindow
+
+# Backend modules available for import
+from backend import db_connection, db_students, db_green_slip, db_blue_slip, db_pink_slip
 
 
 def main():
