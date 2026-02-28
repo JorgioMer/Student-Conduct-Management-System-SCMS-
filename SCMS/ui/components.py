@@ -246,7 +246,7 @@ class HeaderBar(QWidget):
 
         sys_lbl = QLabel("Office of the Prefect — SCMS")
         sys_lbl.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        sys_lbl.setStyleSheet("color: #FFFFFF; background: transparent; letter-spacing: 0.5px;")
+        sys_lbl.setStyleSheet("color: #000000; background: transparent; letter-spacing: 0.5px;")
 
         lay.addWidget(logo_lbl)
         lay.addWidget(sys_lbl)
