@@ -157,7 +157,7 @@ class TrackersPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
-        for label, style in [("👁  View", btn_outline()), ("   Export", btn_gold())]:
+        for label, style in [("   View", btn_outline()), ("   Export", btn_gold())]:
             b = QPushButton(label)
             b.setStyleSheet(style)
             b.setFixedHeight(38)

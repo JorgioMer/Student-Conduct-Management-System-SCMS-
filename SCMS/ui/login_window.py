@@ -24,7 +24,6 @@ DEMO_USERS = {
     "prefect":("prefect123","Prefect Office", "Admin"),
 }
 
-
 class LoginWindow(QWidget):
     login_success = pyqtSignal(str, str)   # (full_name, role)
 

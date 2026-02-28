@@ -125,7 +125,7 @@ class SettingsPage(BasePage):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        save_pw = QPushButton("🔐  Update Password")
+        save_pw = QPushButton("  Update Password")
         save_pw.setStyleSheet(btn_primary())
         save_pw.setFixedHeight(40)
         save_pw.clicked.connect(lambda: InfoDialog(
