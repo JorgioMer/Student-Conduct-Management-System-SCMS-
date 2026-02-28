@@ -36,7 +36,7 @@ class BlueSlipPage(BasePage):
     def _build(self):
         self.main_layout.addWidget(page_header(
             "blue",
-            "📘  Blue Slip Management",
+            "  Blue Slip Management ",
             "Record student violations — repeated offenses trigger escalated disciplinary action"
         ))
 
@@ -65,10 +65,10 @@ class BlueSlipPage(BasePage):
             }}
         """)
 
-        tabs.addTab(self._build_record_tab(), "📋  File Blue Slip")
-        tabs.addTab(self._build_tracker_tab(), "📊  Blue Slip Tracker")
-        tabs.addTab(self._build_progress_tab(), "🔄  Violation Progress")
-        tabs.addTab(self._build_summary_tab(), "📈  Summary & Charts")
+        tabs.addTab(self._build_record_tab(), "  File Blue Slip ")
+        tabs.addTab(self._build_tracker_tab(), "  Blue Slip Tracker ")
+        tabs.addTab(self._build_progress_tab(), "   Violation Progress")
+        tabs.addTab(self._build_summary_tab(), "   Summary & Charts ")
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
@@ -83,7 +83,7 @@ class BlueSlipPage(BasePage):
 
         # Escalation warning
         escalation_notice = QLabel(
-            "⚠  Escalation Policy: A student who receives the SAME violation multiple times "
+            "   Escalation Policy: A student who receives the SAME violation multiple times  "
             "will automatically be subject to a higher level of disciplinary action. "
             "The system will track and flag repeated violations."
         )
@@ -246,7 +246,7 @@ class BlueSlipPage(BasePage):
 
         # Escalation flag
         self.blue_escalate_chk = QCheckBox(
-            " ⚠  Flag as ESCALATED (repeated same violation)")
+            "    Flag as ESCALATED (repeated same violation)")
         self.blue_escalate_chk.setFont(QFont("Segoe UI", 12, QFont.Bold))
         self.blue_escalate_chk.setStyleSheet(f"color: {RED_ERR}; background: transparent;")
         form_lay.addWidget(self.blue_escalate_chk, 7, 0, 1, 4)
@@ -258,7 +258,7 @@ class BlueSlipPage(BasePage):
         btn_row.setSpacing(10)
         btn_row.addStretch()
 
-        history_btn = QPushButton("📋  Check Violation History")
+        history_btn = QPushButton("  Check Violation History ")
         history_btn.setStyleSheet(btn_outline())
         history_btn.setFixedHeight(40)
         history_btn.setToolTip("Check if this student has prior violations of the same type")
@@ -268,7 +268,7 @@ class BlueSlipPage(BasePage):
         clear_btn.setStyleSheet(btn_outline())
         clear_btn.setFixedHeight(40)
 
-        save_btn = QPushButton("💾  Save Violation Record")
+        save_btn = QPushButton("   Save Violation Record ")
         save_btn.setStyleSheet(btn_blue())
         save_btn.setFixedHeight(40)
         save_btn.clicked.connect(self._save_blue)
@@ -285,8 +285,8 @@ class BlueSlipPage(BasePage):
             "Violation History Check",
             "Student: (enter student number first)\n\n"
             "Prior violations found:\n"
-            "• Nov 1, 2024 — Disrespect to Authority (Resolved)\n\n"
-            "⚠  This student has 1 prior violation of a similar type.\n"
+            "  Nov 1, 2024 — Disrespect to Authority (Resolved)\n\n "
+            "   This student has 1 prior violation of a similar type.\n "
             "Consider escalating the action if this is a repeat offense.",
             success=True, parent=self
         ).exec_()
@@ -341,7 +341,7 @@ class BlueSlipPage(BasePage):
         top_row = QHBoxLayout()
         top_row.setSpacing(10)
         search = QLineEdit()
-        search.setPlaceholderText("🔍  Search by student name, number, or violation type...")
+        search.setPlaceholderText("   Search by student name, number, or violation type... ")
         search.setFixedHeight(38)
 
         status_filter = QComboBox()
@@ -358,7 +358,7 @@ class BlueSlipPage(BasePage):
         top_row.addWidget(search, 1)
         top_row.addWidget(status_filter)
         top_row.addWidget(severity_filter)
-        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn = QPushButton("   Refresh ")
         refresh_btn.setStyleSheet(btn_outline())
         refresh_btn.setFixedHeight(38)
         top_row.addWidget(refresh_btn)
@@ -396,13 +396,13 @@ class BlueSlipPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
-        view_btn = QPushButton("👁  View Details")
+        view_btn = QPushButton("  View Details ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
         update_btn = QPushButton("✏  Update Status")
         update_btn.setStyleSheet(btn_blue())
         update_btn.setFixedHeight(38)
-        del_btn = QPushButton("🗑  Delete")
+        del_btn = QPushButton("   Delete ")
         del_btn.setStyleSheet(btn_danger())
         del_btn.setFixedHeight(38)
         action_row.addWidget(view_btn)
@@ -441,7 +441,7 @@ class BlueSlipPage(BasePage):
         stud_search.setPlaceholderText("Enter student number to view their full violation history")
         stud_search.setFixedHeight(38)
         stud_search.setFixedWidth(280)
-        search_go = QPushButton("🔍  Load History")
+        search_go = QPushButton("   Load History ")
         search_go.setStyleSheet(btn_blue())
         search_go.setFixedHeight(38)
 
@@ -495,7 +495,7 @@ class BlueSlipPage(BasePage):
             s_inner = QHBoxLayout(s_frame)
             s_inner.setContentsMargins(12, 8, 12, 8)
 
-            status_icon = "✅" if (done and not current) else ("🔴" if current else "⬜")
+            status_icon = "" if (done and not current) else ("" if current else "")
             icon_lbl = QLabel(status_icon)
             icon_lbl.setFont(QFont("Segoe UI", 14))
             icon_lbl.setFixedWidth(28)
@@ -511,7 +511,7 @@ class BlueSlipPage(BasePage):
             date_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
 
             if current:
-                curr_badge = QLabel("  ◀ CURRENT  ")
+                curr_badge = QLabel("    CURRENT  ")
                 curr_badge.setFont(QFont("Segoe UI", 10, QFont.Bold))
                 curr_badge.setStyleSheet(f"""
                     background: {RED_ERR};
@@ -565,7 +565,7 @@ class BlueSlipPage(BasePage):
         """)
         c_lay = QVBoxLayout(chart_frame)
         c_lay.setAlignment(Qt.AlignCenter)
-        c_icon = QLabel("📊")
+        c_icon = QLabel("")
         c_icon.setFont(QFont("Segoe UI", 48))
         c_icon.setAlignment(Qt.AlignCenter)
         c_icon.setStyleSheet("background: transparent;")

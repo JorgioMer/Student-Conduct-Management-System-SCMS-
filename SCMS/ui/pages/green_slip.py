@@ -38,7 +38,7 @@ class GreenSlipPage(BasePage):
         # Page header
         self.main_layout.addWidget(page_header(
             "green",
-            "📗  Green Slip Management",
+            "   Green Slip Management ",
             "Record and track Dispensation & Excuse Green Slips"
         ))
 
@@ -72,10 +72,10 @@ class GreenSlipPage(BasePage):
             }}
         """)
 
-        tabs.addTab(self._build_dispensation_tab(), "📋  Dispensation Green Slip")
-        tabs.addTab(self._build_excuse_tab(),        "📋  Excuse Green Slip")
-        tabs.addTab(self._build_tracker_tab(),       "📊  Green Slip Tracker")
-        tabs.addTab(self._build_summary_tab(),       "📈  Summary & Charts")
+        tabs.addTab(self._build_dispensation_tab(), "   Dispensation Green Slip ")
+        tabs.addTab(self._build_excuse_tab(),        "   Excuse Green Slip ")
+        tabs.addTab(self._build_tracker_tab(),       "   Green Slip Tracker ")
+        tabs.addTab(self._build_summary_tab(),       "  Summary & Charts ")
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
@@ -143,10 +143,10 @@ class GreenSlipPage(BasePage):
         form_lay.addWidget(self.disp_stud_name, 0, 3)
 
         # Row 1
-        form_lay.addWidget(lbl("Grade & Section"), 1, 0)
+        form_lay.addWidget(lbl("Year & Course"), 1, 0)
         grade_row = QHBoxLayout()
         self.disp_grade = QComboBox()
-        self.disp_grade.addItems(["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"])
+        self.disp_grade.addItems(["1st","2nd","3rd","4th","5th"])
         self.disp_grade.setFixedHeight(38)
         self.disp_section = QLineEdit()
         self.disp_section.setPlaceholderText("Section / Block")
@@ -226,7 +226,7 @@ class GreenSlipPage(BasePage):
         clear_btn.setFixedWidth(110)
         clear_btn.clicked.connect(self._clear_dispensation)
 
-        save_btn = QPushButton("💾  Save Record")
+        save_btn = QPushButton("   Save Record ")
         save_btn.setStyleSheet(btn_green())
         save_btn.setFixedHeight(40)
         save_btn.setFixedWidth(160)
@@ -349,7 +349,7 @@ class GreenSlipPage(BasePage):
         lay.setSpacing(16)
 
         info = QLabel(
-            "ℹ  An Excuse Green Slip is issued when a student's absence is officially excused. "
+            "   An Excuse Green Slip is issued when a student's absence is officially excused.  "
             "The type of absence must be specified."
         )
         info.setWordWrap(True)
@@ -475,7 +475,7 @@ class GreenSlipPage(BasePage):
         clear_btn.setFixedWidth(110)
         clear_btn.clicked.connect(self._clear_excuse)
 
-        save_btn = QPushButton("💾  Save Record")
+        save_btn = QPushButton("   Save Record ")
         save_btn.setStyleSheet(btn_green())
         save_btn.setFixedHeight(40)
         save_btn.setFixedWidth(160)
@@ -503,7 +503,7 @@ class GreenSlipPage(BasePage):
         top_row.setSpacing(10)
 
         search = QLineEdit()
-        search.setPlaceholderText("🔍  Search by student name or number...")
+        search.setPlaceholderText("   Search by student name or number... ")
         search.setFixedHeight(38)
         search.setStyleSheet(f"""
             QLineEdit {{
@@ -522,7 +522,7 @@ class GreenSlipPage(BasePage):
         filter_cb.setFixedWidth(160)
 
         grade_filter = QComboBox()
-        grade_filter.addItems(["All Grades","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"])
+        grade_filter.addItems(["All Grades","1st","2nd","3rd","4th","5th"])
         grade_filter.setFixedHeight(38)
         grade_filter.setFixedWidth(140)
 
@@ -554,11 +554,11 @@ class GreenSlipPage(BasePage):
         action_row = QHBoxLayout()
         action_row.addStretch()
 
-        view_btn = QPushButton("👁  View Details")
+        view_btn = QPushButton("   View Details ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
 
-        delete_btn = QPushButton("🗑  Delete")
+        delete_btn = QPushButton("   Delete ")
         delete_btn.setStyleSheet(btn_danger())
         delete_btn.setFixedHeight(38)
 
@@ -592,7 +592,7 @@ class GreenSlipPage(BasePage):
         period_row.addWidget(period)
         period_row.addStretch()
 
-        export_btn = QPushButton("📤  Export Report")
+        export_btn = QPushButton("   Export Report ")
         export_btn.setStyleSheet(btn_green())
         export_btn.setFixedHeight(36)
         period_row.addWidget(export_btn)

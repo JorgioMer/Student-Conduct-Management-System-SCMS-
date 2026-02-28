@@ -45,7 +45,7 @@ class TrackersPage(BasePage):
         h_lay.setContentsMargins(24, 12, 24, 12)
 
         h_left = QVBoxLayout()
-        t_lbl = QLabel("📋  Record Trackers — Monthly Overview")
+        t_lbl = QLabel("   Record Trackers — Monthly Overview ")
         t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
         t_lbl.setStyleSheet(f"color: {GOLD}; background: transparent;")
         s_lbl = QLabel("View and filter all slip records — Green, Pink, and Blue — in one place")
@@ -60,9 +60,9 @@ class TrackersPage(BasePage):
 
         # Tabs
         tabs = QTabWidget()
-        tabs.addTab(self._build_combined_tab(), "📋  All Records")
-        tabs.addTab(self._build_student_tab(),  "🧑‍🎓  Student Lookup")
-        tabs.addTab(self._build_monthly_tab(),  "📅  Monthly Summary")
+        tabs.addTab(self._build_combined_tab(), "   All Records ")
+        tabs.addTab(self._build_student_tab(),  "   Student Lookup ")
+        tabs.addTab(self._build_monthly_tab(),  "   Monthly Summary ")
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
@@ -94,7 +94,7 @@ class TrackersPage(BasePage):
         filter_row.setSpacing(10)
 
         search = QLineEdit()
-        search.setPlaceholderText("🔍  Search by student name or number...")
+        search.setPlaceholderText("   Search by student name or number... ")
         search.setFixedHeight(38)
 
         slip_filter = QComboBox()
@@ -114,7 +114,7 @@ class TrackersPage(BasePage):
         grade_filter.setFixedHeight(38)
         grade_filter.setFixedWidth(130)
 
-        filter_btn = QPushButton("🔍  Apply Filter")
+        filter_btn = QPushButton("   Apply Filter ")
         filter_btn.setStyleSheet(btn_gold())
         filter_btn.setFixedHeight(38)
 
@@ -157,7 +157,7 @@ class TrackersPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
-        for label, style in [("👁  View", btn_outline()), ("📤  Export", btn_gold())]:
+        for label, style in [("👁  View", btn_outline()), ("   Export", btn_gold())]:
             b = QPushButton(label)
             b.setStyleSheet(style)
             b.setFixedHeight(38)
@@ -193,7 +193,7 @@ class TrackersPage(BasePage):
         stud_edit = QLineEdit()
         stud_edit.setPlaceholderText("Type student number or name to search...")
         stud_edit.setFixedHeight(40)
-        search_btn = QPushButton("🔍  Search")
+        search_btn = QPushButton("   Search ")
         search_btn.setStyleSheet(btn_gold())
         search_btn.setFixedHeight(40)
         clear_btn = QPushButton("Clear")
@@ -276,7 +276,7 @@ class TrackersPage(BasePage):
         period_row.addWidget(period)
         period_row.addStretch()
 
-        export_btn = QPushButton("📤  Export Monthly Report")
+        export_btn = QPushButton("   Export Monthly Report ")
         export_btn.setStyleSheet(btn_gold())
         export_btn.setFixedHeight(36)
         period_row.addWidget(export_btn)

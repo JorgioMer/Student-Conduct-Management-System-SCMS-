@@ -46,7 +46,7 @@ class ReportsPage(BasePage):
         h_lay = QHBoxLayout(header)
         h_lay.setContentsMargins(24, 12, 24, 12)
         h_col = QVBoxLayout()
-        t_lbl = QLabel("📊  Reports & Analytics")
+        t_lbl = QLabel("   Reports & Analytics ")
         t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
         t_lbl.setStyleSheet(f"color: {GOLD}; background: transparent;")
         s_lbl = QLabel("Monthly summaries, visual graphs, and statistical records for all slip types")
@@ -57,7 +57,7 @@ class ReportsPage(BasePage):
         h_lay.addLayout(h_col)
         h_lay.addStretch()
 
-        export_all = QPushButton("📤  Export All Reports")
+        export_all = QPushButton("   Export All Reports ")
         export_all.setStyleSheet(btn_gold())
         export_all.setFixedHeight(38)
         export_all.clicked.connect(lambda: InfoDialog(
@@ -90,11 +90,11 @@ class ReportsPage(BasePage):
 
         # Tabs
         tabs = QTabWidget()
-        tabs.addTab(self._build_overview_tab(),   "📈  Overview")
-        tabs.addTab(self._build_green_report(),   "📗  Green Slips")
-        tabs.addTab(self._build_pink_report(),    "📕  Pink Slips")
-        tabs.addTab(self._build_blue_report(),    "📘  Blue Slips")
-        tabs.addTab(self._build_toplist_tab(),    "⭐  Student Records")
+        tabs.addTab(self._build_overview_tab(),   "   Overview ")
+        tabs.addTab(self._build_green_report(),   "   Green Slips ")
+        tabs.addTab(self._build_pink_report(),    "   Pink Slips ")
+        tabs.addTab(self._build_blue_report(),    "   Blue Slips ")
+        tabs.addTab(self._build_toplist_tab(),    "   Student Records ")
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
@@ -113,11 +113,11 @@ class ReportsPage(BasePage):
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(16)
         for label, val, colour, icon in [
-            ("Green Slips Issued",     "24", GREEN_SLIP, "📗"),
-            ("Pink Slips Issued",      "11", PINK_SLIP,  "📕"),
-            ("Blue Slips / Violations","8",  BLUE_SLIP,  "📘"),
-            ("Total Records Filed",    "43", NAVY,       "📋"),
-            ("Students Involved",      "38", GOLD,       "🧑‍🎓"),
+            ("Green Slips Issued",     "24", GREEN_SLIP, ""),
+            ("Pink Slips Issued",      "11", PINK_SLIP,  ""),
+            ("Blue Slips / Violations","8",  BLUE_SLIP,  ""),
+            ("Total Records Filed",    "43", NAVY,       ""),
+            ("Students Involved",      "38", GOLD,       ""),
         ]:
             tile = StatTile(f"{icon}  {label}", val, colour)
             tiles_row.addWidget(tile)
@@ -233,7 +233,7 @@ class ReportsPage(BasePage):
         top_row.addWidget(t_lbl)
         top_row.addStretch()
 
-        for label, style in [("📤  Export CSV", btn_outline()), ("🖨  Print", btn_outline())]:
+        for label, style in [("   Export CSV", btn_outline()), ("   Print", btn_outline())]:
             b = QPushButton(label)
             b.setStyleSheet(style)
             b.setFixedHeight(36)
@@ -304,7 +304,7 @@ class ReportsPage(BasePage):
         lay.addWidget(t)
 
         note = QLabel(
-            "ℹ  This list helps the Office of the Prefect identify students who may need additional "
+            "   This list helps the Office of the Prefect identify students who may need additional  "
             "counseling, guidance, or follow-up actions. Data shown is for the current semester."
         )
         note.setWordWrap(True)

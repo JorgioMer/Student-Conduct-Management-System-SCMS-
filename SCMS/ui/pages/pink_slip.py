@@ -36,7 +36,7 @@ class PinkSlipPage(BasePage):
     def _build(self):
         self.main_layout.addWidget(page_header(
             "pink",
-            "📕  Pink Slip Management",
+            "   Pink Slip Management ",
             "Track penalty slips — issued only ONCE per student per semester"
         ))
 
@@ -65,9 +65,9 @@ class PinkSlipPage(BasePage):
             }}
         """)
 
-        tabs.addTab(self._build_record_tab(), "📋  New Pink Slip Record")
-        tabs.addTab(self._build_tracker_tab(), "📊  Pink Slip Tracker")
-        tabs.addTab(self._build_summary_tab(), "📈  Summary & Charts")
+        tabs.addTab(self._build_record_tab(), "   New Pink Slip Record ")
+        tabs.addTab(self._build_tracker_tab(), "   Pink Slip Tracker ")
+        tabs.addTab(self._build_summary_tab(), "   Summary & Charts ")
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
@@ -81,7 +81,7 @@ class PinkSlipPage(BasePage):
         lay.setSpacing(16)
 
         warning = QLabel(
-            "⚠  Important: A student may only receive ONE Pink Slip per semester. "
+            "   Important: A student may only receive ONE Pink Slip per semester.  "
             "Verify the student's record before filing. Multiple violations may escalate the action."
         )
         warning.setWordWrap(True)
@@ -138,10 +138,10 @@ class PinkSlipPage(BasePage):
         form_lay.addWidget(self.pink_name, 0, 3)
 
         # Row 1
-        form_lay.addWidget(lbl("Grade & Section"), 1, 0)
+        form_lay.addWidget(lbl("Year & Course"), 1, 0)
         grade_row = QHBoxLayout()
         self.pink_grade = QComboBox()
-        self.pink_grade.addItems(["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"])
+        self.pink_grade.addItems(["1st","2nd","3rd","4th","5th"])
         self.pink_grade.setFixedHeight(38)
         self.pink_section = QLineEdit()
         self.pink_section.setPlaceholderText("Section")
@@ -208,7 +208,7 @@ class PinkSlipPage(BasePage):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
-        check_btn = QPushButton("🔍  Check Student Record")
+        check_btn = QPushButton("   Check Student Record ")
         check_btn.setStyleSheet(btn_outline())
         check_btn.setFixedHeight(40)
         check_btn.setToolTip("Verify if student has already received a Pink Slip this semester")
@@ -221,7 +221,7 @@ class PinkSlipPage(BasePage):
         clear_btn.setStyleSheet(btn_outline())
         clear_btn.setFixedHeight(40)
 
-        save_btn = QPushButton("💾  Save Record")
+        save_btn = QPushButton("   Save Record ")
         save_btn.setStyleSheet(btn_pink())
         save_btn.setFixedHeight(40)
         save_btn.clicked.connect(self._save_pink)
@@ -286,7 +286,7 @@ class PinkSlipPage(BasePage):
         top_row = QHBoxLayout()
         top_row.setSpacing(10)
         search = QLineEdit()
-        search.setPlaceholderText("🔍  Search student...")
+        search.setPlaceholderText("   Search student... ")
         search.setFixedHeight(38)
 
         sem_filter = QComboBox()
@@ -297,7 +297,7 @@ class PinkSlipPage(BasePage):
         top_row.addWidget(search, 1)
         top_row.addWidget(sem_filter)
 
-        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn = QPushButton("   Refresh ")
         refresh_btn.setStyleSheet(btn_outline())
         refresh_btn.setFixedHeight(38)
         top_row.addWidget(refresh_btn)
@@ -319,10 +319,10 @@ class PinkSlipPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
-        view_btn = QPushButton("👁  View")
+        view_btn = QPushButton("   View ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
-        del_btn = QPushButton("🗑  Delete")
+        del_btn = QPushButton("   Delete ")
         del_btn.setStyleSheet(btn_danger())
         del_btn.setFixedHeight(38)
         action_row.addWidget(view_btn)

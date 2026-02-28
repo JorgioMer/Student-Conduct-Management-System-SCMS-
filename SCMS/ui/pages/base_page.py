@@ -56,9 +56,9 @@ def slip_badge(slip_type: str) -> QLabel:
         "blue":  (BLUE_SLIP,  "#E3F2FD"),
     }
     text_map = {
-        "green": "🟢 Green Slip",
-        "pink":  "🔴 Pink Slip",
-        "blue":  "🔵 Blue Slip",
+        "green": "  Green Slip ",
+        "pink":  "  Pink Slip ",
+        "blue":  "  Blue Slip ",
     }
     colour, bg = colours.get(slip_type, (NAVY, LIGHT_GRAY))
     lbl = QLabel(text_map.get(slip_type, "Slip"))
@@ -126,7 +126,7 @@ def search_bar(placeholder: str = "Search...") -> QHBoxLayout:
     row = QHBoxLayout()
     row.setSpacing(10)
 
-    search_icon = QLabel("🔍")
+    search_icon = QLabel("")
     search_icon.setFont(QFont("Segoe UI", 14))
     search_icon.setStyleSheet("background: transparent;")
 
