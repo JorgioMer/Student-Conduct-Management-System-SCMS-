@@ -225,14 +225,10 @@ class HeaderBar(QWidget):
 
     def __init__(self, user_name: str = "Admin", parent=None):
         super().__init__(parent)
+        self.setObjectName("HeaderBar")
         self.setFixedHeight(62)
-        self.setStyleSheet(f"""
-            QWidget {{
-                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                    stop:0 {NAVY_DARK}, stop:1 {NAVY});
-                border-bottom: 3px solid {GOLD};
-            }}
-        """)
+        # Background painted via paintEvent; keep child widgets transparent
+        self.setStyleSheet("QWidget { background: transparent; border: none; }")
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(20, 0, 20, 0)
@@ -246,7 +242,7 @@ class HeaderBar(QWidget):
 
         sys_lbl = QLabel("Office of the Prefect — SCMS")
         sys_lbl.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        sys_lbl.setStyleSheet("color: #000000; background: transparent; letter-spacing: 0.5px;")
+        sys_lbl.setStyleSheet("color: #FFFFFF; background: transparent; letter-spacing: 0.5px;")
 
         lay.addWidget(logo_lbl)
         lay.addWidget(sys_lbl)
@@ -266,7 +262,7 @@ class HeaderBar(QWidget):
         user_lay.setSpacing(8)
 
         avatar = QLabel()
-        avatar.setPixmap(qta.icon("fa5s.user-circle", color=WHITE).pixmap(QSize(20, 20)))
+        avatar.setPixmap(qta.icon("fa5s.user-circle", color="#FFFFFF").pixmap(QSize(20, 20)))
         avatar.setFixedSize(22, 22)
         avatar.setStyleSheet("background: transparent;")
 
@@ -278,13 +274,13 @@ class HeaderBar(QWidget):
         user_lay.addWidget(uname)
 
         logout_btn = QPushButton("  Logout")
-        logout_btn.setIcon(qta.icon("fa5s.sign-out-alt", color=WHITE))
+        logout_btn.setIcon(qta.icon("fa5s.sign-out-alt", color="#FFFFFF"))
         logout_btn.setIconSize(QSize(16, 16))
         logout_btn.setStyleSheet(f"""
             QPushButton {{
                 background: rgba(255,255,255,0.15);
-                color: {WHITE};
-                border: 1px solid rgba(255,255,255,0.4);
+                color: #FFFFFF;
+                border: 1px solid rgba(255,255,255,0.35);
                 border-radius: 6px;
                 padding: 6px 16px;
                 font-size: 12px;
@@ -293,6 +289,7 @@ class HeaderBar(QWidget):
             QPushButton:hover {{
                 background: {RED_ERR};
                 border: 1px solid {RED_ERR};
+                color: {WHITE};
             }}
         """)
         logout_btn.setToolTip("Log out of the system")
@@ -300,6 +297,23 @@ class HeaderBar(QWidget):
 
         lay.addWidget(user_frame)
         lay.addWidget(logout_btn)
+
+    def paintEvent(self, event):
+        """Force-paint the dark red gradient — stylesheet alone won't fill QWidget."""
+        from PyQt5.QtGui import QPainter, QLinearGradient, QColor
+        from PyQt5.QtCore import QRectF
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        grad = QLinearGradient(0, 0, self.width(), 0)
+        grad.setColorAt(0.0, QColor("#5C0A0A"))
+        grad.setColorAt(1.0, QColor("#6B0F0F"))
+        painter.fillRect(self.rect(), grad)
+        # Gold bottom border
+        painter.setPen(QColor(GOLD))
+        painter.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
+        painter.drawLine(0, self.height() - 2, self.width(), self.height() - 2)
+        painter.drawLine(0, self.height() - 3, self.width(), self.height() - 3)
+        painter.end()
 
 
 # ── Sidebar nav button ────────────────────────────────────────────────────────

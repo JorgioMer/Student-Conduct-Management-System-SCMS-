@@ -299,11 +299,10 @@ class BlueSlipPage(BasePage):
         dlg = ConfirmDialog("Confirm Save", "Save this Blue Slip violation record?", parent=self)
         if dlg.exec_():
             try:
-                # Prepare data from form
                 stud_num = self.blue_no.text().strip()
                 stud_name = self.blue_name.text().strip()
-                stud_course = self.blue_section.text().strip()  # Course field
-                stud_year = self.blue_grade.currentText()  # Year/Grade
+                stud_course = self.blue_section.text().strip()
+                stud_year = self.blue_grade.currentText()
                 semester = self.blue_semester.currentText()
                 violation_type = self.blue_vtype.currentText()
                 date_of_violation = self.blue_date.date().toPyDate()
@@ -312,13 +311,12 @@ class BlueSlipPage(BasePage):
                 status = self.blue_status.currentText()
                 violation_desc = self.blue_desc.toPlainText().strip()
                 witnesses = self.blue_witnesses.text().strip()
-                
-                # Save to database (student will be auto-added if doesn't exist)
+
                 add_blue_slip(stud_num, violation_type, date_of_violation, severity,
                              action_taken, status=status, violation_desc=violation_desc,
-                             witnesses=witnesses, stud_name=stud_name, 
+                             witnesses=witnesses, stud_name=stud_name,
                              stud_course=stud_course, stud_year=stud_year, semester=semester)
-                
+
                 InfoDialog("Record Saved",
                            "Blue Slip violation record has been saved successfully!",
                            success=True, parent=self).exec_()
@@ -376,7 +374,6 @@ class BlueSlipPage(BasePage):
 
         table = build_record_table(headers, sample)
 
-        # Color-code Status column
         STATUS_COLORS = {
             "Under Investigation": ("#FFF3CD", "#856404"),
             "Resolved":            ("#D4EDDA", "#155724"),
@@ -399,7 +396,7 @@ class BlueSlipPage(BasePage):
         view_btn = QPushButton("  View Details ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
-        update_btn = QPushButton("✏  Update Status")
+        update_btn = QPushButton("  Update Status")
         update_btn.setStyleSheet(btn_blue())
         update_btn.setFixedHeight(38)
         del_btn = QPushButton("   Delete ")
@@ -440,7 +437,7 @@ class BlueSlipPage(BasePage):
         stud_search = QLineEdit()
         stud_search.setPlaceholderText("Enter student number to view their full violation history")
         stud_search.setFixedHeight(38)
-        stud_search.setFixedWidth(280)
+        stud_search.setFixedWidth(380)
         search_go = QPushButton("   Load History ")
         search_go.setStyleSheet(btn_blue())
         search_go.setFixedHeight(38)
@@ -461,68 +458,108 @@ class BlueSlipPage(BasePage):
         """)
         p_lay = QVBoxLayout(prog_frame)
         p_lay.setContentsMargins(20, 16, 20, 16)
-        p_lay.setSpacing(10)
+        p_lay.setSpacing(8)
 
-        # Sample student profile
+        # Student profile header
         name_lbl = QLabel("Student: Santos, Maria R. — Grade 10, St. Clare  |  Student No. 2024-0045")
         name_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
         name_lbl.setStyleSheet(f"color: {NAVY}; background: transparent;")
-
-        # Progress steps
-        steps = [
-            ("1st Offense", "Verbal Warning", "Nov 5, 2024", True,  False),
-            ("2nd Offense", "Written Warning", "Nov 12, 2024", True,  False),
-            ("3rd Offense", "Parent Meeting + Community Service", "Nov 19, 2024", True,  True),
-            ("4th Offense", "Suspension", "—", False, False),
-            ("5th Offense", "Endorsement / Probation", "—", False, False),
-        ]
-
         p_lay.addWidget(name_lbl)
         p_lay.addWidget(Divider())
 
+        # Steps definition: (label, action, date, done, current)
+        steps = [
+            ("1st Offense", "Verbal Warning",                        "Nov 5, 2024",  True,  False),
+            ("2nd Offense", "Written Warning",                       "Nov 12, 2024", True,  False),
+            ("3rd Offense", "Parent Meeting + Community Service",    "Nov 19, 2024", True,  True),
+            ("4th Offense", "Suspension",                            "",             False, False),
+            ("5th Offense", "Endorsement / Probation",               "",             False, False),
+        ]
+
         for step_name, action, date, done, current in steps:
             s_frame = QFrame()
-            bg = "#E3F2FD" if current else ("#F1F8E9" if done else OFF_WHITE)
-            border_color = RED_ERR if current else (BLUE_SLIP if done else LIGHT_GRAY)
+
+            if current:
+                bg           = "#FFF3E0"
+                border_color = RED_ERR
+                text_color   = "#B71C1C"
+            elif done:
+                bg           = "#F1F8E9"
+                border_color = "#43A047"
+                text_color   = "#1B5E20"
+            else:
+                bg           = "#FAFAFA"
+                border_color = LIGHT_GRAY
+                text_color   = MID_GRAY
+
             s_frame.setStyleSheet(f"""
                 QFrame {{
                     background: {bg};
+                    border: 1px solid {border_color}60;
                     border-left: 4px solid {border_color};
-                    border-radius: 6px;
-                    padding: 2px 4px;
+                    border-radius: 8px;
                 }}
             """)
+            s_frame.setFixedHeight(48)
+
             s_inner = QHBoxLayout(s_frame)
-            s_inner.setContentsMargins(12, 8, 12, 8)
+            s_inner.setContentsMargins(14, 0, 14, 0)
+            s_inner.setSpacing(10)
 
-            status_icon = "" if (done and not current) else ("" if current else "")
-            icon_lbl = QLabel(status_icon)
-            icon_lbl.setFont(QFont("Segoe UI", 14))
-            icon_lbl.setFixedWidth(28)
-            icon_lbl.setStyleSheet("background: transparent;")
+            # Numbered circle badge
+            num_lbl = QLabel(step_name.split()[0][0] + step_name.split()[1][0] if False else step_name[:3].strip())
+            # Clean dot/number indicator
+            dot_lbl = QLabel()
+            dot_lbl.setFixedSize(22, 22)
+            if current:
+                dot_lbl.setStyleSheet(f"""
+                    background: {RED_ERR};
+                    border-radius: 11px;
+                    color: white;
+                """)
+            elif done:
+                dot_lbl.setStyleSheet(f"""
+                    background: #43A047;
+                    border-radius: 11px;
+                    color: white;
+                """)
+            else:
+                dot_lbl.setStyleSheet(f"""
+                    background: {LIGHT_GRAY};
+                    border-radius: 11px;
+                    color: {MID_GRAY};
+                """)
 
-            step_lbl = QLabel(f"<b>{step_name}</b> — {action}")
+            # Step name bold + action
+            step_lbl = QLabel(f"<b>{step_name}</b> &nbsp;—&nbsp; {action}")
             step_lbl.setFont(QFont("Segoe UI", 12))
             step_lbl.setTextFormat(Qt.RichText)
-            step_lbl.setStyleSheet("background: transparent;")
+            step_lbl.setStyleSheet(f"background: transparent; color: {text_color};")
 
-            date_lbl = QLabel(date)
-            date_lbl.setFont(QFont("Segoe UI", 11))
-            date_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+            s_inner.addWidget(dot_lbl)
+            s_inner.addWidget(step_lbl, 1)
 
+            # CURRENT badge
             if current:
-                curr_badge = QLabel("    CURRENT  ")
-                curr_badge.setFont(QFont("Segoe UI", 10, QFont.Bold))
+                curr_badge = QLabel("CURRENT")
+                curr_badge.setFont(QFont("Segoe UI", 9, QFont.Bold))
+                curr_badge.setAlignment(Qt.AlignCenter)
+                curr_badge.setFixedHeight(22)
+                curr_badge.setMinimumWidth(64)
                 curr_badge.setStyleSheet(f"""
                     background: {RED_ERR};
                     color: white;
                     border-radius: 4px;
-                    padding: 2px 6px;
+                    padding: 0px 8px;
                 """)
                 s_inner.addWidget(curr_badge)
 
-            s_inner.addWidget(icon_lbl)
-            s_inner.addWidget(step_lbl, 1)
+            # Date label (right-aligned)
+            date_lbl = QLabel(date if date else "—")
+            date_lbl.setFont(QFont("Segoe UI", 11))
+            date_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            date_lbl.setFixedWidth(100)
+            date_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
             s_inner.addWidget(date_lbl)
 
             p_lay.addWidget(s_frame)
@@ -565,7 +602,7 @@ class BlueSlipPage(BasePage):
         """)
         c_lay = QVBoxLayout(chart_frame)
         c_lay.setAlignment(Qt.AlignCenter)
-        c_icon = QLabel("")
+        c_icon = QLabel("📊")
         c_icon.setFont(QFont("Segoe UI", 48))
         c_icon.setAlignment(Qt.AlignCenter)
         c_icon.setStyleSheet("background: transparent;")
