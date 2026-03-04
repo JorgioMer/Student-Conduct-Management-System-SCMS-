@@ -113,17 +113,8 @@ class DashboardPage(QWidget):
         banner_text.addLayout(greeting_row)
         banner_text.addLayout(date_row)
 
-        # --- Right decorative scale icon --------------------------------------
-        scale_icon = _icon_label("fa5s.balance-scale", size=60, color=f"rgba(201,168,76,0.5)")
-        scale_icon.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        # qtawesome pixmap is fixed-color; use a softer gold directly
-        scale_icon.setPixmap(
-            qta.icon("fa5s.balance-scale", color="#C9A84C")
-            .pixmap(60, 60)
-        )
-
+    
         banner_lay.addLayout(banner_text, 1)
-        banner_lay.addWidget(scale_icon)
         main.addWidget(banner)
 
         # ── Stat tiles row ────────────────────────────────────────────────────

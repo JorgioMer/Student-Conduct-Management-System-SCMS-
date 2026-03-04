@@ -190,7 +190,7 @@ class StatTile(QFrame):
     def __init__(self, label: str, value: str, colour: str, parent=None):
         super().__init__(parent)
         self.setObjectName("StatTile")
-        self.setFixedHeight(90)
+        self.setFixedHeight(110)
         self.setStyleSheet(f"""
             QFrame#StatTile {{
                 background: {WHITE};
@@ -208,12 +208,12 @@ class StatTile(QFrame):
         lay.setSpacing(2)
 
         val_lbl = QLabel(value)
-        val_lbl.setFont(QFont("Segoe UI", 24, QFont.Bold))
+        val_lbl.setFont(QFont("Segoe UI", 32, QFont.Bold))
         val_lbl.setStyleSheet(f"color: {colour}; background: transparent;")
 
         lbl = QLabel(label)
-        lbl.setFont(QFont("Segoe UI", 11))
-        lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+        lbl.setFont(QFont("Segoe UI", 14))
+        lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
 
         lay.addWidget(val_lbl)
         lay.addWidget(lbl)
@@ -234,35 +234,31 @@ class HeaderBar(QWidget):
         lay.setContentsMargins(20, 0, 20, 0)
         lay.setSpacing(12)
 
-        # Logo using qtawesome
-        logo_lbl = QLabel()
-        logo_lbl.setPixmap(qta.icon("fa5s.balance-scale", color=GOLD).pixmap(QSize(28, 28)))
-        logo_lbl.setFixedSize(32, 32)
-        logo_lbl.setStyleSheet("background: transparent;")
+
 
         sys_lbl = QLabel("Office of the Prefect — SCMS")
         sys_lbl.setFont(QFont("Segoe UI", 14, QFont.Bold))
         sys_lbl.setStyleSheet("color: #FFFFFF; background: transparent; letter-spacing: 0.5px;")
 
-        lay.addWidget(logo_lbl)
+        
         lay.addWidget(sys_lbl)
         lay.addStretch()
 
-        # User badge
+    # User badge
         user_frame = QFrame()
         user_frame.setStyleSheet(f"""
             QFrame {{
                 background: rgba(255,255,255,0.12);
-                border-radius: 20px;
-                padding: 2px 4px;
+                border-radius: 8px;
+                padding: 0px;
             }}
         """)
         user_lay = QHBoxLayout(user_frame)
-        user_lay.setContentsMargins(10, 4, 10, 4)
-        user_lay.setSpacing(8)
+        user_lay.setContentsMargins(14, 6, 14, 6)
+        user_lay.setSpacing(10)
 
         avatar = QLabel()
-        avatar.setPixmap(qta.icon("fa5s.user-circle", color="#FFFFFF").pixmap(QSize(20, 20)))
+        avatar.setPixmap(qta.icon("fa5s.user-circle", color="#FFFFFF").pixmap(QSize(22, 22)))
         avatar.setFixedSize(22, 22)
         avatar.setStyleSheet("background: transparent;")
 
@@ -275,15 +271,15 @@ class HeaderBar(QWidget):
 
         logout_btn = QPushButton("  Logout")
         logout_btn.setIcon(qta.icon("fa5s.sign-out-alt", color="#FFFFFF"))
-        logout_btn.setIconSize(QSize(16, 16))
+        logout_btn.setIconSize(QSize(20, 20))
         logout_btn.setStyleSheet(f"""
             QPushButton {{
                 background: rgba(255,255,255,0.15);
                 color: #FFFFFF;
                 border: 1px solid rgba(255,255,255,0.35);
-                border-radius: 6px;
-                padding: 6px 16px;
-                font-size: 12px;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 15px;
                 font-weight: bold;
             }}
             QPushButton:hover {{

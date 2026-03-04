@@ -29,7 +29,7 @@ GLOBAL_STYLE = f"""
 /* ── Base ────────────────────────────────────────────────────────────────── */
 QWidget {{
     font-family: "Segoe UI", "Calibri", sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     color: {TEXT_DARK};
     background-color: {OFF_WHITE};
 }}
@@ -76,7 +76,7 @@ QLineEdit {{
     border: 1.5px solid {LIGHT_GRAY};
     border-radius: 6px;
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: 15px;
     color: {TEXT_DARK};
     selection-background-color: {GOLD};
 }}
@@ -98,7 +98,7 @@ QComboBox {{
     border: 1.5px solid {LIGHT_GRAY};
     border-radius: 6px;
     padding: 7px 12px;
-    font-size: 13px;
+    font-size: 15px;
     color: {TEXT_DARK};
 }}
 QComboBox:focus {{
@@ -126,7 +126,7 @@ QDateEdit {{
     border: 1.5px solid {LIGHT_GRAY};
     border-radius: 6px;
     padding: 7px 12px;
-    font-size: 13px;
+    font-size: 15px;
     color: {TEXT_DARK};
 }}
 QDateEdit:focus {{
@@ -143,7 +143,7 @@ QSpinBox {{
     border: 1.5px solid {LIGHT_GRAY};
     border-radius: 6px;
     padding: 7px 12px;
-    font-size: 13px;
+    font-size: 15px;
 }}
 QSpinBox:focus {{
     border: 1.5px solid {NAVY};
@@ -155,7 +155,7 @@ QTextEdit, QPlainTextEdit {{
     border: 1.5px solid {LIGHT_GRAY};
     border-radius: 6px;
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: 15px;
     color: {TEXT_DARK};
 }}
 QTextEdit:focus, QPlainTextEdit:focus {{
@@ -169,7 +169,7 @@ QTableWidget {{
     border-radius: 8px;
     gridline-color: {LIGHT_GRAY};
     outline: none;
-    font-size: 13px;
+    font-size: 15px;
 }}
 QTableWidget::item {{
     padding: 8px 10px;
@@ -187,7 +187,7 @@ QHeaderView::section {{
     color: {WHITE};
     padding: 10px 12px;
     border: none;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
     letter-spacing: 0.5px;
 }}
@@ -212,7 +212,7 @@ QTabBar::tab {{
     margin-right: 3px;
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
 }}
 QTabBar::tab:selected {{
@@ -231,7 +231,7 @@ QMessageBox {{
 }}
 QMessageBox QLabel {{
     color: {TEXT_DARK};
-    font-size: 13px;
+    font-size: 15px;
 }}
 
 /* ── Group Box ───────────────────────────────────────────────────────────── */
@@ -252,13 +252,13 @@ QGroupBox::title {{
     padding: 0 6px;
     background: {WHITE};
     color: {NAVY};
-    font-size: 13px;
+    font-size: 14px;
 }}
 
 /* ── Checkboxes / Radio ──────────────────────────────────────────────────── */
 QCheckBox, QRadioButton {{
     spacing: 8px;
-    font-size: 13px;
+    font-size: 15px;
     color: {TEXT_DARK};
 }}
 QCheckBox::indicator, QRadioButton::indicator {{
@@ -286,7 +286,7 @@ QSplitter::handle {{
 QStatusBar {{
     background: {NAVY_DARK};
     color: {WHITE};
-    font-size: 11px;
+    font-size: 13px;
     padding: 2px 8px;
 }}
 """
@@ -301,7 +301,7 @@ def btn_primary():
         border: none;
         border-radius: 7px;
         padding: 10px 24px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: bold;
         letter-spacing: 0.3px;
     }}
@@ -325,7 +325,7 @@ def btn_gold():
         border: none;
         border-radius: 7px;
         padding: 10px 24px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: bold;
     }}
     QPushButton:hover {{
@@ -344,7 +344,7 @@ def btn_danger():
         border: none;
         border-radius: 7px;
         padding: 10px 24px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: bold;
     }}
     QPushButton:hover {{
@@ -363,7 +363,7 @@ def btn_outline():
         border: 1.5px solid {NAVY};
         border-radius: 7px;
         padding: 9px 22px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: 500;
     }}
     QPushButton:hover {{
@@ -384,7 +384,7 @@ def btn_green():
         border: none;
         border-radius: 7px;
         padding: 10px 24px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: bold;
     }}
     QPushButton:hover {{
@@ -403,7 +403,7 @@ def btn_pink():
         border: none;
         border-radius: 7px;
         padding: 10px 24px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: bold;
     }}
     QPushButton:hover {{
@@ -422,7 +422,7 @@ def btn_blue():
         border: none;
         border-radius: 7px;
         padding: 10px 24px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: bold;
     }}
     QPushButton:hover {{
