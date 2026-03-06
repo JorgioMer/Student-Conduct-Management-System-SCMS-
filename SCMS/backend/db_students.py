@@ -1,15 +1,15 @@
 from .db_connection import get_connection
 
 
-def add_student(stud_num, name, course, year, semester, school_yr, status):
+def add_student(stud_num, name, course, year, school_yr, status):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO Students 
         (studNumber, studName, studCourse, 
-         studYrLvl, semester, schoolYr, studStatus)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (stud_num, name, course, year, semester, school_yr, status))
+         studYrLvl, schoolYr, studStatus)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (stud_num, name, course, year, school_yr, status))
     conn.commit()
     conn.close()
 
@@ -20,7 +20,7 @@ def get_student(student_number):
     cursor.execute("""
         SELECT studNumber, studName, 
                studCourse, studYrLvl,
-               semester, schoolYr, studStatus
+               schoolYr, studStatus
         FROM Students
         WHERE studNumber = ?
     """, (student_number,))
@@ -29,7 +29,7 @@ def get_student(student_number):
     return row
 
 
-def add_student_if_not_exists(stud_num, name="", course="", year="", semester="", school_yr="", status="Active"):
+def add_student_if_not_exists(stud_num, name="", course="", year="", school_yr="", status="Active"):
     """
     Add a student to the database if they don't already exist.
     Only requires studNumber; other fields can be partial or empty.
@@ -52,10 +52,10 @@ def add_student_if_not_exists(stud_num, name="", course="", year="", semester=""
             cursor.execute("""
                 INSERT INTO Students 
                 (studNumber, studName, studCourse, 
-                 studYrLvl, semester, schoolYr, studStatus)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                 studYrLvl, schoolYr, studStatus)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (stud_num, name or "", course or "", year or "", 
-                  semester or "", school_yr or "", status or "Active"))
+                  school_yr or "", status or "Active"))
             conn.commit()
             return True  # Student was added
         

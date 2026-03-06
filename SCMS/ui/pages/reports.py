@@ -109,15 +109,35 @@ class ReportsPage(BasePage):
 
         lay.addWidget(SectionTitle("Monthly Overview — November 2024"))
 
-        # Big stat tiles
+        # Big stat tiles - calculate from real data
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        
+        green_slips = get_green_slips(None) or []
+        pink_slips = get_pink_slips(None) or []
+        blue_slips = get_blue_slips(None) or []
+        
+        green_count = len(green_slips)
+        pink_count = len(pink_slips)
+        blue_count = len(blue_slips)
+        total_records = green_count + pink_count + blue_count
+        
+        # Count unique students
+        all_students = set()
+        for r in green_slips + pink_slips + blue_slips:
+            if len(r) > 1:
+                all_students.add(r[1])
+        students_involved = len(all_students)
+        
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(16)
         for label, val, colour, icon in [
-            ("Green Slips Issued",     "24", GREEN_SLIP, ""),
-            ("Pink Slips Issued",      "11", PINK_SLIP,  ""),
-            ("Blue Slips / Violations","8",  BLUE_SLIP,  ""),
-            ("Total Records Filed",    "43", NAVY,       ""),
-            ("Students Involved",      "38", GOLD,       ""),
+            ("Green Slips Issued",     str(green_count), GREEN_SLIP, ""),
+            ("Pink Slips Issued",      str(pink_count), PINK_SLIP,  ""),
+            ("Blue Slips / Violations",str(blue_count),  BLUE_SLIP,  ""),
+            ("Total Records Filed",    str(total_records), NAVY,       ""),
+            ("Students Involved",      str(students_involved), GOLD,       ""),
         ]:
             tile = StatTile(f"{icon}  {label}", val, colour)
             tiles_row.addWidget(tile)
@@ -177,45 +197,100 @@ class ReportsPage(BasePage):
 
     # ── Green Slip Report ─────────────────────────────────────────────────────
     def _build_green_report(self) -> QWidget:
+        from backend.db_green_slip import get_green_slips
+        from backend.db_students import get_student
+        
+        # Fetch real green slip records
+        green_records = get_green_slips(None) or []
+        rows = []
+        for record in green_records[:5]:  # Limit to 5
+            try:
+                stud_num = record[1] if len(record) > 1 else "N/A"
+                stud_info = get_student(stud_num)
+                stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
+                grade = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
+                is_disp = record[2] if len(record) > 2 else False
+                slip_type = "Dispensation" if is_disp else "Excuse"
+                date = str(record[3])[:10] if len(record) > 3 else "N/A"
+                days_reason = str(record[4]) if len(record) > 4 else "N/A"
+                status = record[5] if len(record) > 5 else "Active"
+                rows.append((stud_num, stud_name, grade, slip_type, date, days_reason, status))
+            except:
+                pass
+        
+        if not rows:
+            rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
+        
         return self._build_slip_report_tab(
             "green", "Green Slip Monthly Report",
             "Dispensation and Excuse slips issued this month",
             GREEN_SLIP, "#E8F5E9",
             ["Student No.", "Student Name", "Grade", "Type", "Date", "Days/Reason", "Status"],
-            [
-                ("2024-0001", "Dela Cruz, Juan", "Gr.9", "Dispensation", "Nov 20", "2 days", "Active"),
-                ("2024-0078", "Lim, Angela C.",  "Gr.8", "Excuse",       "Nov 17", "Medical","Done"),
-                ("2024-0200", "Torres, Liza F.", "Gr.11","Dispensation", "Nov 14", "1 day",  "Active"),
-                ("2024-0212", "Flores, Anna M.", "Gr.7", "Excuse",       "Nov 12", "Family", "Done"),
-                ("2024-0305", "Ocampo, Jose R.", "Gr.10","Dispensation", "Nov 8",  "3 days", "Expired"),
-            ]
+            rows
         )
 
     def _build_pink_report(self) -> QWidget:
+        from backend.db_pink_slip import get_pink_slips
+        from backend.db_students import get_student
+        
+        # Fetch real pink slip records
+        pink_records = get_pink_slips(None) or []
+        rows = []
+        for record in pink_records[:5]:  # Limit to 5
+            try:
+                stud_num = record[1] if len(record) > 1 else "N/A"
+                stud_info = get_student(stud_num)
+                stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
+                grade = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
+                violation = record[3] if len(record) > 3 else "N/A"
+                date = str(record[2])[:10] if len(record) > 2 else "N/A"
+                action = record[4] if len(record) > 4 else "N/A"
+                status = "Done"  # Pink slips are typically completed
+                rows.append((stud_num, stud_name, grade, violation, date, action, status))
+            except:
+                pass
+        
+        if not rows:
+            rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
+        
         return self._build_slip_report_tab(
             "pink", "Pink Slip Monthly Report",
             "Penalty slips issued this month (one per student per semester)",
             PINK_SLIP, "#FCE4EC",
             ["Student No.", "Student Name", "Grade", "Violation", "Date Issued", "Action Taken", "Status"],
-            [
-                ("2024-0033", "Garcia, Paolo B.",  "Gr.11", "Uniform",   "Nov 15", "Warning",        "Done"),
-                ("2024-0112", "Reyes, Carlo L.",   "Gr.9",  "Tardiness", "Nov 10", "Parent Notif.",   "Done"),
-                ("2024-0256", "Aquino, Diana P.",  "Gr.10", "Misconduct","Oct 25", "Community Svc.",  "Done"),
-            ]
+            rows
         )
 
     def _build_blue_report(self) -> QWidget:
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_students import get_student
+        
+        # Fetch real blue slip records
+        blue_records = get_blue_slips(None) or []
+        rows = []
+        for record in blue_records[:5]:  # Limit to 5
+            try:
+                stud_num = record[1] if len(record) > 1 else "N/A"
+                stud_info = get_student(stud_num)
+                stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
+                grade = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
+                violation = record[2] if len(record) > 2 else "N/A"
+                severity = record[5] if len(record) > 5 else "N/A"
+                date = str(record[3])[:10] if len(record) > 3 else "N/A"
+                status = record[7] if len(record) > 7 else "Open"
+                rows.append((stud_num, stud_name, grade, violation, severity, date, status))
+            except:
+                pass
+        
+        if not rows:
+            rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
+        
         return self._build_slip_report_tab(
             "blue", "Blue Slip Monthly Report",
             "Violation records and disciplinary actions taken this month",
             BLUE_SLIP, "#E3F2FD",
             ["Student No.", "Student Name", "Grade", "Violation", "Severity", "Date", "Status"],
-            [
-                ("2024-0045", "Santos, Maria R.",  "Gr.10", "Bullying",         "Level 3", "Nov 19", "Pending"),
-                ("2024-0033", "Garcia, Paolo B.",  "Gr.11", "Skipping Class",   "Level 1", "Nov 15", "Resolved"),
-                ("2024-0199", "Mendoza, Lara K.",  "Gr.9",  "Disrespect",       "Level 2", "Nov 12", "Done"),
-                ("2024-0310", "Villanueva, R. A.", "Gr.12", "Cheating",         "Level 3", "Nov 8",  "Escalated"),
-            ]
+            rows
         )
 
     def _build_slip_report_tab(self, slip_type, title, subtitle, colour, bg,
@@ -288,17 +363,64 @@ class ReportsPage(BasePage):
 
         headers = ["Rank", "Student No.", "Student Name", "Grade",
                    "Green Slips", "Pink Slips", "Blue Slips", "Total"]
-        sample = [
-            ("1", "2024-0045", "Santos, Maria R.",    "Grade 10", "1", "0", "1", "2"),
-            ("2", "2024-0033", "Garcia, Paolo B.",    "Grade 11", "0", "1", "1", "2"),
-            ("3", "2024-0001", "Dela Cruz, Juan M.",  "Grade 9",  "2", "0", "0", "2"),
-            ("4", "2024-0310", "Villanueva, R. A.",   "Grade 12", "0", "0", "1", "1"),
-            ("5", "2024-0112", "Reyes, Carlo L.",     "Grade 9",  "0", "1", "0", "1"),
-            ("6", "2024-0199", "Mendoza, Lara K.",    "Grade 9",  "0", "0", "1", "1"),
-            ("7", "2024-0078", "Lim, Angela C.",      "Grade 8",  "1", "0", "0", "1"),
-            ("8", "2024-0200", "Torres, Liza F.",     "Grade 11", "1", "0", "0", "1"),
-        ]
-
+        
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        from backend.db_students import get_student
+        
+        # Count records by student
+        student_counts = {}
+        try:
+            for record in get_green_slips(None) or []:
+                stud_num = record[1] if len(record) > 1 else None
+                if stud_num:
+                    if stud_num not in student_counts:
+                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
+                    student_counts[stud_num]["green"] += 1
+                    if not student_counts[stud_num]["info"]:
+                        student_counts[stud_num]["info"] = get_student(stud_num)
+            
+            for record in get_pink_slips(None) or []:
+                stud_num = record[1] if len(record) > 1 else None
+                if stud_num:
+                    if stud_num not in student_counts:
+                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
+                    student_counts[stud_num]["pink"] += 1
+                    if not student_counts[stud_num]["info"]:
+                        student_counts[stud_num]["info"] = get_student(stud_num)
+            
+            for record in get_blue_slips(None) or []:
+                stud_num = record[1] if len(record) > 1 else None
+                if stud_num:
+                    if stud_num not in student_counts:
+                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
+                    student_counts[stud_num]["blue"] += 1
+                    if not student_counts[stud_num]["info"]:
+                        student_counts[stud_num]["info"] = get_student(stud_num)
+        except:
+            pass
+        
+        # Sort by total slips
+        sorted_students = sorted(student_counts.items(), 
+                               key=lambda x: x[1]["green"] + x[1]["pink"] + x[1]["blue"], 
+                               reverse=True)
+        
+        sample = []
+        for rank, (stud_num, counts) in enumerate(sorted_students[:8], 1):
+            try:
+                info = counts["info"]
+                stud_name = info[1] if info and len(info) > 1 else "Unknown"
+                grade = info[3] if info and len(info) > 3 else "N/A"
+                total = counts["green"] + counts["pink"] + counts["blue"]
+                sample.append((str(rank), stud_num, stud_name, grade, 
+                             str(counts["green"]), str(counts["pink"]), str(counts["blue"]), str(total)))
+            except:
+                pass
+        
+        if not sample:
+            sample = [("1", "No records", "Add records to see them here", "-", "0", "0", "0", "0")]
+        
         t = build_record_table(headers, sample)
         t.setMinimumHeight(300)
         lay.addWidget(t)

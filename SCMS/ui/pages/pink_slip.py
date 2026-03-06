@@ -31,6 +31,8 @@ from backend.db_pink_slip import add_pink_slip, get_pink_slips
 class PinkSlipPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.pink_tracker_table = None
+        self.pink_tracker_layout = None
         self._build()
 
     def _build(self):
@@ -248,6 +250,7 @@ class PinkSlipPage(BasePage):
                 # Prepare data from form
                 stud_num = self.pink_no.text().strip()
                 stud_name = self.pink_name.text().strip()
+                stud_section = self.pink_section.text().strip()
                 stud_grade = self.pink_grade.currentText()
                 date_issued = self.pink_date.date().toPyDate()
                 violation = self.pink_violation.currentText()
@@ -259,11 +262,13 @@ class PinkSlipPage(BasePage):
                 # Save to database (student will be auto-added if doesn't exist)
                 add_pink_slip(stud_num, date_issued, violation, action_taken, officer,
                              sem=sem, remarks=remarks, stud_name=stud_name, 
-                             stud_course="", stud_year=stud_grade)
+                             stud_course=stud_section, stud_year=stud_grade)
                 
                 InfoDialog("Record Saved",
                            "Pink Slip record has been saved successfully!",
                            success=True, parent=self).exec_()
+                # Refresh tracker tab
+                self._refresh_pink_tracker()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
@@ -271,6 +276,53 @@ class PinkSlipPage(BasePage):
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
+
+    def _load_pink_tracker_data(self):
+        """Load pink slip data from database"""
+        from backend.db_pink_slip import get_pink_slips
+        from backend.db_students import get_student
+        
+        sample = []
+        try:
+            pink_slips = get_pink_slips(None) or []
+            for record in pink_slips:
+                try:
+                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, dateIssued_pink, ...)
+                    stud_name = record[0] if len(record) > 0 else "N/A"
+                    stud_course = record[1] if len(record) > 1 else "N/A"
+                    stud_year = record[2] if len(record) > 2 else "N/A"
+                    stud_num = record[4] if len(record) > 4 else "N/A"
+                    date = str(record[5]) if len(record) > 5 else "N/A"
+                    violation = record[6] if len(record) > 6 else "N/A"
+                    action = record[7] if len(record) > 7 else "N/A"
+                    officer = record[8] if len(record) > 8 else "N/A"
+                    sample.append((stud_num, stud_name, stud_year, stud_course, record[9] if len(record) > 9 else "N/A", date[:10], violation, action, officer))
+                except:
+                    pass
+        except:
+            pass
+        
+        if not sample:
+            sample = [("No records", "Add records to see them here", "-", "-", "-", "-", "-", "-", "-")]
+        
+        return sample
+
+    def _refresh_pink_tracker(self):
+        """Refresh the pink slip tracker table"""
+        if self.pink_tracker_table is not None:
+            headers = ["Student No.", "Student Name", "Grade", "Section",
+                       "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
+            data = self._load_pink_tracker_data()
+            
+            # Clear and rebuild table
+            self.pink_tracker_table.setRowCount(0)
+            for row_data in data:
+                row_idx = self.pink_tracker_table.rowCount()
+                self.pink_tracker_table.insertRow(row_idx)
+                for col_idx, value in enumerate(row_data):
+                    item = QTableWidgetItem(str(value))
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.pink_tracker_table.setItem(row_idx, col_idx, item)
 
     # ── Tracker tab ───────────────────────────────────────────────────────────
     def _build_tracker_tab(self) -> QWidget:
@@ -300,22 +352,17 @@ class PinkSlipPage(BasePage):
         refresh_btn = QPushButton("   Refresh ")
         refresh_btn.setStyleSheet(btn_outline())
         refresh_btn.setFixedHeight(38)
+        refresh_btn.clicked.connect(self._refresh_pink_tracker)
         top_row.addWidget(refresh_btn)
         lay.addLayout(top_row)
 
         headers = ["Student No.", "Student Name", "Grade", "Section",
                    "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
-        sample = [
-            ("2024-0033", "Garcia, Paolo B.", "Grade 11", "St. Luke",
-             "1st Sem 24–25", "Nov 15, 2024", "Uniform Violation", "Warning", "Ms. Reyes"),
-            ("2024-0112", "Reyes, Carlo L.",  "Grade 9",  "St. Mark",
-             "1st Sem 24–25", "Nov 10, 2024", "Tardiness",        "Parent Notif.", "Mr. Santos"),
-            ("2024-0256", "Aquino, Diana P.", "Grade 10", "St. John",
-             "1st Sem 24–25", "Oct 25, 2024", "Misconduct",       "Community Svc.", "Ms. Cruz"),
-        ]
-        table = build_record_table(headers, sample)
-        table.setMinimumHeight(260)
-        lay.addWidget(table)
+        sample = self._load_pink_tracker_data()
+        
+        self.pink_tracker_table = build_record_table(headers, sample)
+        self.pink_tracker_table.setMinimumHeight(260)
+        lay.addWidget(self.pink_tracker_table)
 
         action_row = QHBoxLayout()
         action_row.addStretch()
@@ -341,13 +388,27 @@ class PinkSlipPage(BasePage):
 
         lay.addWidget(SectionTitle("Pink Slip Summary"))
 
+        # Calculate real statistics
+        from backend.db_pink_slip import get_pink_slips
+        pink_records = get_pink_slips(None) or []
+        total_pink = len(pink_records)
+        unique_students_pink = len(set(r[1] for r in pink_records if len(r) > 1))
+        
+        # Find most common violation
+        violation_counts = {}
+        for r in pink_records:
+            if len(r) > 3:
+                violation = str(r[3])
+                violation_counts[violation] = violation_counts.get(violation, 0) + 1
+        most_common = max(violation_counts.items(), key=lambda x: x[1])[0] if violation_counts else "—"
+        
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
         for label, val, colour in [
-            ("Total Pink Slips (Sem)",   "11", PINK_SLIP),
-            ("Students Issued",          "11", "#C2185B"),
-            ("Most Common Violation",    "—",  "#880E4F"),
-            ("Pending Action",           "3",  "#F57F17"),
+            ("Total Pink Slips (Sem)",   str(total_pink), PINK_SLIP),
+            ("Students Issued",          str(unique_students_pink), "#C2185B"),
+            ("Most Common Violation",    most_common, "#880E4F"),
+            ("Pending Action",           "0", "#F57F17"),
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)

@@ -75,15 +75,35 @@ class TrackersPage(BasePage):
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(14)
 
-        # Stat summary
+        # Stat summary - calculate from real data
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        
+        green_slips = get_green_slips(None) or []
+        pink_slips = get_pink_slips(None) or []
+        blue_slips = get_blue_slips(None) or []
+        
+        green_count = len(green_slips)
+        pink_count = len(pink_slips)
+        blue_count = len(blue_slips)
+        total_records = green_count + pink_count + blue_count
+        
+        # Count unique students
+        all_students = set()
+        for r in green_slips + pink_slips + blue_slips:
+            if len(r) > 1:
+                all_students.add(r[1])
+        students_tracked = len(all_students)
+        
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
         for label, val, colour in [
-            ("Green Slips",  "35", GREEN_SLIP),
-            ("Pink Slips",   "11", PINK_SLIP),
-            ("Blue Slips",   "8",  BLUE_SLIP),
-            ("Total Records","54", NAVY),
-            ("Students Tracked","43", GOLD),
+            ("Green Slips",  str(green_count), GREEN_SLIP),
+            ("Pink Slips",   str(pink_count), PINK_SLIP),
+            ("Blue Slips",   str(blue_count),  BLUE_SLIP),
+            ("Total Records",str(total_records), NAVY),
+            ("Students Tracked",str(students_tracked), GOLD),
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)
@@ -125,19 +145,59 @@ class TrackersPage(BasePage):
         filter_row.addWidget(filter_btn)
         lay.addLayout(filter_row)
 
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        from backend.db_students import get_student
+        
         headers = ["#", "Student No.", "Student Name", "Grade", "Section",
                    "Slip Type", "Date Filed", "Details", "Status"]
-        sample = [
-            ("1", "2024-0001", "Dela Cruz, Juan M.",   "Grade 9",  "St. Thomas", "🟢 Green (Disp.)", "Nov 20, 2024", "2-day dispensation", "Active"),
-            ("2", "2024-0045", "Santos, Maria R.",     "Grade 10", "St. Clare",  "🔵 Blue Slip",      "Nov 19, 2024", "Bullying – Level 3", "Pending"),
-            ("3", "2024-0112", "Reyes, Carlo L.",      "Grade 9",  "St. Mark",   "🔴 Pink Slip",      "Nov 18, 2024", "Tardiness",          "Completed"),
-            ("4", "2024-0078", "Lim, Angela C.",       "Grade 8",  "St. Agnes",  "🟢 Green (Excuse)", "Nov 17, 2024", "Medical",            "Completed"),
-            ("5", "2024-0033", "Garcia, Paolo B.",     "Grade 11", "St. Luke",   "🔵 Blue Slip",      "Nov 15, 2024", "Skipping class",     "Resolved"),
-            ("6", "2024-0200", "Torres, Liza F.",      "Grade 11", "St. Joseph", "🟢 Green (Disp.)", "Nov 14, 2024", "1-day dispensation", "Active"),
-            ("7", "2024-0256", "Aquino, Diana P.",     "Grade 10", "St. John",   "🔴 Pink Slip",      "Oct 25, 2024", "Misconduct",         "Completed"),
-            ("8", "2024-0310", "Villanueva, R. A.",    "Grade 12", "St. Peter",  "🔵 Blue Slip",      "Nov 8, 2024",  "Cheating – Level 3", "Escalated"),
-        ]
-
+        sample = []
+        
+        # Fetch real records
+        all_records = []
+        try:
+            for i, record in enumerate(get_blue_slips(None) or []):
+                all_records.append(("blue", record))
+            for i, record in enumerate(get_green_slips(None) or []):
+                all_records.append(("green", record))
+            for i, record in enumerate(get_pink_slips(None) or []):
+                all_records.append(("pink", record))
+        except:
+            pass
+        
+        for i, (slip_type, record) in enumerate(all_records[:8], 1):
+            try:
+                stud_num = record[1] if len(record) > 1 else "N/A"
+                stud_info = get_student(stud_num)
+                stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
+                grade = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
+                section = stud_info[2] if stud_info and len(stud_info) > 2 else "N/A"
+                
+                if slip_type == "blue":
+                    slip_label = "🔵 Blue Slip"
+                    details = record[4] if len(record) > 4 else "N/A"
+                    date = str(record[3]) if len(record) > 3 else "N/A"
+                    status = record[7] if len(record) > 7 else "Open / Pending"
+                elif slip_type == "green":
+                    is_disp = record[2] if len(record) > 2 else False
+                    slip_label = "🟢 Green (Disp.)" if is_disp else "🟢 Green (Excuse)"
+                    details = str(record[4]) if len(record) > 4 else "N/A"
+                    date = str(record[3]) if len(record) > 3 else "N/A"
+                    status = record[5] if len(record) > 5 else "Active"
+                else:  # pink
+                    slip_label = "🔴 Pink Slip"
+                    details = record[3] if len(record) > 3 else "N/A"
+                    date = str(record[2]) if len(record) > 2 else "N/A"
+                    status = "Completed"
+                
+                sample.append((str(i), stud_num, stud_name, grade, section, slip_label, date[:10], details, status))
+            except:
+                pass
+        
+        if not sample:
+            sample = [("1", "No records", "Add records to see them here", "-", "-", "-", "-", "-", "-")]
+        
         table = build_record_table(headers, sample)
         # Color the slip type column
         SLIP_COLORS = {
@@ -205,7 +265,7 @@ class TrackersPage(BasePage):
         s_lay.addWidget(clear_btn)
         lay.addWidget(search_frame)
 
-        # Profile card (sample)
+        # Profile card (empty until search)
         profile = QFrame()
         profile.setStyleSheet(f"""
             QFrame {{
@@ -224,35 +284,22 @@ class TrackersPage(BasePage):
         p_lay.addWidget(profile_lbl, 0, 0, 1, 4)
         p_lay.addWidget(Divider(), 1, 0, 1, 4)
 
-        fields = [
-            ("Student No.:", "2024-0045"),     ("Name:", "Santos, Maria R."),
-            ("Grade:",       "Grade 10"),       ("Section:", "St. Clare"),
-            ("Green Slips:", "1"),              ("Pink Slips:", "0"),
-            ("Blue Slips:",  "1"),              ("Total Slips:", "2"),
-        ]
-        for i, (label, value) in enumerate(fields):
-            row, col_pair = divmod(i, 2)
-            lbl_w = QLabel(label)
-            lbl_w.setFont(QFont("Segoe UI", 11))
-            lbl_w.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
-            val_w = QLabel(value)
-            val_w.setFont(QFont("Segoe UI", 12, QFont.Bold))
-            val_w.setStyleSheet(f"color: {NAVY}; background: transparent;")
-            p_lay.addWidget(lbl_w, row + 2, col_pair * 2)
-            p_lay.addWidget(val_w, row + 2, col_pair * 2 + 1)
+        # Show empty state initially
+        empty_label = QLabel("Search for a student number to view their profile")
+        empty_label.setAlignment(Qt.AlignCenter)
+        empty_label.setStyleSheet(f"color: {MID_GRAY}; background: transparent; padding: 30px;")
+        p_lay.addWidget(empty_label, 2, 0, 1, 4)
 
         lay.addWidget(profile)
 
         # Slip history table
         lay.addWidget(SectionTitle("Slip History"))
         headers = ["Slip Type", "Date", "Details", "Status", "Officer"]
-        sample = [
-            ("🟢 Green (Excuse)", "Nov 19, 2024", "Medical / Illness", "Completed", "Ms. Reyes"),
-            ("🔵 Blue Slip",      "Nov 19, 2024", "Bullying – Level 3","Pending",   "Mr. Santos"),
-        ]
-        t = build_record_table(headers, sample)
-        t.setFixedHeight(150)
-        lay.addWidget(t)
+        sample = []
+        empty_label = QLabel("Perform a search to view slip history")
+        empty_label.setAlignment(Qt.AlignCenter)
+        empty_label.setStyleSheet(f"color: {MID_GRAY}; padding: 30px;")
+        lay.addWidget(empty_label)
         lay.addStretch()
         return w
 
@@ -285,11 +332,26 @@ class TrackersPage(BasePage):
         # Stat tiles
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
+        
+        # Calculate real statistics
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        
+        green_slips = get_green_slips(None) or []
+        pink_slips = get_pink_slips(None) or []
+        blue_slips = get_blue_slips(None) or []
+        
+        green_count = len(green_slips)
+        pink_count = len(pink_slips)
+        blue_count = len(blue_slips)
+        total_count = green_count + pink_count + blue_count
+        
         for label, val, colour in [
-            ("Green Slips", "24", GREEN_SLIP),
-            ("Pink Slips",  "11", PINK_SLIP),
-            ("Blue Slips",  "8",  BLUE_SLIP),
-            ("Total",       "43", NAVY),
+            ("Green Slips", str(green_count), GREEN_SLIP),
+            ("Pink Slips",  str(pink_count), PINK_SLIP),
+            ("Blue Slips",  str(blue_count),  BLUE_SLIP),
+            ("Total",       str(total_count), NAVY),
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)

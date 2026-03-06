@@ -32,6 +32,7 @@ from backend.db_students import add_student, get_student
 class GreenSlipPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.green_tracker_table = None
         self._build()
 
     def _build(self):
@@ -259,6 +260,7 @@ class GreenSlipPage(BasePage):
                 # Prepare data from form
                 stud_num = self.disp_stud_no.text().strip()
                 stud_name = self.disp_stud_name.text().strip()
+                stud_section = self.disp_section.text().strip() if hasattr(self, 'disp_section') else ""
                 stud_grade = self.disp_grade.currentText()  # e.g., "Grade 9"
                 slip_type = "Dispensation"
                 date_avail = self.disp_date.date().toPyDate()
@@ -277,12 +279,14 @@ class GreenSlipPage(BasePage):
                 add_green_slip(stud_num, slip_type, date_avail, days, status,
                               expiry, purpose, remarks, absence_type,
                               dates_absence, supp_doc, auth_by, 
-                              stud_name=stud_name, stud_course="", stud_year=stud_grade, semester=semester)
+                              stud_name=stud_name, stud_course=stud_section, stud_year=stud_grade)
                 
                 InfoDialog("Record Saved",
                            "Dispensation Green Slip record has been saved successfully!",
                            success=True, parent=self).exec_()
                 self._clear_dispensation()
+                # Refresh tracker tab
+                self._refresh_green_tracker()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
@@ -311,6 +315,7 @@ class GreenSlipPage(BasePage):
                 # Prepare data from form
                 stud_num = self.exc_stud_no.text().strip()
                 stud_name = self.exc_stud_name.text().strip()
+                stud_section = self.exc_section.text().strip()  # Get section
                 stud_grade = self.exc_grade.currentText()
                 slip_type = "Excuse"  # Set to Excuse for this tab
                 date_avail = self.exc_date.date().toPyDate()
@@ -329,18 +334,66 @@ class GreenSlipPage(BasePage):
                 add_green_slip(stud_num, slip_type, date_avail, days, status,
                               expiry, purpose, remarks, absence_type,
                               dates_absence, supp_doc, auth_by,
-                              stud_name=stud_name, stud_course="", stud_year=stud_grade, semester=semester)
+                              stud_name=stud_name, stud_course=stud_section, stud_year=stud_grade)
                 
                 InfoDialog("Record Saved",
                            "Excuse Green Slip record has been saved successfully!",
                            success=True, parent=self).exec_()
                 self._clear_excuse()
+                # Refresh tracker tab
+                self._refresh_green_tracker()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
 
-    # ── Excuse tab ────────────────────────────────────────────────────────────
+    def _load_green_tracker_data(self):
+        """Load green slip data from database"""
+        from backend.db_green_slip import get_green_slips
+        from backend.db_students import get_student
+        
+        sample = []
+        try:
+            green_slips = get_green_slips(None) or []
+            for record in green_slips:
+                try:
+                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, slipType_green, ...)
+                    stud_name = record[0] if len(record) > 0 else "N/A"
+                    stud_course = record[1] if len(record) > 1 else "N/A"
+                    stud_year = record[2] if len(record) > 2 else "N/A"
+                    stud_num = record[4] if len(record) > 4 else "N/A"
+                    is_disp = record[5] if len(record) > 5 else False
+                    slip_type = "Dispensation" if is_disp else "Excuse"
+                    date_avail = str(record[6]) if len(record) > 6 else "N/A"
+                    days_absence = str(record[7]) if len(record) > 7 else "N/A"
+                    expiry = str(record[9]) if len(record) > 9 else "N/A"
+                    status = record[8] if len(record) > 8 else "Active"
+                    sample.append((stud_num, stud_name, stud_year, stud_course, slip_type, date_avail[:10], days_absence, expiry[:10], status))
+                except:
+                    pass
+        except:
+            pass
+        
+        if not sample:
+            sample = [("No records", "Add records to see them here", "-", "-", "-", "-", "-", "-", "-")]
+        
+        return sample
+
+    def _refresh_green_tracker(self):
+        """Refresh the green slip tracker table"""
+        if self.green_tracker_table is not None:
+            data = self._load_green_tracker_data()
+            
+            # Clear and rebuild table
+            self.green_tracker_table.setRowCount(0)
+            for row_data in data:
+                row_idx = self.green_tracker_table.rowCount()
+                self.green_tracker_table.insertRow(row_idx)
+                for col_idx, value in enumerate(row_data):
+                    item = QTableWidgetItem(str(value))
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.green_tracker_table.setItem(row_idx, col_idx, item)
+
     def _build_excuse_tab(self) -> QWidget:
         w = QWidget()
         w.setStyleSheet(f"background: {WHITE};")
@@ -529,6 +582,7 @@ class GreenSlipPage(BasePage):
         refresh_btn = QPushButton("⟳  Refresh")
         refresh_btn.setStyleSheet(btn_outline())
         refresh_btn.setFixedHeight(38)
+        refresh_btn.clicked.connect(self._refresh_green_tracker)
 
         top_row.addWidget(search, 1)
         top_row.addWidget(filter_cb)
@@ -536,20 +590,13 @@ class GreenSlipPage(BasePage):
         top_row.addWidget(refresh_btn)
         lay.addLayout(top_row)
 
-        # Sample table
         headers = ["Student No.", "Student Name", "Grade", "Section",
                    "Slip Type", "Date Availed", "Days / Absence Type", "Expiry / Date", "Status"]
-        sample = [
-            ("2024-0001", "Dela Cruz, Juan M.",  "Grade 9", "St. Thomas", "Dispensation", "Nov 20, 2024", "2 days",             "Nov 22, 2024", "Active"),
-            ("2024-0045", "Santos, Maria R.",    "Grade 10","St. Clare",  "Excuse",        "Nov 19, 2024", "Medical / Illness",  "Nov 19, 2024", "Completed"),
-            ("2024-0078", "Lim, Angela C.",      "Grade 8", "St. Agnes",  "Dispensation", "Nov 17, 2024", "1 day",              "Nov 18, 2024", "Expired"),
-            ("2024-0200", "Torres, Liza F.",     "Grade 11","St. Joseph", "Excuse",        "Nov 14, 2024", "Family Emergency",   "Nov 14, 2024", "Completed"),
-            ("2024-0312", "Bautista, Carlo E.",  "Grade 12","St. Peter",  "Dispensation", "Nov 10, 2024", "3 days",             "Nov 13, 2024", "Expired"),
-        ]
-
-        table = build_record_table(headers, sample)
-        table.setMinimumHeight(280)
-        lay.addWidget(table)
+        sample = self._load_green_tracker_data()
+        
+        self.green_tracker_table = build_record_table(headers, sample)
+        self.green_tracker_table.setMinimumHeight(280)
+        lay.addWidget(self.green_tracker_table)
 
         action_row = QHBoxLayout()
         action_row.addStretch()
@@ -603,12 +650,28 @@ class GreenSlipPage(BasePage):
         tiles_row.setSpacing(14)
 
         from ui.components import StatTile
+        # Calculate real statistics
+        from backend.db_green_slip import get_green_slips
+        green_records = get_green_slips(None) or []
+        total_green = len(green_records)
+        dispensation_count = sum(1 for r in green_records if len(r) > 2 and r[2])
+        excuse_count = sum(1 for r in green_records if len(r) > 2 and not r[2])
+        active_count = sum(1 for r in green_records if len(r) > 5 and "Active" in str(r[5]))
+        
+        # Count students with >2 slips
+        student_slip_counts = {}
+        for r in green_records:
+            if len(r) > 1:
+                stud = r[1]
+                student_slip_counts[stud] = student_slip_counts.get(stud, 0) + 1
+        multi_slip_students = sum(1 for count in student_slip_counts.values() if count > 2)
+        
         for label, val, colour in [
-            ("Total Green Slips",       "35", GREEN_SLIP),
-            ("Dispensation Slips",      "20", "#388E3C"),
-            ("Excuse Slips",            "15", "#66BB6A"),
-            ("Currently Active",        "8",  "#2E7D32"),
-            ("Students with >2 Slips",  "4",  "#F57F17"),
+            ("Total Green Slips",       str(total_green), GREEN_SLIP),
+            ("Dispensation Slips",      str(dispensation_count), "#388E3C"),
+            ("Excuse Slips",            str(excuse_count), "#66BB6A"),
+            ("Currently Active",        str(active_count),  "#2E7D32"),
+            ("Students with >2 Slips",  str(multi_slip_students),  "#F57F17"),
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)

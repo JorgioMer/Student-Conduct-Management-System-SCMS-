@@ -121,15 +121,36 @@ class DashboardPage(QWidget):
         # Section title with chart-bar icon
         main.addWidget(_make_section_title("fa5s.chart-bar", "This Month's Summary"))
 
+        # Calculate real statistics
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        
+        green_slips = get_green_slips(None) or []
+        pink_slips = get_pink_slips(None) or []
+        blue_slips = get_blue_slips(None) or []
+        
+        green_count = len(green_slips)
+        pink_count = len(pink_slips)
+        blue_count = len(blue_slips)
+        pending_blue = sum(1 for r in blue_slips if len(r) > 7 and "Pending" in str(r[7]))
+        
+        # Count unique students across all slips
+        all_students = set()
+        for r in green_slips + pink_slips + blue_slips:
+            if len(r) > 1:
+                all_students.add(r[1])
+        active_students = len(all_students)
+
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(16)
 
         tiles_data = [
-            ("Green Slips Issued",     "24", GREEN_SLIP),
-            ("Pink Slips Issued",      "11", PINK_SLIP),
-            ("Blue Slips Issued",      "8",  BLUE_SLIP),
-            ("Pending Blue Slips",     "3",  BLUE_SLIP),
-            ("Active Students Tracked","43", NAVY),
+            ("Green Slips Issued",     str(green_count), GREEN_SLIP),
+            ("Pink Slips Issued",      str(pink_count), PINK_SLIP),
+            ("Blue Slips Issued",      str(blue_count),  BLUE_SLIP),
+            ("Pending Blue Slips",     str(pending_blue),  BLUE_SLIP),
+            ("Active Students Tracked",str(active_students), NAVY),
         ]
         for lbl, val, col in tiles_data:
             tile = StatTile(lbl, val, col)
@@ -187,38 +208,92 @@ class DashboardPage(QWidget):
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         table.setFixedHeight(220)
 
-        sample = [
-            ("2024-0001", "Dela Cruz, Juan M.",  "Green (Dispensation)", "2024-11-20", "Active"),
-            ("2024-0045", "Santos, Maria R.",    "Blue Slip",             "2024-11-19", "Pending"),
-            ("2024-0112", "Reyes, Carlo L.",     "Pink Slip",             "2024-11-18", "Completed"),
-            ("2024-0078", "Lim, Angela C.",      "Green (Excuse)",        "2024-11-17", "Active"),
-            ("2024-0033", "Garcia, Paolo B.",    "Blue Slip",             "2024-11-15", "Resolved"),
-            ("2024-0200", "Torres, Liza F.",     "Green (Dispensation)", "2024-11-14", "Active"),
-        ]
-
-        STATUS_COLORS = {
-            "Active":    ("#D4EDDA", "#155724"),
-            "Pending":   ("#FFF3CD", "#856404"),
-            "Completed": ("#CCE5FF", "#004085"),
-            "Resolved":  ("#D1ECF1", "#0C5460"),
-        }
-
-        for r, row in enumerate(sample):
-            for c, val in enumerate(row):
-                item = QTableWidgetItem(val)
-                item.setTextAlignment(Qt.AlignCenter)
-                if c == 2:
-                    if "Green" in val:
-                        item.setForeground(QColor(GREEN_SLIP))
-                    elif "Pink" in val:
-                        item.setForeground(QColor(PINK_SLIP))
-                    elif "Blue" in val:
-                        item.setForeground(QColor(BLUE_SLIP))
-                if c == 4:
-                    bg, fg = STATUS_COLORS.get(val, ("#eee", "#333"))
-                    item.setBackground(QColor(bg))
-                    item.setForeground(QColor(fg))
-                table.setItem(r, c, item)
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        from backend.db_students import get_student
+        
+        # Fetch recent records from database
+        all_records = []
+        
+        try:
+            # Get blue slips
+            blue_records = get_blue_slips(None) if hasattr(get_blue_slips, '__call__') else []
+            for record in blue_records[:10]:  # Limit to 10
+                all_records.append(('blue', record))
+            
+            # Get green slips
+            green_records = get_green_slips(None) if hasattr(get_green_slips, '__call__') else []
+            for record in green_records[:10]:
+                all_records.append(('green', record))
+            
+            # Get pink slips
+            pink_records = get_pink_slips(None) if hasattr(get_pink_slips, '__call__') else []
+            for record in pink_records[:10]:
+                all_records.append(('pink', record))
+        except:
+            all_records = []
+        
+        if not all_records:
+            # Show empty state message
+            empty_msg = QLabel("No records found. Start by adding slips to see them here.")
+            empty_msg.setAlignment(Qt.AlignCenter)
+            empty_msg.setStyleSheet(f"color: {MID_GRAY}; padding: 40px;")
+            main.addWidget(empty_msg)
+        else:
+            # Build table from actual records
+            for r, (slip_type, record) in enumerate(all_records[:6]):
+                if r >= 6:
+                    break
+                try:
+                    if slip_type == 'blue':
+                        stud_num = record[1] if len(record) > 1 else "N/A"
+                        stud_info = get_student(stud_num)
+                        stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
+                        slip_label = "Blue Slip"
+                        status = record[6] if len(record) > 6 else "Open / Pending"
+                        date = str(record[3]) if len(record) > 3 else "N/A"
+                    elif slip_type == 'green':
+                        stud_num = record[1] if len(record) > 1 else "N/A"
+                        stud_info = get_student(stud_num)
+                        stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
+                        is_disp = record[2] if len(record) > 2 else False
+                        slip_label = "Green (Dispensation)" if is_disp else "Green (Excuse)"
+                        status = record[5] if len(record) > 5 else "Active"
+                        date = str(record[3]) if len(record) > 3 else "N/A"
+                    else:  # pink
+                        stud_num = record[1] if len(record) > 1 else "N/A"
+                        stud_info = get_student(stud_num)
+                        stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
+                        slip_label = "Pink Slip"
+                        status = "Completed"
+                        date = str(record[2]) if len(record) > 2 else "N/A"
+                    
+                    row_data = (stud_num, stud_name, slip_label, date[:10] if len(date) > 10 else date, status)
+                    for c, val in enumerate(row_data):
+                        item = QTableWidgetItem(val)
+                        item.setTextAlignment(Qt.AlignCenter)
+                        if c == 2:
+                            if "Green" in val:
+                                item.setForeground(QColor(GREEN_SLIP))
+                            elif "Pink" in val:
+                                item.setForeground(QColor(PINK_SLIP))
+                            elif "Blue" in val:
+                                item.setForeground(QColor(BLUE_SLIP))
+                        if c == 4:
+                            STATUS_COLORS = {
+                                "Active":    ("#D4EDDA", "#155724"),
+                                "Pending":   ("#FFF3CD", "#856404"),
+                                "Completed": ("#CCE5FF", "#004085"),
+                                "Resolved":  ("#D1ECF1", "#0C5460"),
+                                "Open / Pending": ("#F8D7DA", "#721C24"),
+                            }
+                            bg, fg = STATUS_COLORS.get(val, ("#eee", "#333"))
+                            item.setBackground(QColor(bg))
+                            item.setForeground(QColor(fg))
+                        table.setItem(r, c, item)
+                except Exception as e:
+                    pass
 
         main.addWidget(table)
         main.addStretch()

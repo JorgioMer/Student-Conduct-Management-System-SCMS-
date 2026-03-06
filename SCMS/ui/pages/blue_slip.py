@@ -31,6 +31,7 @@ from backend.db_blue_slip import add_blue_slip, get_blue_slips
 class BlueSlipPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.blue_tracker_table = None
         self._build()
 
     def _build(self):
@@ -301,7 +302,7 @@ class BlueSlipPage(BasePage):
             try:
                 stud_num = self.blue_no.text().strip()
                 stud_name = self.blue_name.text().strip()
-                stud_course = self.blue_section.text().strip()
+                stud_section = self.blue_section.text().strip()
                 stud_year = self.blue_grade.currentText()
                 semester = self.blue_semester.currentText()
                 violation_type = self.blue_vtype.currentText()
@@ -315,15 +316,77 @@ class BlueSlipPage(BasePage):
                 add_blue_slip(stud_num, violation_type, date_of_violation, severity,
                              action_taken, status=status, violation_desc=violation_desc,
                              witnesses=witnesses, stud_name=stud_name,
-                             stud_course=stud_course, stud_year=stud_year, semester=semester)
+                             stud_course=stud_section, stud_year=stud_year)
 
                 InfoDialog("Record Saved",
                            "Blue Slip violation record has been saved successfully!",
                            success=True, parent=self).exec_()
+                # Refresh tracker tab
+                self._refresh_blue_tracker()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
+
+    def _load_blue_tracker_data(self):
+        """Load blue slip data from database"""
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_students import get_student
+        
+        sample = []
+        try:
+            blue_slips = get_blue_slips(None) or []
+            for record in blue_slips:
+                try:
+                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, violationType_blue, ...)
+                    stud_name = record[0] if len(record) > 0 else "N/A"
+                    stud_course = record[1] if len(record) > 1 else "N/A"
+                    stud_year = record[2] if len(record) > 2 else "N/A"
+                    stud_num = record[4] if len(record) > 4 else "N/A"
+                    violation_type = record[5] if len(record) > 5 else "N/A"
+                    date_vio = str(record[6]) if len(record) > 6 else "N/A"
+                    severity = record[7] if len(record) > 7 else "N/A"
+                    action = record[8] if len(record) > 8 else "N/A"
+                    status = record[9] if len(record) > 9 else "Open / Pending"
+                    sample.append((stud_num, stud_name, stud_year, violation_type, severity, date_vio[:10], action, status))
+                except:
+                    pass
+        except:
+            pass
+        
+        if not sample:
+            sample = [("No records", "Add records to see them here", "-", "-", "-", "-", "-", "-")]
+        
+        return sample
+
+    def _refresh_blue_tracker(self):
+        """Refresh the blue slip tracker table"""
+        if self.blue_tracker_table is not None:
+            data = self._load_blue_tracker_data()
+            
+            # Clear and rebuild table
+            self.blue_tracker_table.setRowCount(0)
+            STATUS_COLORS = {
+                "Under Investigation": ("#FFF3CD", "#856404"),
+                "Resolved":            ("#D4EDDA", "#155724"),
+                "Action Taken":        ("#CCE5FF", "#004085"),
+                "Open / Pending":      ("#F8D7DA", "#721C24"),
+                "Escalated":           ("#F8D7DA", "#721C24"),
+            }
+            for row_data in data:
+                row_idx = self.blue_tracker_table.rowCount()
+                self.blue_tracker_table.insertRow(row_idx)
+                for col_idx, value in enumerate(row_data):
+                    item = QTableWidgetItem(str(value))
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.blue_tracker_table.setItem(row_idx, col_idx, item)
+                
+                # Apply status color styling
+                status_val = str(row_data[7]) if len(row_data) > 7 else ""
+                if status_val in STATUS_COLORS:
+                    bg, fg = STATUS_COLORS[status_val]
+                    self.blue_tracker_table.item(row_idx, 7).setBackground(QColor(bg))
+                    self.blue_tracker_table.item(row_idx, 7).setForeground(QColor(fg))
 
     # ── Tracker tab ───────────────────────────────────────────────────────────
     def _build_tracker_tab(self) -> QWidget:
@@ -359,20 +422,17 @@ class BlueSlipPage(BasePage):
         refresh_btn = QPushButton("   Refresh ")
         refresh_btn.setStyleSheet(btn_outline())
         refresh_btn.setFixedHeight(38)
+        refresh_btn.clicked.connect(self._refresh_blue_tracker)
         top_row.addWidget(refresh_btn)
         lay.addLayout(top_row)
 
         headers = ["Student No.", "Student Name", "Grade", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
-        sample = [
-            ("2024-0045", "Santos, Maria R.",    "Grade 10", "Bullying",                  "Level 3", "Nov 19, 2024", "Parent Meeting",       "Under Investigation"),
-            ("2024-0033", "Garcia, Paolo B.",    "Grade 11", "Skipping Class",             "Level 1", "Nov 15, 2024", "Verbal Warning",       "Resolved"),
-            ("2024-0199", "Mendoza, Lara K.",    "Grade 9",  "Disrespect to Authority",   "Level 2", "Nov 12, 2024", "Written Warning",      "Action Taken"),
-            ("2024-0310", "Villanueva, R. A.",   "Grade 12", "Cheating",                  "Level 3", "Nov 8, 2024",  "Endorsement Guidance", "Escalated"),
-            ("2024-0060", "Cruz, Miguel P.",     "Grade 8",  "Possession Prohibited Item","Level 2", "Nov 5, 2024",  "Suspension (1 day)",   "Action Taken"),
-        ]
-
-        table = build_record_table(headers, sample)
+        
+        # Fetch real data from database
+        sample = self._load_blue_tracker_data()
+        
+        self.blue_tracker_table = build_record_table(headers, sample)
 
         STATUS_COLORS = {
             "Under Investigation": ("#FFF3CD", "#856404"),
@@ -381,15 +441,15 @@ class BlueSlipPage(BasePage):
             "Open / Pending":      ("#F8D7DA", "#721C24"),
             "Escalated":           ("#F8D7DA", "#721C24"),
         }
-        for r in range(table.rowCount()):
-            status_val = table.item(r, 7).text() if table.item(r, 7) else ""
+        for r in range(self.blue_tracker_table.rowCount()):
+            status_val = self.blue_tracker_table.item(r, 7).text() if self.blue_tracker_table.item(r, 7) else ""
             if status_val in STATUS_COLORS:
                 bg, fg = STATUS_COLORS[status_val]
-                table.item(r, 7).setBackground(QColor(bg))
-                table.item(r, 7).setForeground(QColor(fg))
-
-        table.setMinimumHeight(280)
-        lay.addWidget(table)
+                self.blue_tracker_table.item(r, 7).setBackground(QColor(bg))
+                self.blue_tracker_table.item(r, 7).setForeground(QColor(fg))
+        
+        self.blue_tracker_table.setMinimumHeight(260)
+        lay.addWidget(self.blue_tracker_table)
 
         action_row = QHBoxLayout()
         action_row.addStretch()
@@ -461,19 +521,19 @@ class BlueSlipPage(BasePage):
         p_lay.setSpacing(8)
 
         # Student profile header
-        name_lbl = QLabel("Student: Santos, Maria R. — Grade 10, St. Clare  |  Student No. 2024-0045")
+        name_lbl = QLabel("Search for a student to view their violation escalation progress")
         name_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        name_lbl.setStyleSheet(f"color: {NAVY}; background: transparent;")
+        name_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
         p_lay.addWidget(name_lbl)
         p_lay.addWidget(Divider())
 
         # Steps definition: (label, action, date, done, current)
         steps = [
-            ("1st Offense", "Verbal Warning",                        "Nov 5, 2024",  True,  False),
-            ("2nd Offense", "Written Warning",                       "Nov 12, 2024", True,  False),
-            ("3rd Offense", "Parent Meeting + Community Service",    "Nov 19, 2024", True,  True),
-            ("4th Offense", "Suspension",                            "",             False, False),
-            ("5th Offense", "Endorsement / Probation",               "",             False, False),
+            ("1st Offense", "Verbal Warning",                        "",  False,  False),
+            ("2nd Offense", "Written Warning",                       "", False,  False),
+            ("3rd Offense", "Parent Meeting + Community Service",    "",  False, False),
+            ("4th Offense", "Suspension",                            "",  False, False),
+            ("5th Offense", "Endorsement / Probation",               "",  False, False),
         ]
 
         for step_name, action, date, done, current in steps:
@@ -578,14 +638,23 @@ class BlueSlipPage(BasePage):
 
         lay.addWidget(SectionTitle("Blue Slip Summary"))
 
+        # Calculate real statistics
+        from backend.db_blue_slip import get_blue_slips
+        blue_records = get_blue_slips(None) or []
+        total_violations = len(blue_records)
+        pending_count = sum(1 for r in blue_records if len(r) > 7 and "Pending" in str(r[7]))
+        escalated_count = sum(1 for r in blue_records if len(r) > 7 and "Escalat" in str(r[7]))
+        resolved_count = sum(1 for r in blue_records if len(r) > 7 and "Resolved" in str(r[7]))
+        unique_students = len(set(r[1] for r in blue_records if len(r) > 1))
+
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
         for label, val, colour in [
-            ("Total Violations (Sem)", "8",  BLUE_SLIP),
-            ("Pending / Open",         "3",  "#F57F17"),
-            ("Escalated Cases",        "1",  RED_ERR),
-            ("Resolved",               "4",  "#2E7D32"),
-            ("Unique Students",        "5",  NAVY),
+            ("Total Violations (Sem)", str(total_violations),  BLUE_SLIP),
+            ("Pending / Open",         str(pending_count),  "#F57F17"),
+            ("Escalated Cases",        str(escalated_count),  RED_ERR),
+            ("Resolved",               str(resolved_count),  "#2E7D32"),
+            ("Unique Students",        str(unique_students),  NAVY),
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)

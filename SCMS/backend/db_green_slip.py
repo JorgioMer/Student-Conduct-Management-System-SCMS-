@@ -5,7 +5,7 @@ from .db_students import add_student_if_not_exists
 def add_green_slip(stud_num, slip_type, date_avail, 
                    days, status, expiry, purpose, 
                    remarks, absence_type, dates_absence, 
-                   supp_doc, auth_by, stud_name="", stud_course="", stud_year="", semester=""):
+                   supp_doc, auth_by, stud_name="", stud_course="", stud_year=""):
     """
     Add a Green Slip record to the database.
     
@@ -16,7 +16,7 @@ def add_green_slip(stud_num, slip_type, date_avail,
     Automatically adds the student if they don't exist.
     """
     # First, add student if they don't exist
-    add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year, semester=semester)
+    add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year)
     
     conn = get_connection()
     cursor = conn.cursor()
@@ -43,14 +43,27 @@ def add_green_slip(stud_num, slip_type, date_avail,
 def get_green_slips(student_number):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT s.studName, s.studCourse, 
-               s.studYrLvl, g.*
-        FROM Students s
-        INNER JOIN [Green Slip Record] g 
-               ON s.studNumber = g.studNumber
-        WHERE g.studNumber = ?
-    """, (student_number,))
+    
+    if student_number is None:
+        # Return ALL green slips
+        cursor.execute("""
+            SELECT s.studName, s.studCourse, 
+                   s.studYrLvl, g.*
+            FROM Students s
+            INNER JOIN [Green Slip Record] g 
+                   ON s.studNumber = g.studNumber
+        """)
+    else:
+        # Return slips for specific student
+        cursor.execute("""
+            SELECT s.studName, s.studCourse, 
+                   s.studYrLvl, g.*
+            FROM Students s
+            INNER JOIN [Green Slip Record] g 
+                   ON s.studNumber = g.studNumber
+            WHERE g.studNumber = ?
+        """, (student_number,))
+    
     rows = cursor.fetchall()
     conn.close()
     return rows

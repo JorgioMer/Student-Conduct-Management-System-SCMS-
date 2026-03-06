@@ -26,14 +26,27 @@ def add_pink_slip(stud_num, date_issued, violation, action_taken, officer, sem="
 def get_pink_slips(student_number):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT s.studName, s.studCourse,
-               s.studYrLvl, p.*
-        FROM Students s
-        INNER JOIN [Pink Slip Record] p 
-               ON s.studNumber = p.studNumber
-        WHERE p.studNumber = ?
-    """, (student_number,))
+    
+    if student_number is None:
+        # Return ALL pink slips
+        cursor.execute("""
+            SELECT s.studName, s.studCourse,
+                   s.studYrLvl, p.*
+            FROM Students s
+            INNER JOIN [Pink Slip Record] p 
+                   ON s.studNumber = p.studNumber
+        """)
+    else:
+        # Return slips for specific student
+        cursor.execute("""
+            SELECT s.studName, s.studCourse,
+                   s.studYrLvl, p.*
+            FROM Students s
+            INNER JOIN [Pink Slip Record] p 
+                   ON s.studNumber = p.studNumber
+            WHERE p.studNumber = ?
+        """, (student_number,))
+    
     rows = cursor.fetchall()
     conn.close()
     return rows
