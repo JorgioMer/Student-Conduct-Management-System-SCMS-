@@ -338,7 +338,6 @@ class BlueSlipPage(BasePage):
             blue_slips = get_blue_slips(None) or []
             for record in blue_slips:
                 try:
-                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, violationType_blue, ...)
                     stud_name = record[0] if len(record) > 0 else "N/A"
                     stud_course = record[1] if len(record) > 1 else "N/A"
                     stud_year = record[2] if len(record) > 2 else "N/A"
@@ -364,7 +363,6 @@ class BlueSlipPage(BasePage):
         if self.blue_tracker_table is not None:
             data = self._load_blue_tracker_data()
             
-            # Clear and rebuild table
             self.blue_tracker_table.setRowCount(0)
             STATUS_COLORS = {
                 "Under Investigation": ("#FFF3CD", "#856404"),
@@ -381,7 +379,6 @@ class BlueSlipPage(BasePage):
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                     self.blue_tracker_table.setItem(row_idx, col_idx, item)
                 
-                # Apply status color styling
                 status_val = str(row_data[7]) if len(row_data) > 7 else ""
                 if status_val in STATUS_COLORS:
                     bg, fg = STATUS_COLORS[status_val]
@@ -429,7 +426,6 @@ class BlueSlipPage(BasePage):
         headers = ["Student No.", "Student Name", "Grade", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
         
-        # Fetch real data from database
         sample = self._load_blue_tracker_data()
         
         self.blue_tracker_table = build_record_table(headers, sample)
@@ -507,29 +503,34 @@ class BlueSlipPage(BasePage):
         s_lay.addStretch()
         lay.addWidget(search_frame)
 
-        # Progress display
+        # Progress display — FIX: removed outer border from prog_frame,
+        # each step row (s_frame) already has its own clean border
         prog_frame = QFrame()
         prog_frame.setStyleSheet(f"""
             QFrame {{
                 background: {WHITE};
-                border: 1.5px solid {LIGHT_GRAY};
-                border-radius: 10px;
+                border: none;
             }}
         """)
         p_lay = QVBoxLayout(prog_frame)
-        p_lay.setContentsMargins(20, 16, 20, 16)
+        p_lay.setContentsMargins(0, 0, 0, 0)
         p_lay.setSpacing(8)
 
         # Student profile header
         name_lbl = QLabel("Search for a student to view their violation escalation progress")
         name_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        name_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+        name_lbl.setStyleSheet(f"""
+            color: {MID_GRAY};
+            background: #F8F9FA;
+            border: 1px solid {LIGHT_GRAY};
+            border-radius: 8px;
+            padding: 10px 14px;
+        """)
         p_lay.addWidget(name_lbl)
-        p_lay.addWidget(Divider())
 
         # Steps definition: (label, action, date, done, current)
         steps = [
-            ("1st Offense", "Verbal Warning",                        "",  False,  False),
+            ("1st Offense", "Verbal Warning",                        "",  False, False),
             ("2nd Offense", "Written Warning",                       "", False,  False),
             ("3rd Offense", "Parent Meeting + Community Service",    "",  False, False),
             ("4th Offense", "Suspension",                            "",  False, False),
@@ -552,11 +553,15 @@ class BlueSlipPage(BasePage):
                 border_color = LIGHT_GRAY
                 text_color   = MID_GRAY
 
+            # FIX: single border only — removed the double-border by using
+            # one unified border style instead of border + border-left override
             s_frame.setStyleSheet(f"""
                 QFrame {{
                     background: {bg};
-                    border: 1px solid {border_color}60;
                     border-left: 4px solid {border_color};
+                    border-top: 1px solid {border_color}40;
+                    border-bottom: 1px solid {border_color}40;
+                    border-right: 1px solid {border_color}40;
                     border-radius: 8px;
                 }}
             """)
@@ -566,9 +571,7 @@ class BlueSlipPage(BasePage):
             s_inner.setContentsMargins(14, 0, 14, 0)
             s_inner.setSpacing(10)
 
-            # Numbered circle badge
-            num_lbl = QLabel(step_name.split()[0][0] + step_name.split()[1][0] if False else step_name[:3].strip())
-            # Clean dot/number indicator
+            # Dot indicator
             dot_lbl = QLabel()
             dot_lbl.setFixedSize(22, 22)
             if current:
@@ -576,25 +579,28 @@ class BlueSlipPage(BasePage):
                     background: {RED_ERR};
                     border-radius: 11px;
                     color: white;
+                    border: none;
                 """)
             elif done:
                 dot_lbl.setStyleSheet(f"""
                     background: #43A047;
                     border-radius: 11px;
                     color: white;
+                    border: none;
                 """)
             else:
                 dot_lbl.setStyleSheet(f"""
                     background: {LIGHT_GRAY};
                     border-radius: 11px;
                     color: {MID_GRAY};
+                    border: none;
                 """)
 
             # Step name bold + action
             step_lbl = QLabel(f"<b>{step_name}</b> &nbsp;—&nbsp; {action}")
             step_lbl.setFont(QFont("Segoe UI", 12))
             step_lbl.setTextFormat(Qt.RichText)
-            step_lbl.setStyleSheet(f"background: transparent; color: {text_color};")
+            step_lbl.setStyleSheet(f"background: transparent; color: {text_color}; border: none;")
 
             s_inner.addWidget(dot_lbl)
             s_inner.addWidget(step_lbl, 1)
@@ -611,6 +617,7 @@ class BlueSlipPage(BasePage):
                     color: white;
                     border-radius: 4px;
                     padding: 0px 8px;
+                    border: none;
                 """)
                 s_inner.addWidget(curr_badge)
 
@@ -619,7 +626,7 @@ class BlueSlipPage(BasePage):
             date_lbl.setFont(QFont("Segoe UI", 11))
             date_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             date_lbl.setFixedWidth(100)
-            date_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+            date_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
             s_inner.addWidget(date_lbl)
 
             p_lay.addWidget(s_frame)
@@ -645,16 +652,15 @@ class BlueSlipPage(BasePage):
         pending_count = sum(1 for r in blue_records if len(r) > 7 and "Pending" in str(r[7]))
         escalated_count = sum(1 for r in blue_records if len(r) > 7 and "Escalat" in str(r[7]))
         resolved_count = sum(1 for r in blue_records if len(r) > 7 and "Resolved" in str(r[7]))
-        unique_students = len(set(r[1] for r in blue_records if len(r) > 1))
 
+        # FIX: Removed "Unique Students" tile
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
         for label, val, colour in [
-            ("Total Violations (Sem)", str(total_violations),  BLUE_SLIP),
-            ("Pending / Open",         str(pending_count),  "#F57F17"),
+            ("Total Violations (Sem)", str(total_violations), BLUE_SLIP),
+            ("Pending / Open",         str(pending_count),    "#F57F17"),
             ("Escalated Cases",        str(escalated_count),  RED_ERR),
-            ("Resolved",               str(resolved_count),  "#2E7D32"),
-            ("Unique Students",        str(unique_students),  NAVY),
+            ("Resolved",               str(resolved_count),   "#2E7D32"),
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)

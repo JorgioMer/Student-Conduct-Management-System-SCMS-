@@ -46,12 +46,18 @@ class ReportsPage(BasePage):
         h_lay = QHBoxLayout(header)
         h_lay.setContentsMargins(24, 12, 24, 12)
         h_col = QVBoxLayout()
-        t_lbl = QLabel("   Reports & Analytics ")
+        h_col.setSpacing(2)
+
+        t_lbl = QLabel("   Reports & Analytics")
         t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {GOLD}; background: transparent;")
+        # FIX: border: none prevents QFrame border from rendering around the label text
+        t_lbl.setStyleSheet(f"color: {GOLD}; background: transparent; border: none; padding: 0;")
+
         s_lbl = QLabel("Monthly summaries, visual graphs, and statistical records for all slip types")
         s_lbl.setFont(QFont("Segoe UI", 11))
-        s_lbl.setStyleSheet(f"color: rgba(255,255,255,0.65); background: transparent;")
+        # FIX: same fix — white at 85% opacity is visible on the dark navy gradient
+        s_lbl.setStyleSheet("color: rgba(255,255,255,0.85); background: transparent; border: none; padding: 0;")
+
         h_col.addWidget(t_lbl)
         h_col.addWidget(s_lbl)
         h_lay.addLayout(h_col)
@@ -61,14 +67,17 @@ class ReportsPage(BasePage):
         export_all.setStyleSheet(btn_gold())
         export_all.setFixedHeight(38)
         export_all.clicked.connect(lambda: InfoDialog(
-            "Export", "All reports have been prepared for export.\n(Backend export will be implemented in final system.)",
+            "Export",
+            "All reports have been prepared for export.\n(Backend export will be implemented in final system.)",
             parent=self).exec_())
         h_lay.addWidget(export_all)
         self.main_layout.addWidget(header)
 
         # Period selector
         period_row = QHBoxLayout()
-        period_row.addWidget(QLabel("Report Period:"))
+        period_lbl = QLabel("Report Period:")
+        period_lbl.setStyleSheet("border: none; background: transparent;")
+        period_row.addWidget(period_lbl)
         self.period_cb = QComboBox()
         self.period_cb.addItems([
             "November 2024",
@@ -90,11 +99,11 @@ class ReportsPage(BasePage):
 
         # Tabs
         tabs = QTabWidget()
-        tabs.addTab(self._build_overview_tab(),   "   Overview ")
-        tabs.addTab(self._build_green_report(),   "   Green Slips ")
-        tabs.addTab(self._build_pink_report(),    "   Pink Slips ")
-        tabs.addTab(self._build_blue_report(),    "   Blue Slips ")
-        tabs.addTab(self._build_toplist_tab(),    "   Student Records ")
+        tabs.addTab(self._build_overview_tab(),  "   Overview ")
+        tabs.addTab(self._build_green_report(),  "   Green Slips ")
+        tabs.addTab(self._build_pink_report(),   "   Pink Slips ")
+        tabs.addTab(self._build_blue_report(),   "   Blue Slips ")
+        tabs.addTab(self._build_toplist_tab(),   "   Student Records ")
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
@@ -109,55 +118,51 @@ class ReportsPage(BasePage):
 
         lay.addWidget(SectionTitle("Monthly Overview — November 2024"))
 
-        # Big stat tiles - calculate from real data
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip import get_pink_slips
-        
+
         green_slips = get_green_slips(None) or []
-        pink_slips = get_pink_slips(None) or []
-        blue_slips = get_blue_slips(None) or []
-        
-        green_count = len(green_slips)
-        pink_count = len(pink_slips)
-        blue_count = len(blue_slips)
+        pink_slips  = get_pink_slips(None)  or []
+        blue_slips  = get_blue_slips(None)  or []
+
+        green_count   = len(green_slips)
+        pink_count    = len(pink_slips)
+        blue_count    = len(blue_slips)
         total_records = green_count + pink_count + blue_count
-        
-        # Count unique students
+
         all_students = set()
         for r in green_slips + pink_slips + blue_slips:
             if len(r) > 1:
                 all_students.add(r[1])
         students_involved = len(all_students)
-        
+
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(16)
         for label, val, colour, icon in [
-            ("Green Slips Issued",     str(green_count), GREEN_SLIP, ""),
-            ("Pink Slips Issued",      str(pink_count), PINK_SLIP,  ""),
-            ("Blue Slips / Violations",str(blue_count),  BLUE_SLIP,  ""),
-            ("Total Records Filed",    str(total_records), NAVY,       ""),
-            ("Students Involved",      str(students_involved), GOLD,       ""),
+            ("Green Slips Issued",      str(green_count),      GREEN_SLIP, ""),
+            ("Pink Slips Issued",       str(pink_count),       PINK_SLIP,  ""),
+            ("Blue Slips / Violations", str(blue_count),       BLUE_SLIP,  ""),
+            ("Total Records Filed",     str(total_records),    NAVY,       ""),
+            ("Students Involved",       str(students_involved),GOLD,       ""),
         ]:
-            tile = StatTile(f"{icon}  {label}", val, colour)
-            tiles_row.addWidget(tile)
+            tiles_row.addWidget(StatTile(f"{icon}  {label}", val, colour))
         lay.addLayout(tiles_row)
 
         lay.addWidget(Divider())
 
-        # Chart placeholder grid
         charts_label = QLabel("Visual Summary Charts")
         charts_label.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        charts_label.setStyleSheet(f"color: {NAVY}; background: transparent;")
+        charts_label.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
         lay.addWidget(charts_label)
 
         charts_row = QHBoxLayout()
         charts_row.setSpacing(16)
 
         for title, color, description in [
-            ("Slip Distribution",    "#E8F5E9", "Pie chart showing the\nproportion of each slip type"),
-            ("Daily Filing Trend",   "#E3F2FD", "Line chart showing records\nfiled per day this month"),
-            ("Grade Level Breakdown","#FCE4EC", "Bar chart showing records\nby grade level"),
+            ("Slip Distribution",     "#E8F5E9", "Pie chart showing the\nproportion of each slip type"),
+            ("Daily Filing Trend",    "#E3F2FD", "Line chart showing records\nfiled per day this month"),
+            ("Grade Level Breakdown", "#FCE4EC", "Bar chart showing records\nby grade level"),
         ]:
             chart_card = QFrame()
             chart_card.setStyleSheet(f"""
@@ -174,17 +179,17 @@ class ReportsPage(BasePage):
             icon_lbl = QLabel("📊")
             icon_lbl.setFont(QFont("Segoe UI", 32))
             icon_lbl.setAlignment(Qt.AlignCenter)
-            icon_lbl.setStyleSheet("background: transparent;")
+            icon_lbl.setStyleSheet("background: transparent; border: none;")
 
             t_lbl = QLabel(title)
             t_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
             t_lbl.setAlignment(Qt.AlignCenter)
-            t_lbl.setStyleSheet(f"color: {NAVY}; background: transparent;")
+            t_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
 
             d_lbl = QLabel(description)
             d_lbl.setFont(QFont("Segoe UI", 10))
             d_lbl.setAlignment(Qt.AlignCenter)
-            d_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+            d_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
 
             c_lay.addWidget(icon_lbl)
             c_lay.addWidget(t_lbl)
@@ -199,28 +204,27 @@ class ReportsPage(BasePage):
     def _build_green_report(self) -> QWidget:
         from backend.db_green_slip import get_green_slips
         from backend.db_students import get_student
-        
-        # Fetch real green slip records
+
         green_records = get_green_slips(None) or []
         rows = []
-        for record in green_records[:5]:  # Limit to 5
+        for record in green_records[:5]:
             try:
-                stud_num = record[1] if len(record) > 1 else "N/A"
+                stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_info = get_student(stud_num)
                 stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
-                grade = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
-                is_disp = record[2] if len(record) > 2 else False
+                grade     = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
+                is_disp   = record[2] if len(record) > 2 else False
                 slip_type = "Dispensation" if is_disp else "Excuse"
-                date = str(record[3])[:10] if len(record) > 3 else "N/A"
-                days_reason = str(record[4]) if len(record) > 4 else "N/A"
-                status = record[5] if len(record) > 5 else "Active"
-                rows.append((stud_num, stud_name, grade, slip_type, date, days_reason, status))
+                date      = str(record[3])[:10] if len(record) > 3 else "N/A"
+                days      = str(record[4]) if len(record) > 4 else "N/A"
+                status    = record[5] if len(record) > 5 else "Active"
+                rows.append((stud_num, stud_name, grade, slip_type, date, days, status))
             except:
                 pass
-        
+
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
-        
+
         return self._build_slip_report_tab(
             "green", "Green Slip Monthly Report",
             "Dispensation and Excuse slips issued this month",
@@ -232,27 +236,25 @@ class ReportsPage(BasePage):
     def _build_pink_report(self) -> QWidget:
         from backend.db_pink_slip import get_pink_slips
         from backend.db_students import get_student
-        
-        # Fetch real pink slip records
+
         pink_records = get_pink_slips(None) or []
         rows = []
-        for record in pink_records[:5]:  # Limit to 5
+        for record in pink_records[:5]:
             try:
-                stud_num = record[1] if len(record) > 1 else "N/A"
+                stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_info = get_student(stud_num)
                 stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
-                grade = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
+                grade     = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
                 violation = record[3] if len(record) > 3 else "N/A"
-                date = str(record[2])[:10] if len(record) > 2 else "N/A"
-                action = record[4] if len(record) > 4 else "N/A"
-                status = "Done"  # Pink slips are typically completed
-                rows.append((stud_num, stud_name, grade, violation, date, action, status))
+                date      = str(record[2])[:10] if len(record) > 2 else "N/A"
+                action    = record[4] if len(record) > 4 else "N/A"
+                rows.append((stud_num, stud_name, grade, violation, date, action, "Done"))
             except:
                 pass
-        
+
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
-        
+
         return self._build_slip_report_tab(
             "pink", "Pink Slip Monthly Report",
             "Penalty slips issued this month (one per student per semester)",
@@ -264,27 +266,26 @@ class ReportsPage(BasePage):
     def _build_blue_report(self) -> QWidget:
         from backend.db_blue_slip import get_blue_slips
         from backend.db_students import get_student
-        
-        # Fetch real blue slip records
+
         blue_records = get_blue_slips(None) or []
         rows = []
-        for record in blue_records[:5]:  # Limit to 5
+        for record in blue_records[:5]:
             try:
-                stud_num = record[1] if len(record) > 1 else "N/A"
+                stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_info = get_student(stud_num)
                 stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
-                grade = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
+                grade     = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
                 violation = record[2] if len(record) > 2 else "N/A"
-                severity = record[5] if len(record) > 5 else "N/A"
-                date = str(record[3])[:10] if len(record) > 3 else "N/A"
-                status = record[7] if len(record) > 7 else "Open"
+                severity  = record[5] if len(record) > 5 else "N/A"
+                date      = str(record[3])[:10] if len(record) > 3 else "N/A"
+                status    = record[7] if len(record) > 7 else "Open"
                 rows.append((stud_num, stud_name, grade, violation, severity, date, status))
             except:
                 pass
-        
+
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
-        
+
         return self._build_slip_report_tab(
             "blue", "Blue Slip Monthly Report",
             "Violation records and disciplinary actions taken this month",
@@ -304,7 +305,7 @@ class ReportsPage(BasePage):
         top_row = QHBoxLayout()
         t_lbl = QLabel(title)
         t_lbl.setFont(QFont("Segoe UI", 15, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {colour}; background: transparent;")
+        t_lbl.setStyleSheet(f"color: {colour}; background: transparent; border: none;")
         top_row.addWidget(t_lbl)
         top_row.addStretch()
 
@@ -313,21 +314,20 @@ class ReportsPage(BasePage):
             b.setStyleSheet(style)
             b.setFixedHeight(36)
             b.clicked.connect(lambda _, lbl=label: InfoDialog(
-                lbl.replace("  ", " "), f"{lbl} action will be implemented in the final system.",
+                lbl.strip(), f"{lbl.strip()} action will be implemented in the final system.",
                 parent=self).exec_())
             top_row.addWidget(b)
         lay.addLayout(top_row)
 
         sub = QLabel(subtitle)
         sub.setFont(QFont("Segoe UI", 11))
-        sub.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+        sub.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
         lay.addWidget(sub)
 
         t = build_record_table(headers, rows)
         t.setMinimumHeight(250)
         lay.addWidget(t)
 
-        # Summary info bar
         info_bar = QFrame()
         info_bar.setStyleSheet(f"""
             QFrame {{
@@ -342,7 +342,7 @@ class ReportsPage(BasePage):
         total_lbl = QLabel(f"Total records shown: <b>{len(rows)}</b>")
         total_lbl.setTextFormat(Qt.RichText)
         total_lbl.setFont(QFont("Segoe UI", 11))
-        total_lbl.setStyleSheet(f"color: {colour}; background: transparent;")
+        total_lbl.setStyleSheet(f"color: {colour}; background: transparent; border: none;")
         i_lay.addWidget(total_lbl)
         i_lay.addStretch()
         lay.addWidget(info_bar)
@@ -363,13 +363,12 @@ class ReportsPage(BasePage):
 
         headers = ["Rank", "Student No.", "Student Name", "Grade",
                    "Green Slips", "Pink Slips", "Blue Slips", "Total"]
-        
+
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip import get_pink_slips
         from backend.db_students import get_student
-        
-        # Count records by student
+
         student_counts = {}
         try:
             for record in get_green_slips(None) or []:
@@ -380,7 +379,7 @@ class ReportsPage(BasePage):
                     student_counts[stud_num]["green"] += 1
                     if not student_counts[stud_num]["info"]:
                         student_counts[stud_num]["info"] = get_student(stud_num)
-            
+
             for record in get_pink_slips(None) or []:
                 stud_num = record[1] if len(record) > 1 else None
                 if stud_num:
@@ -389,7 +388,7 @@ class ReportsPage(BasePage):
                     student_counts[stud_num]["pink"] += 1
                     if not student_counts[stud_num]["info"]:
                         student_counts[stud_num]["info"] = get_student(stud_num)
-            
+
             for record in get_blue_slips(None) or []:
                 stud_num = record[1] if len(record) > 1 else None
                 if stud_num:
@@ -400,27 +399,30 @@ class ReportsPage(BasePage):
                         student_counts[stud_num]["info"] = get_student(stud_num)
         except:
             pass
-        
-        # Sort by total slips
-        sorted_students = sorted(student_counts.items(), 
-                               key=lambda x: x[1]["green"] + x[1]["pink"] + x[1]["blue"], 
-                               reverse=True)
-        
+
+        sorted_students = sorted(
+            student_counts.items(),
+            key=lambda x: x[1]["green"] + x[1]["pink"] + x[1]["blue"],
+            reverse=True
+        )
+
         sample = []
         for rank, (stud_num, counts) in enumerate(sorted_students[:8], 1):
             try:
-                info = counts["info"]
+                info      = counts["info"]
                 stud_name = info[1] if info and len(info) > 1 else "Unknown"
-                grade = info[3] if info and len(info) > 3 else "N/A"
-                total = counts["green"] + counts["pink"] + counts["blue"]
-                sample.append((str(rank), stud_num, stud_name, grade, 
-                             str(counts["green"]), str(counts["pink"]), str(counts["blue"]), str(total)))
+                grade     = info[3] if info and len(info) > 3 else "N/A"
+                total     = counts["green"] + counts["pink"] + counts["blue"]
+                sample.append((str(rank), stud_num, stud_name, grade,
+                               str(counts["green"]), str(counts["pink"]),
+                               str(counts["blue"]), str(total)))
             except:
                 pass
-        
+
         if not sample:
-            sample = [("1", "No records", "Add records to see them here", "-", "0", "0", "0", "0")]
-        
+            sample = [("1", "No records", "Add records to see them here",
+                       "-", "0", "0", "0", "0")]
+
         t = build_record_table(headers, sample)
         t.setMinimumHeight(300)
         lay.addWidget(t)

@@ -28,6 +28,7 @@ class SettingsPage(BasePage):
         self._build()
 
     def _build(self):
+        # FIX: removed emoji from title, added border: none + padding: 0 to labels
         header = QFrame()
         header.setFixedHeight(82)
         header.setStyleSheet(f"""
@@ -43,23 +44,31 @@ class SettingsPage(BasePage):
         add_shadow(header, blur=12, y=3, color=(0, 0, 0, 20))
         h_lay = QHBoxLayout(header)
         h_lay.setContentsMargins(24, 12, 24, 12)
-        t_lbl = QLabel("⚙  Settings & Administration")
+
+        col = QVBoxLayout()
+        col.setSpacing(2)
+
+        t_lbl = QLabel("Settings & Administration")
         t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {GOLD}; background: transparent;")
+        # FIX: border: none prevents the QFrame border from appearing around the label
+        t_lbl.setStyleSheet(f"color: {GOLD}; background: transparent; border: none; padding: 0;")
+
         s_lbl = QLabel("System configuration, user management, and preferences")
         s_lbl.setFont(QFont("Segoe UI", 11))
-        s_lbl.setStyleSheet("color: rgba(255,255,255,0.65); background: transparent;")
-        col = QVBoxLayout()
+        # FIX: bumped opacity to 0.85 for readability, border: none
+        s_lbl.setStyleSheet("color: rgba(255,255,255,0.85); background: transparent; border: none; padding: 0;")
+
         col.addWidget(t_lbl)
         col.addWidget(s_lbl)
         h_lay.addLayout(col)
         self.main_layout.addWidget(header)
 
+        # FIX: removed all emojis from tab labels
         tabs = QTabWidget()
-        tabs.addTab(self._build_account_tab(),    "👤  My Account")
-        tabs.addTab(self._build_users_tab(),      "👥  User Management")
-        tabs.addTab(self._build_system_tab(),     "🔧  System Settings")
-        tabs.addTab(self._build_about_tab(),      "ℹ  About")
+        tabs.addTab(self._build_account_tab(), "  My Account ")
+        tabs.addTab(self._build_users_tab(),   "  User Management ")
+        tabs.addTab(self._build_system_tab(),  "  System Settings ")
+        tabs.addTab(self._build_about_tab(),   "  About ")
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
@@ -70,30 +79,30 @@ class SettingsPage(BasePage):
         w.setStyleSheet(f"background: {WHITE};")
         lay = QVBoxLayout(w)
         lay.setContentsMargins(24, 20, 24, 20)
-        lay.setSpacing(20)
+        lay.setSpacing(16)
 
         lay.addWidget(SectionTitle("My Account — Change Password"))
 
-        pw_group = QGroupBox("Update Password")
-        pw_group.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        pw_group.setStyleSheet(f"""
-            QGroupBox {{
+        # FIX: replaced QGroupBox (which adds its own title border line) with a
+        # clean QFrame + manual title label — eliminates the double-border look
+        pw_frame = QFrame()
+        pw_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {WHITE};
                 border: 1.5px solid {LIGHT_GRAY};
                 border-radius: 10px;
-                margin-top: 18px;
-                padding: 16px;
-                background: {WHITE};
-                color: {NAVY};
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                left: 16px; top: -2px;
-                padding: 0 8px;
-                background: {WHITE};
             }}
         """)
-        g_lay = QGridLayout(pw_group)
+        pw_outer = QVBoxLayout(pw_frame)
+        pw_outer.setContentsMargins(20, 16, 20, 16)
+        pw_outer.setSpacing(14)
+
+        pw_title = QLabel("Update Password")
+        pw_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        pw_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        pw_outer.addWidget(pw_title)
+
+        g_lay = QGridLayout()
         g_lay.setSpacing(12)
         g_lay.setColumnStretch(1, 1)
 
@@ -121,11 +130,12 @@ class SettingsPage(BasePage):
         conf_pw.setFixedHeight(38)
         g_lay.addWidget(conf_pw, 2, 1)
 
-        lay.addWidget(pw_group)
+        pw_outer.addLayout(g_lay)
+        lay.addWidget(pw_frame)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        save_pw = QPushButton("  Update Password")
+        save_pw = QPushButton("Update Password")
         save_pw.setStyleSheet(btn_primary())
         save_pw.setFixedHeight(40)
         save_pw.clicked.connect(lambda: InfoDialog(
@@ -137,6 +147,8 @@ class SettingsPage(BasePage):
 
         lay.addWidget(Divider())
         lay.addWidget(SectionTitle("Account Information"))
+
+        # FIX: cleaner info frame — labels get border: none explicitly
         info_frame = QFrame()
         info_frame.setStyleSheet(f"""
             QFrame {{
@@ -145,24 +157,35 @@ class SettingsPage(BasePage):
                 border-radius: 8px;
             }}
         """)
-        i_lay = QGridLayout(info_frame)
+        i_lay = QVBoxLayout(info_frame)
         i_lay.setContentsMargins(20, 14, 20, 14)
-        i_lay.setSpacing(10)
+        i_lay.setSpacing(8)
 
-        for i, (label, value) in enumerate([
-            ("Username:", "admin"),
-            ("Full Name:", "Administrator"),
-            ("Role:", "Admin"),
+        for label, value in [
+            ("Username:",   "admin"),
+            ("Full Name:",  "Administrator"),
+            ("Role:",       "Admin"),
             ("Last Login:", "November 20, 2024 — 8:30 AM"),
-        ]):
+        ]:
+            row_w = QWidget()
+            row_w.setStyleSheet("background: transparent; border: none;")
+            row_lay = QHBoxLayout(row_w)
+            row_lay.setContentsMargins(0, 0, 0, 0)
+            row_lay.setSpacing(8)
+
             lbl_w = QLabel(label)
             lbl_w.setFont(QFont("Segoe UI", 12))
-            lbl_w.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+            lbl_w.setFixedWidth(100)
+            lbl_w.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
+
             val_w = QLabel(value)
             val_w.setFont(QFont("Segoe UI", 12, QFont.Bold))
-            val_w.setStyleSheet(f"color: {NAVY}; background: transparent;")
-            i_lay.addWidget(lbl_w, i, 0)
-            i_lay.addWidget(val_w, i, 1)
+            val_w.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+
+            row_lay.addWidget(lbl_w)
+            row_lay.addWidget(val_w)
+            row_lay.addStretch()
+            i_lay.addWidget(row_w)
 
         lay.addWidget(info_frame)
         lay.addStretch()
@@ -181,10 +204,12 @@ class SettingsPage(BasePage):
 
         top_row = QHBoxLayout()
         search = QLineEdit()
-        search.setPlaceholderText("🔍  Search users...")
+        # FIX: removed emoji from placeholder
+        search.setPlaceholderText("  Search users...")
         search.setFixedHeight(38)
 
-        add_btn = QPushButton("➕  Add New User")
+        # FIX: removed emoji from button
+        add_btn = QPushButton("  Add New User")
         add_btn.setStyleSheet(btn_primary())
         add_btn.setFixedHeight(38)
         add_btn.clicked.connect(self._show_add_user)
@@ -193,7 +218,6 @@ class SettingsPage(BasePage):
         top_row.addWidget(add_btn)
         lay.addLayout(top_row)
 
-        # Users table
         headers = ["Username", "Full Name", "Role", "Status", "Last Login", "Actions"]
         users = [
             ("admin",   "Administrator",    "Admin", "Active", "Nov 20, 2024"),
@@ -202,13 +226,30 @@ class SettingsPage(BasePage):
             ("staff2",  "Mary Anne Santos", "Staff", "Active", "Nov 15, 2024"),
         ]
 
-        table = QTableWidget(len(users), 6)
-        table.setHorizontalHeaderLabels(headers)
+        from PyQt5.QtWidgets import QSizePolicy
+
+        # Use 5 columns only — replace Actions column with two separate button columns
+        table = QTableWidget(len(users), 7)
+        table.setHorizontalHeaderLabels(
+            ["Username", "Full Name", "Role", "Status", "Last Login", "Edit", "Delete"]
+        )
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectRows)
         table.verticalHeader().setVisible(False)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
+        table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
+        table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
+        table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
+        table.setColumnWidth(0, 100)
+        table.setColumnWidth(2, 75)
+        table.setColumnWidth(3, 75)
+        table.setColumnWidth(4, 115)
+        table.setColumnWidth(5, 80)   # Edit button column
+        table.setColumnWidth(6, 80)   # Delete button column
+        table.horizontalHeader().setStretchLastSection(False)
         table.setAlternatingRowColors(True)
         table.setStyleSheet(f"""
             QTableWidget {{
@@ -226,33 +267,32 @@ class SettingsPage(BasePage):
                 item.setTextAlignment(Qt.AlignCenter)
                 table.setItem(r, c, item)
 
-            # Action buttons in last column
-            action_w = QWidget()
-            a_lay = QHBoxLayout(action_w)
-            a_lay.setContentsMargins(4, 2, 4, 2)
-            a_lay.setSpacing(4)
-
-            edit_btn = QPushButton("✏")
-            edit_btn.setFixedSize(30, 28)
-            edit_btn.setToolTip("Edit user")
+            edit_btn = QPushButton("Edit")
+            edit_btn.setFixedHeight(32)
             edit_btn.setStyleSheet(btn_outline())
 
-            del_btn = QPushButton("🗑")
-            del_btn.setFixedSize(30, 28)
-            del_btn.setToolTip("Delete user")
+            del_btn = QPushButton("Delete")
+            del_btn.setFixedHeight(32)
             del_btn.setStyleSheet(btn_danger())
 
-            a_lay.addWidget(edit_btn)
-            a_lay.addWidget(del_btn)
-            table.setCellWidget(r, 5, action_w)
+            # Wrap each button in its own centered widget
+            for col_idx, btn in [(5, edit_btn), (6, del_btn)]:
+                cell_w = QWidget()
+                cell_w.setStyleSheet("background: transparent;")
+                cell_lay = QHBoxLayout(cell_w)
+                cell_lay.setContentsMargins(6, 5, 6, 5)
+                cell_lay.addWidget(btn)
+                table.setCellWidget(r, col_idx, cell_w)
 
-        table.setFixedHeight(220)
+            table.setRowHeight(r, 44)
+
+        table.setFixedHeight(258)
         lay.addWidget(table)
         lay.addStretch()
         return w
 
     def _show_add_user(self):
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QGridLayout, QDialogButtonBox
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QGridLayout
         dlg = QDialog(self)
         dlg.setWindowTitle("Add New User")
         dlg.setModal(True)
@@ -265,7 +305,7 @@ class SettingsPage(BasePage):
 
         title = QLabel("Add New System User")
         title.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        title.setStyleSheet(f"color: {NAVY};")
+        title.setStyleSheet(f"color: {NAVY}; border: none;")
         lay.addWidget(title)
         lay.addWidget(Divider())
 
@@ -302,14 +342,14 @@ class SettingsPage(BasePage):
         cancel.setFixedHeight(38)
         cancel.clicked.connect(dlg.reject)
 
-        save = QPushButton("💾  Save User")
+        # FIX: removed emoji from Save button
+        save = QPushButton("Save User")
         save.setStyleSheet(btn_primary())
         save.setFixedHeight(38)
         save.clicked.connect(lambda: (dlg.accept(),
                                       InfoDialog("User Added",
                                                  "New user has been added successfully.",
                                                  parent=self).exec_()))
-
         btn_row.addWidget(cancel)
         btn_row.addWidget(save)
         lay.addLayout(btn_row)
@@ -321,46 +361,46 @@ class SettingsPage(BasePage):
         w.setStyleSheet(f"background: {WHITE};")
         lay = QVBoxLayout(w)
         lay.setContentsMargins(24, 20, 24, 20)
-        lay.setSpacing(20)
+        lay.setSpacing(16)
 
         lay.addWidget(SectionTitle("System Configuration"))
 
+        # FIX: replaced QGroupBox with clean QFrame + title label for each section
         for section_title, items in [
             ("Academic Year Settings", [
                 ("Current School Year:", ["2024–2025", "2023–2024"]),
-                ("Current Semester:",   ["1st Semester", "2nd Semester"]),
+                ("Current Semester:",    ["1st Semester", "2nd Semester"]),
             ]),
             ("Notifications & Alerts", [
                 ("Low Green Slip threshold (per student):", ["1", "2", "3", "4", "5"]),
-                ("Escalation trigger (Blue Slip repeat):", ["2", "3", "4"]),
+                ("Escalation trigger (Blue Slip repeat):",  ["2", "3", "4"]),
             ]),
         ]:
-            group = QGroupBox(section_title)
-            group.setFont(QFont("Segoe UI", 12, QFont.Bold))
-            group.setStyleSheet(f"""
-                QGroupBox {{
+            sec_frame = QFrame()
+            sec_frame.setStyleSheet(f"""
+                QFrame {{
+                    background: {WHITE};
                     border: 1.5px solid {LIGHT_GRAY};
                     border-radius: 8px;
-                    margin-top: 16px;
-                    padding: 14px;
-                    background: {WHITE};
-                    color: {NAVY};
-                }}
-                QGroupBox::title {{
-                    subcontrol-origin: margin;
-                    left: 14px; top: -1px;
-                    padding: 0 6px;
-                    background: {WHITE};
                 }}
             """)
-            g_lay = QGridLayout(group)
+            sec_outer = QVBoxLayout(sec_frame)
+            sec_outer.setContentsMargins(20, 14, 20, 14)
+            sec_outer.setSpacing(12)
+
+            sec_title = QLabel(section_title)
+            sec_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+            sec_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+            sec_outer.addWidget(sec_title)
+
+            g_lay = QGridLayout()
             g_lay.setSpacing(10)
-            g_lay.setColumnStretch(1, 1)
+            g_lay.setColumnStretch(0, 1)
 
             for row, (lbl_text, options) in enumerate(items):
                 lbl_w = QLabel(lbl_text)
                 lbl_w.setFont(QFont("Segoe UI", 12))
-                lbl_w.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
+                lbl_w.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
                 cb = QComboBox()
                 cb.addItems(options)
                 cb.setFixedHeight(36)
@@ -368,28 +408,27 @@ class SettingsPage(BasePage):
                 g_lay.addWidget(lbl_w, row, 0)
                 g_lay.addWidget(cb, row, 1)
 
-            lay.addWidget(group)
+            sec_outer.addLayout(g_lay)
+            lay.addWidget(sec_frame)
 
-        # Notification checkboxes
-        notif_group = QGroupBox("Notification Preferences")
-        notif_group.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        notif_group.setStyleSheet(f"""
-            QGroupBox {{
+        # Notification checkboxes — also a clean frame
+        notif_frame = QFrame()
+        notif_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {WHITE};
                 border: 1.5px solid {LIGHT_GRAY};
                 border-radius: 8px;
-                margin-top: 16px;
-                padding: 14px;
-                background: {WHITE};
-                color: {NAVY};
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 14px; top: -1px;
-                padding: 0 6px;
-                background: {WHITE};
             }}
         """)
-        n_lay = QVBoxLayout(notif_group)
+        n_outer = QVBoxLayout(notif_frame)
+        n_outer.setContentsMargins(20, 14, 20, 14)
+        n_outer.setSpacing(10)
+
+        notif_title = QLabel("Notification Preferences")
+        notif_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        notif_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        n_outer.addWidget(notif_title)
+
         for label in [
             "Show alert when student exceeds 2 Green Slips per semester",
             "Warn before issuing 2nd Pink Slip (policy violation)",
@@ -399,13 +438,15 @@ class SettingsPage(BasePage):
             cb = QCheckBox(label)
             cb.setFont(QFont("Segoe UI", 12))
             cb.setChecked(True)
-            cb.setStyleSheet("background: transparent;")
-            n_lay.addWidget(cb)
-        lay.addWidget(notif_group)
+            cb.setStyleSheet("background: transparent; border: none;")
+            n_outer.addWidget(cb)
+
+        lay.addWidget(notif_frame)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        save_btn = QPushButton("💾  Save Settings")
+        # FIX: removed emoji from Save button
+        save_btn = QPushButton("Save Settings")
         save_btn.setStyleSheet(btn_primary())
         save_btn.setFixedHeight(40)
         save_btn.clicked.connect(lambda: InfoDialog("Settings Saved",
@@ -425,10 +466,18 @@ class SettingsPage(BasePage):
         lay.setSpacing(16)
         lay.setAlignment(Qt.AlignTop)
 
-        crest = QLabel("⚖")
-        crest.setFont(QFont("Segoe UI", 56))
+        # FIX: removed emoji icon, replaced with a clean styled text badge
+        crest = QLabel("SCMS")
+        crest.setFont(QFont("Segoe UI", 36, QFont.Bold))
         crest.setAlignment(Qt.AlignCenter)
-        crest.setStyleSheet(f"color: {NAVY}; background: transparent;")
+        crest.setStyleSheet(f"""
+            color: {WHITE};
+            background: {NAVY};
+            border-radius: 16px;
+            border: none;
+            padding: 16px 32px;
+        """)
+        crest.setFixedHeight(90)
         lay.addWidget(crest)
 
         for text, font_size, bold, color in [
@@ -439,7 +488,7 @@ class SettingsPage(BasePage):
             lbl = QLabel(text)
             lbl.setFont(QFont("Segoe UI", font_size, QFont.Bold if bold else QFont.Normal))
             lbl.setAlignment(Qt.AlignCenter)
-            lbl.setStyleSheet(f"color: {color}; background: transparent;")
+            lbl.setStyleSheet(f"color: {color}; background: transparent; border: none;")
             lay.addWidget(lbl)
 
         lay.addWidget(Divider())
@@ -450,14 +499,14 @@ class SettingsPage(BasePage):
             "student conduct records including Green Slips (Dispensation & Excuse),\n"
             "Pink Slips (Penalty — once per semester), and Blue Slips (Violations).\n\n"
             "Technology Stack:\n"
-            "  • Python 3.x\n"
-            "  • PyQt5 (User Interface)\n"
-            "  • MS Access Database (via pyodbc)\n"
-            "  • Windows OS"
+            "  Python 3.x\n"
+            "  PyQt5 (User Interface)\n"
+            "  MS Access Database (via pyodbc)\n"
+            "  Windows OS"
         )
         info_text.setFont(QFont("Segoe UI", 12))
         info_text.setAlignment(Qt.AlignCenter)
-        info_text.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; line-height: 1.6;")
+        info_text.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
         lay.addWidget(info_text)
 
         lay.addStretch()

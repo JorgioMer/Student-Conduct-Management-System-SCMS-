@@ -90,7 +90,6 @@ def page_header(slip_type: str, main_title: str, subtitle: str) -> QFrame:
         QFrame {{
             background: {bg};
             border-radius: 12px;
-            border-left: 6px solid {colour};
             border: 1px solid {colour}40;
             border-left: 6px solid {colour};
         }}
@@ -106,11 +105,24 @@ def page_header(slip_type: str, main_title: str, subtitle: str) -> QFrame:
 
     title_lbl = QLabel(main_title)
     title_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
-    title_lbl.setStyleSheet(f"color: {colour}; background: transparent;")
+    # FIX: added border: none and padding: 0 to prevent the QFrame border
+    # style from being inherited and rendering curved outlines around the text
+    title_lbl.setStyleSheet(f"""
+        color: {colour};
+        background: transparent;
+        border: none;
+        padding: 0;
+    """)
 
     sub_lbl = QLabel(subtitle)
     sub_lbl.setFont(QFont("Segoe UI", 11))
-    sub_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
+    # FIX: same fix — border: none prevents the inherited border artifact
+    sub_lbl.setStyleSheet(f"""
+        color: {TEXT_DARK};
+        background: transparent;
+        border: none;
+        padding: 0;
+    """)
 
     left_col.addWidget(title_lbl)
     left_col.addWidget(sub_lbl)
@@ -128,7 +140,7 @@ def search_bar(placeholder: str = "Search...") -> QHBoxLayout:
 
     search_icon = QLabel("")
     search_icon.setFont(QFont("Segoe UI", 14))
-    search_icon.setStyleSheet("background: transparent;")
+    search_icon.setStyleSheet("background: transparent; border: none;")
 
     edit = QLineEdit()
     edit.setPlaceholderText(placeholder)
