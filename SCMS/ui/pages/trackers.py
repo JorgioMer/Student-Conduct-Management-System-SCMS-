@@ -144,8 +144,6 @@ class TrackersPage(BasePage):
         filter_row.addWidget(filter_btn)
         lay.addLayout(filter_row)
 
-        from backend.db_students import get_student
-
         headers = ["#", "Student No.", "Student Name", "Grade", "Section",
                    "Slip Type", "Date Filed", "Details", "Status"]
         sample      = []
@@ -159,31 +157,30 @@ class TrackersPage(BasePage):
 
         for i, (slip_type, record) in enumerate(all_records[:8], 1):
             try:
-                stud_num  = record[1] if len(record) > 1 else "N/A"
-                stud_info = get_student(stud_num)
-                stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
-                grade     = stud_info[3] if stud_info and len(stud_info) > 3 else "N/A"
-                section   = stud_info[2] if stud_info and len(stud_info) > 2 else "N/A"
+                stud_name = record[0] if len(record) > 0 else "Unknown"
+                stud_num  = record[4] if len(record) > 4 else "N/A"
+                grade     = record[2] if len(record) > 2 else "N/A"
+                section   = record[1] if len(record) > 1 else "N/A"
 
                 if slip_type == "blue":
                     slip_label = "🔵 Blue Slip"
-                    details    = record[4] if len(record) > 4 else "N/A"
-                    date       = str(record[3]) if len(record) > 3 else "N/A"
-                    status     = record[7] if len(record) > 7 else "Open / Pending"
+                    details    = record[5] if len(record) > 5 else "N/A"
+                    date       = str(record[6])[:10] if len(record) > 6 else "N/A"
+                    status     = record[10] if len(record) > 10 else "Open / Pending"
                 elif slip_type == "green":
-                    is_disp    = record[2] if len(record) > 2 else False
+                    is_disp    = record[5] == False if len(record) > 5 else False
                     slip_label = "🟢 Green (Disp.)" if is_disp else "🟢 Green (Excuse)"
-                    details    = str(record[4]) if len(record) > 4 else "N/A"
-                    date       = str(record[3]) if len(record) > 3 else "N/A"
-                    status     = record[5] if len(record) > 5 else "Active"
+                    details    = str(record[7]) if len(record) > 7 else "N/A"
+                    date       = str(record[6])[:10] if len(record) > 6 else "N/A"
+                    status     = record[8] if len(record) > 8 else "Active"
                 else:
                     slip_label = "🔴 Pink Slip"
-                    details    = record[3] if len(record) > 3 else "N/A"
-                    date       = str(record[2]) if len(record) > 2 else "N/A"
+                    details    = record[6] if len(record) > 6 else "N/A"
+                    date       = str(record[5])[:10] if len(record) > 5 else "N/A"
                     status     = "Completed"
 
                 sample.append((str(i), stud_num, stud_name, grade, section,
-                               slip_label, date[:10], details, status))
+                               slip_label, date, details, status))
             except:
                 pass
 

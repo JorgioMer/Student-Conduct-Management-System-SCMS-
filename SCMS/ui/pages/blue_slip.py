@@ -26,6 +26,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_blue_slip import add_blue_slip, get_blue_slips
+from backend.config import get_current_semester
 
 
 class BlueSlipPage(BasePage):
@@ -143,14 +144,14 @@ class BlueSlipPage(BasePage):
         # Row 1
         form_lay.addWidget(lbl("Course & Year"), 1, 0)
         grade_row = QHBoxLayout()
-        self.blue_grade = QComboBox()
-        self.blue_grade.addItems(["1st","2nd","3rd","4th"])
-        self.blue_grade.setFixedHeight(38)
-        self.blue_section = QLineEdit()
-        self.blue_section.setPlaceholderText("Course")
-        self.blue_section.setFixedHeight(38)
-        grade_row.addWidget(self.blue_grade)
-        grade_row.addWidget(self.blue_section)
+        self.blue_year = QComboBox()
+        self.blue_year.addItems(["1st","2nd","3rd","4th"])
+        self.blue_year.setFixedHeight(38)
+        self.blue_course = QLineEdit()
+        self.blue_course.setPlaceholderText("Course")
+        self.blue_course.setFixedHeight(38)
+        grade_row.addWidget(self.blue_year)
+        grade_row.addWidget(self.blue_course)
         form_lay.addLayout(grade_row, 1, 1)
 
         form_lay.addWidget(lbl("Date of Violation", True), 1, 2)
@@ -243,6 +244,12 @@ class BlueSlipPage(BasePage):
         self.blue_semester = QComboBox()
         self.blue_semester.addItems(["1st", "2nd", "Summer"])
         self.blue_semester.setFixedHeight(38)
+        # Set to current semester from config
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            self.blue_semester.setCurrentIndex(0)
+        elif "2nd" in current_sem:
+            self.blue_semester.setCurrentIndex(1)
         form_lay.addWidget(self.blue_semester, 6, 1)
 
         # Escalation flag
@@ -302,8 +309,8 @@ class BlueSlipPage(BasePage):
             try:
                 stud_num = self.blue_no.text().strip()
                 stud_name = self.blue_name.text().strip()
-                stud_section = self.blue_section.text().strip()
-                stud_year = self.blue_grade.currentText()
+                stud_course = self.blue_course.text().strip()
+                stud_year = self.blue_year.currentText()
                 semester = self.blue_semester.currentText()
                 violation_type = self.blue_vtype.currentText()
                 date_of_violation = self.blue_date.date().toPyDate()
@@ -316,7 +323,7 @@ class BlueSlipPage(BasePage):
                 add_blue_slip(stud_num, violation_type, date_of_violation, severity,
                              action_taken, status=status, violation_desc=violation_desc,
                              witnesses=witnesses, stud_name=stud_name,
-                             stud_course=stud_section, stud_year=stud_year)
+                             stud_course=stud_course, stud_year=stud_year)
 
                 InfoDialog("Record Saved",
                            "Blue Slip violation record has been saved successfully!",
@@ -338,15 +345,15 @@ class BlueSlipPage(BasePage):
             blue_slips = get_blue_slips(None) or []
             for record in blue_slips:
                 try:
+                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, violationType_blue, dateOfViolation_blue, confiscatedBy_blue, severityLvl_blue, actionTaken_blue, status_blue, violationDesc_blue, witnesses_blue)
                     stud_name = record[0] if len(record) > 0 else "N/A"
-                    stud_course = record[1] if len(record) > 1 else "N/A"
                     stud_year = record[2] if len(record) > 2 else "N/A"
                     stud_num = record[4] if len(record) > 4 else "N/A"
                     violation_type = record[5] if len(record) > 5 else "N/A"
                     date_vio = str(record[6]) if len(record) > 6 else "N/A"
-                    severity = record[7] if len(record) > 7 else "N/A"
-                    action = record[8] if len(record) > 8 else "N/A"
-                    status = record[9] if len(record) > 9 else "Open / Pending"
+                    severity = record[8] if len(record) > 8 else "N/A"
+                    action = record[9] if len(record) > 9 else "N/A"
+                    status = record[10] if len(record) > 10 else "Open / Pending"
                     sample.append((stud_num, stud_name, stud_year, violation_type, severity, date_vio[:10], action, status))
                 except:
                     pass
@@ -402,6 +409,17 @@ class BlueSlipPage(BasePage):
         search.setPlaceholderText("   Search by student name, number, or violation type... ")
         search.setFixedHeight(38)
 
+        semester_filter = QComboBox()
+        semester_filter.addItems(["All Semesters", "1st", "2nd", "Summer"])
+        semester_filter.setFixedHeight(38)
+        semester_filter.setFixedWidth(140)
+        # Set to current semester by default
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            semester_filter.setCurrentIndex(1)
+        elif "2nd" in current_sem:
+            semester_filter.setCurrentIndex(2)
+
         status_filter = QComboBox()
         status_filter.addItems(["All Status","Open / Pending","Under Investigation",
                                 "Action Taken","Resolved","Escalated"])
@@ -414,6 +432,7 @@ class BlueSlipPage(BasePage):
         severity_filter.setFixedWidth(130)
 
         top_row.addWidget(search, 1)
+        top_row.addWidget(semester_filter)
         top_row.addWidget(status_filter)
         top_row.addWidget(severity_filter)
         refresh_btn = QPushButton("   Refresh ")
@@ -423,7 +442,7 @@ class BlueSlipPage(BasePage):
         top_row.addWidget(refresh_btn)
         lay.addLayout(top_row)
 
-        headers = ["Student No.", "Student Name", "Grade", "Violation Type",
+        headers = ["Student No.", "Student Name", "Year", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
         
         sample = self._load_blue_tracker_data()

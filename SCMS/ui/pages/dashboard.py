@@ -211,7 +211,6 @@ class DashboardPage(QWidget):
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip import get_pink_slips
-        from backend.db_students import get_student
         
         # Fetch recent records from database
         all_records = []
@@ -246,28 +245,23 @@ class DashboardPage(QWidget):
                 if r >= 6:
                     break
                 try:
+                    # All records from JOIN have: (studName[0], course[1], year[2], ID[3], studNumber[4], ...)
+                    stud_name = record[0] if len(record) > 0 else "Unknown"
+                    stud_num = record[4] if len(record) > 4 else "N/A"
+                    
                     if slip_type == 'blue':
-                        stud_num = record[1] if len(record) > 1 else "N/A"
-                        stud_info = get_student(stud_num)
-                        stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
                         slip_label = "Blue Slip"
-                        status = record[6] if len(record) > 6 else "Open / Pending"
-                        date = str(record[3]) if len(record) > 3 else "N/A"
+                        status = record[10] if len(record) > 10 else "Open / Pending"
+                        date = str(record[6])[:10] if len(record) > 6 else "N/A"
                     elif slip_type == 'green':
-                        stud_num = record[1] if len(record) > 1 else "N/A"
-                        stud_info = get_student(stud_num)
-                        stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
-                        is_disp = record[2] if len(record) > 2 else False
+                        is_disp = record[5] == False if len(record) > 5 else False
                         slip_label = "Green (Dispensation)" if is_disp else "Green (Excuse)"
-                        status = record[5] if len(record) > 5 else "Active"
-                        date = str(record[3]) if len(record) > 3 else "N/A"
+                        status = record[8] if len(record) > 8 else "Active"
+                        date = str(record[6])[:10] if len(record) > 6 else "N/A"
                     else:  # pink
-                        stud_num = record[1] if len(record) > 1 else "N/A"
-                        stud_info = get_student(stud_num)
-                        stud_name = stud_info[1] if stud_info and len(stud_info) > 1 else "Unknown"
                         slip_label = "Pink Slip"
                         status = "Completed"
-                        date = str(record[2]) if len(record) > 2 else "N/A"
+                        date = str(record[5])[:10] if len(record) > 5 else "N/A"
                     
                     row_data = (stud_num, stud_name, slip_label, date[:10] if len(date) > 10 else date, status)
                     for c, val in enumerate(row_data):

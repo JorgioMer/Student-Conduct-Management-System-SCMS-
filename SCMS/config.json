@@ -1,0 +1,18 @@
+{
+  "school_year": "2024–2025",
+  "school_years_list": [
+    "2025-2026",
+    "2024–2025",
+    "2023–2024",
+    "2022–2023"
+  ],
+  "current_semester": "1st Semester",
+  "green_slip_threshold": "2",
+  "escalation_trigger": "3",
+  "notifications": {
+    "green_slip_alert": true,
+    "pink_slip_warn": true,
+    "auto_escalate": true,
+    "monthly_summary": true
+  }
+}

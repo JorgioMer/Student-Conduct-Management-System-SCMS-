@@ -21,10 +21,19 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage
 
+# Backend imports for config
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from backend.config import load_config, save_config, get_school_years_list, add_school_year
+
 
 class SettingsPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Store references to settings widgets
+        self.settings_combos = {}
+        self.settings_checkboxes = {}
         self._build()
 
     def _build(self):
@@ -365,53 +374,115 @@ class SettingsPage(BasePage):
 
         lay.addWidget(SectionTitle("System Configuration"))
 
-        # FIX: replaced QGroupBox with clean QFrame + title label for each section
-        for section_title, items in [
-            ("Academic Year Settings", [
-                ("Current School Year:", ["2024–2025", "2023–2024"]),
-                ("Current Semester:",    ["1st Semester", "2nd Semester"]),
-            ]),
-            ("Notifications & Alerts", [
-                ("Low Green Slip threshold (per student):", ["1", "2", "3", "4", "5"]),
-                ("Escalation trigger (Blue Slip repeat):",  ["2", "3", "4"]),
-            ]),
-        ]:
-            sec_frame = QFrame()
-            sec_frame.setStyleSheet(f"""
-                QFrame {{
-                    background: {WHITE};
-                    border: 1.5px solid {LIGHT_GRAY};
-                    border-radius: 8px;
-                }}
-            """)
-            sec_outer = QVBoxLayout(sec_frame)
-            sec_outer.setContentsMargins(20, 14, 20, 14)
-            sec_outer.setSpacing(12)
+        # Load current config
+        current_config = load_config()
+        school_years = get_school_years_list()
 
-            sec_title = QLabel(section_title)
-            sec_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
-            sec_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
-            sec_outer.addWidget(sec_title)
+        # ──── Academic Year Settings ────────────────────────────────────────
+        year_frame = QFrame()
+        year_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {WHITE};
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 8px;
+            }}
+        """)
+        year_outer = QVBoxLayout(year_frame)
+        year_outer.setContentsMargins(20, 14, 20, 14)
+        year_outer.setSpacing(12)
 
-            g_lay = QGridLayout()
-            g_lay.setSpacing(10)
-            g_lay.setColumnStretch(0, 1)
+        year_title = QLabel("Academic Year Settings")
+        year_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        year_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        year_outer.addWidget(year_title)
 
-            for row, (lbl_text, options) in enumerate(items):
-                lbl_w = QLabel(lbl_text)
-                lbl_w.setFont(QFont("Segoe UI", 12))
-                lbl_w.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
-                cb = QComboBox()
-                cb.addItems(options)
-                cb.setFixedHeight(36)
-                cb.setFixedWidth(220)
-                g_lay.addWidget(lbl_w, row, 0)
-                g_lay.addWidget(cb, row, 1)
+        # School Year selector
+        y_lay = QGridLayout()
+        y_lay.setSpacing(10)
+        y_lay.setColumnStretch(0, 1)
 
-            sec_outer.addLayout(g_lay)
-            lay.addWidget(sec_frame)
+        lbl_w = QLabel("Current School Year:")
+        lbl_w.setFont(QFont("Segoe UI", 12))
+        lbl_w.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
+        
+        year_combo = QComboBox()
+        year_combo.addItems(school_years)
+        year_combo.setFixedHeight(36)
+        year_combo.setFixedWidth(220)
+        current_year = current_config.get("school_year", school_years[0])
+        index = year_combo.findText(current_year)
+        if index >= 0:
+            year_combo.setCurrentIndex(index)
+        self.settings_combos["school_year"] = year_combo
 
-        # Notification checkboxes — also a clean frame
+        y_lay.addWidget(lbl_w, 0, 0)
+        y_lay.addWidget(year_combo, 0, 1)
+
+        # Add new school year section
+        add_year_lbl = QLabel("Add New School Year:")
+        add_year_lbl.setFont(QFont("Segoe UI", 12))
+        add_year_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
+        
+        year_input = QLineEdit()
+        year_input.setPlaceholderText("e.g., 2025–2026")
+        year_input.setFixedHeight(36)
+        year_input.setFixedWidth(220)
+
+        add_year_btn = QPushButton("Add")
+        add_year_btn.setStyleSheet(btn_primary())
+        add_year_btn.setFixedHeight(36)
+        add_year_btn.setFixedWidth(80)
+        add_year_btn.clicked.connect(lambda: self._add_school_year(year_input, year_combo))
+
+        y_lay.addWidget(add_year_lbl, 1, 0)
+        y_lay.addWidget(year_input, 1, 1)
+        y_lay.addWidget(add_year_btn, 1, 2)
+
+        year_outer.addLayout(y_lay)
+        lay.addWidget(year_frame)
+
+        # ──── Semester Settings ──────────────────────────────────────────────
+        sem_frame = QFrame()
+        sem_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {WHITE};
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 8px;
+            }}
+        """)
+        sem_outer = QVBoxLayout(sem_frame)
+        sem_outer.setContentsMargins(20, 14, 20, 14)
+        sem_outer.setSpacing(12)
+
+        sem_title = QLabel("Semester Settings")
+        sem_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        sem_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        sem_outer.addWidget(sem_title)
+
+        s_lay = QGridLayout()
+        s_lay.setSpacing(10)
+        s_lay.setColumnStretch(0, 1)
+
+        sem_lbl = QLabel("Current Semester:")
+        sem_lbl.setFont(QFont("Segoe UI", 12))
+        sem_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
+        sem_combo = QComboBox()
+        sem_combo.addItems(["1st Semester", "2nd Semester"])
+        sem_combo.setFixedHeight(36)
+        sem_combo.setFixedWidth(220)
+        current_sem = current_config.get("current_semester", "1st Semester")
+        index = sem_combo.findText(current_sem)
+        if index >= 0:
+            sem_combo.setCurrentIndex(index)
+        self.settings_combos["current_semester"] = sem_combo
+
+        s_lay.addWidget(sem_lbl, 0, 0)
+        s_lay.addWidget(sem_combo, 0, 1)
+
+        sem_outer.addLayout(s_lay)
+        lay.addWidget(sem_frame)
+
+        # ──── Notifications & Alerts ──────────────────────────────────────────
         notif_frame = QFrame()
         notif_frame.setStyleSheet(f"""
             QFrame {{
@@ -422,23 +493,63 @@ class SettingsPage(BasePage):
         """)
         n_outer = QVBoxLayout(notif_frame)
         n_outer.setContentsMargins(20, 14, 20, 14)
-        n_outer.setSpacing(10)
+        n_outer.setSpacing(12)
 
-        notif_title = QLabel("Notification Preferences")
-        notif_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        notif_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
-        n_outer.addWidget(notif_title)
+        # Thresholds
+        thresh_title = QLabel("Notifications & Alerts")
+        thresh_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        thresh_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        n_outer.addWidget(thresh_title)
 
-        for label in [
-            "Show alert when student exceeds 2 Green Slips per semester",
-            "Warn before issuing 2nd Pink Slip (policy violation)",
-            "Auto-flag Blue Slip as 'Escalated' on 3rd repeat offense",
-            "Show monthly summary reminder on login",
-        ]:
+        thresh_lay = QGridLayout()
+        thresh_lay.setSpacing(10)
+        thresh_lay.setColumnStretch(0, 1)
+
+        thresh_items = [
+            ("Low Green Slip threshold (per student):", ["1", "2", "3", "4", "5"], "green_slip_threshold"),
+            ("Escalation trigger (Blue Slip repeat):",  ["2", "3", "4"], "escalation_trigger"),
+        ]
+
+        for row, (lbl_text, options, config_key) in enumerate(thresh_items):
+            lbl = QLabel(lbl_text)
+            lbl.setFont(QFont("Segoe UI", 12))
+            lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
+            cb = QComboBox()
+            cb.addItems(options)
+            cb.setFixedHeight(36)
+            cb.setFixedWidth(220)
+            current_value = current_config.get(config_key, options[0])
+            index = cb.findText(current_value)
+            if index >= 0:
+                cb.setCurrentIndex(index)
+            self.settings_combos[config_key] = cb
+            thresh_lay.addWidget(lbl, row, 0)
+            thresh_lay.addWidget(cb, row, 1)
+
+        n_outer.addLayout(thresh_lay)
+
+        # Checkboxes
+        n_outer.addWidget(Divider())
+        pref_title = QLabel("Notification Preferences")
+        pref_title.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        pref_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        n_outer.addWidget(pref_title)
+
+        notif_map = [
+            ("Show alert when student exceeds 2 Green Slips per semester", "green_slip_alert"),
+            ("Warn before issuing 2nd Pink Slip (policy violation)", "pink_slip_warn"),
+            ("Auto-flag Blue Slip as 'Escalated' on 3rd repeat offense", "auto_escalate"),
+            ("Show monthly summary reminder on login", "monthly_summary"),
+        ]
+        
+        notif_config = current_config.get("notifications", {})
+        
+        for label, config_key in notif_map:
             cb = QCheckBox(label)
             cb.setFont(QFont("Segoe UI", 12))
-            cb.setChecked(True)
+            cb.setChecked(notif_config.get(config_key, True))
             cb.setStyleSheet("background: transparent; border: none;")
+            self.settings_checkboxes[config_key] = cb
             n_outer.addWidget(cb)
 
         lay.addWidget(notif_frame)
@@ -449,13 +560,60 @@ class SettingsPage(BasePage):
         save_btn = QPushButton("Save Settings")
         save_btn.setStyleSheet(btn_primary())
         save_btn.setFixedHeight(40)
-        save_btn.clicked.connect(lambda: InfoDialog("Settings Saved",
-                                                     "System settings have been saved.",
-                                                     parent=self).exec_())
+        save_btn.clicked.connect(self._save_system_settings)
         btn_row.addWidget(save_btn)
         lay.addLayout(btn_row)
         lay.addStretch()
         return w
+
+    def _save_system_settings(self):
+        """Save all system settings to config file"""
+        try:
+            config = load_config()
+            
+            # Update combo box settings
+            for key, combo in self.settings_combos.items():
+                config[key] = combo.currentText()
+            
+            # Update checkbox settings
+            notif_config = {}
+            for key, checkbox in self.settings_checkboxes.items():
+                notif_config[key] = checkbox.isChecked()
+            config["notifications"] = notif_config
+            
+            # Save config
+            save_config(config)
+            
+            InfoDialog("Settings Saved",
+                      "System settings have been saved successfully!\n\n"
+                      "The semester setting will be applied to new records.",
+                      parent=self).exec_()
+        except Exception as e:
+            InfoDialog("Error",
+                      f"Failed to save settings: {str(e)}",
+                      success=False, parent=self).exec_()
+
+    def _add_school_year(self, input_field, combo_box):
+        """Add a new school year"""
+        new_year = input_field.text().strip()
+        if not new_year:
+            InfoDialog("Input Required",
+                      "Please enter a school year (e.g., 2025–2026)",
+                      success=False, parent=self).exec_()
+            return
+        
+        if add_school_year(new_year):
+            # Update combo box
+            combo_box.clear()
+            combo_box.addItems(get_school_years_list())
+            input_field.clear()
+            InfoDialog("Success",
+                      f"School year '{new_year}' has been added.",
+                      success=True, parent=self).exec_()
+        else:
+            InfoDialog("Error",
+                      "Failed to add school year.",
+                      success=False, parent=self).exec_()
 
     # ── About tab ─────────────────────────────────────────────────────────────
     def _build_about_tab(self) -> QWidget:

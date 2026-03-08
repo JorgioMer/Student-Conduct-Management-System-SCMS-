@@ -27,6 +27,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_green_slip import add_green_slip, get_green_slips
 from backend.db_students import add_student, get_student
+from backend.config import get_current_semester
 
 
 class GreenSlipPage(BasePage):
@@ -146,14 +147,14 @@ class GreenSlipPage(BasePage):
         # Row 1
         form_lay.addWidget(lbl("Year & Course"), 1, 0)
         grade_row = QHBoxLayout()
-        self.disp_grade = QComboBox()
-        self.disp_grade.addItems(["1st","2nd","3rd","4th","5th"])
-        self.disp_grade.setFixedHeight(38)
-        self.disp_section = QLineEdit()
-        self.disp_section.setPlaceholderText("Section / Block")
-        self.disp_section.setFixedHeight(38)
-        grade_row.addWidget(self.disp_grade)
-        grade_row.addWidget(self.disp_section)
+        self.disp_year = QComboBox()
+        self.disp_year.addItems(["1st","2nd","3rd","4th","5th"])
+        self.disp_year.setFixedHeight(38)
+        self.disp_course = QLineEdit()
+        self.disp_course.setPlaceholderText("Course")
+        self.disp_course.setFixedHeight(38)
+        grade_row.addWidget(self.disp_year)
+        grade_row.addWidget(self.disp_course)
         form_lay.addLayout(grade_row, 1, 1)
 
         form_lay.addWidget(lbl("Date Availed", True), 1, 2)
@@ -212,6 +213,12 @@ class GreenSlipPage(BasePage):
         self.disp_semester = QComboBox()
         self.disp_semester.addItems(["1st", "2nd", "Summer"])
         self.disp_semester.setFixedHeight(38)
+        # Set to current semester from config
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            self.disp_semester.setCurrentIndex(0)
+        elif "2nd" in current_sem:
+            self.disp_semester.setCurrentIndex(1)
         form_lay.addWidget(self.disp_semester, 5, 1)
 
         lay.addWidget(form_group)
@@ -242,7 +249,7 @@ class GreenSlipPage(BasePage):
     def _clear_dispensation(self):
         self.disp_stud_no.clear()
         self.disp_stud_name.clear()
-        self.disp_section.clear()
+        self.disp_course.clear()
         self.disp_days.setValue(1)
         self.disp_reason.clear()
         self.disp_auth.clear()
@@ -260,8 +267,8 @@ class GreenSlipPage(BasePage):
                 # Prepare data from form
                 stud_num = self.disp_stud_no.text().strip()
                 stud_name = self.disp_stud_name.text().strip()
-                stud_section = self.disp_section.text().strip() if hasattr(self, 'disp_section') else ""
-                stud_grade = self.disp_grade.currentText()  # e.g., "Grade 9"
+                stud_course = self.disp_course.text().strip() if hasattr(self, 'disp_course') else ""
+                stud_year = self.disp_year.currentText()  # e.g., "1st"
                 slip_type = "Dispensation"
                 date_avail = self.disp_date.date().toPyDate()
                 days = self.disp_days.value()
@@ -279,7 +286,7 @@ class GreenSlipPage(BasePage):
                 add_green_slip(stud_num, slip_type, date_avail, days, status,
                               expiry, purpose, remarks, absence_type,
                               dates_absence, supp_doc, auth_by, 
-                              stud_name=stud_name, stud_course=stud_section, stud_year=stud_grade)
+                              stud_name=stud_name, stud_course=stud_course, stud_year=stud_year)
                 
                 InfoDialog("Record Saved",
                            "Dispensation Green Slip record has been saved successfully!",
@@ -295,7 +302,7 @@ class GreenSlipPage(BasePage):
     def _clear_excuse(self):
         self.exc_stud_no.clear()
         self.exc_stud_name.clear()
-        self.exc_section.clear()
+        self.exc_course.clear()
         self.exc_abs_date.clear()
         self.exc_remarks.clear()
         self.exc_auth.clear()
@@ -315,8 +322,8 @@ class GreenSlipPage(BasePage):
                 # Prepare data from form
                 stud_num = self.exc_stud_no.text().strip()
                 stud_name = self.exc_stud_name.text().strip()
-                stud_section = self.exc_section.text().strip()  # Get section
-                stud_grade = self.exc_grade.currentText()
+                stud_course = self.exc_course.text().strip()  # Get course
+                stud_year = self.exc_year.currentText()
                 slip_type = "Excuse"  # Set to Excuse for this tab
                 date_avail = self.exc_date.date().toPyDate()
                 days = 0  # Not applicable for excuse
@@ -334,7 +341,7 @@ class GreenSlipPage(BasePage):
                 add_green_slip(stud_num, slip_type, date_avail, days, status,
                               expiry, purpose, remarks, absence_type,
                               dates_absence, supp_doc, auth_by,
-                              stud_name=stud_name, stud_course=stud_section, stud_year=stud_grade)
+                              stud_name=stud_name, stud_course=stud_course, stud_year=stud_year)
                 
                 InfoDialog("Record Saved",
                            "Excuse Green Slip record has been saved successfully!",
@@ -357,7 +364,7 @@ class GreenSlipPage(BasePage):
             green_slips = get_green_slips(None) or []
             for record in green_slips:
                 try:
-                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, slipType_green, ...)
+                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, slipType_green, dateAvail_green, daysOfAbs_greenDisp, status_green, exprDate_greenDisp, purpose_greenDisp, remarks_greenExc, absceneType_greenExc, datesOfAbs_greenExc, suppDoc_greenExc, authBy_green)
                     stud_name = record[0] if len(record) > 0 else "N/A"
                     stud_course = record[1] if len(record) > 1 else "N/A"
                     stud_year = record[2] if len(record) > 2 else "N/A"
@@ -366,9 +373,9 @@ class GreenSlipPage(BasePage):
                     slip_type = "Dispensation" if is_disp else "Excuse"
                     date_avail = str(record[6]) if len(record) > 6 else "N/A"
                     days_absence = str(record[7]) if len(record) > 7 else "N/A"
-                    expiry = str(record[9]) if len(record) > 9 else "N/A"
                     status = record[8] if len(record) > 8 else "Active"
-                    sample.append((stud_num, stud_name, stud_year, stud_course, slip_type, date_avail[:10], days_absence, expiry[:10], status))
+                    expiry = str(record[9]) if len(record) > 9 else "N/A"
+                    sample.append((stud_num, stud_name, stud_year, stud_course, slip_type, date_avail[:10] if date_avail else "N/A", days_absence, expiry[:10] if expiry else "N/A", status))
                 except:
                     pass
         except:
@@ -455,14 +462,14 @@ class GreenSlipPage(BasePage):
 
         form_lay.addWidget(lbl("Year & Section"), 1, 0)
         grade_row = QHBoxLayout()
-        self.exc_grade = QComboBox()
-        self.exc_grade.addItems(["1st","2nd","3rd","4th","5th"])
-        self.exc_grade.setFixedHeight(38)
-        self.exc_section = QLineEdit()
-        self.exc_section.setPlaceholderText("Section / Block")
-        self.exc_section.setFixedHeight(38)
-        grade_row.addWidget(self.exc_grade)
-        grade_row.addWidget(self.exc_section)
+        self.exc_year = QComboBox()
+        self.exc_year.addItems(["1st","2nd","3rd","4th","5th"])
+        self.exc_year.setFixedHeight(38)
+        self.exc_course = QLineEdit()
+        self.exc_course.setPlaceholderText("Course")
+        self.exc_course.setFixedHeight(38)
+        grade_row.addWidget(self.exc_year)
+        grade_row.addWidget(self.exc_course)
         form_lay.addLayout(grade_row, 1, 1)
 
         form_lay.addWidget(lbl("Date Availed", True), 1, 2)
@@ -514,6 +521,12 @@ class GreenSlipPage(BasePage):
         self.exc_semester = QComboBox()
         self.exc_semester.addItems(["1st", "2nd", "Summer"])
         self.exc_semester.setFixedHeight(38)
+        # Set to current semester from config
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            self.exc_semester.setCurrentIndex(0)
+        elif "2nd" in current_sem:
+            self.exc_semester.setCurrentIndex(1)
         form_lay.addWidget(self.exc_semester, 5, 1)
 
         lay.addWidget(form_group)
@@ -574,6 +587,17 @@ class GreenSlipPage(BasePage):
         filter_cb.setFixedHeight(38)
         filter_cb.setFixedWidth(160)
 
+        semester_filter = QComboBox()
+        semester_filter.addItems(["All Semesters", "1st", "2nd", "Summer"])
+        semester_filter.setFixedHeight(38)
+        semester_filter.setFixedWidth(140)
+        # Set to current semester by default
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            semester_filter.setCurrentIndex(1)
+        elif "2nd" in current_sem:
+            semester_filter.setCurrentIndex(2)
+
         grade_filter = QComboBox()
         grade_filter.addItems(["All Grades","1st","2nd","3rd","4th","5th"])
         grade_filter.setFixedHeight(38)
@@ -586,11 +610,12 @@ class GreenSlipPage(BasePage):
 
         top_row.addWidget(search, 1)
         top_row.addWidget(filter_cb)
+        top_row.addWidget(semester_filter)
         top_row.addWidget(grade_filter)
         top_row.addWidget(refresh_btn)
         lay.addLayout(top_row)
 
-        headers = ["Student No.", "Student Name", "Grade", "Section",
+        headers = ["Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Availed", "Days / Absence Type", "Expiry / Date", "Status"]
         sample = self._load_green_tracker_data()
         

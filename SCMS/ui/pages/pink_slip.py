@@ -26,6 +26,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_pink_slip import add_pink_slip, get_pink_slips
+from backend.config import get_current_semester
 
 
 class PinkSlipPage(BasePage):
@@ -142,20 +143,26 @@ class PinkSlipPage(BasePage):
         # Row 1
         form_lay.addWidget(lbl("Year & Course"), 1, 0)
         grade_row = QHBoxLayout()
-        self.pink_grade = QComboBox()
-        self.pink_grade.addItems(["1st","2nd","3rd","4th","5th"])
-        self.pink_grade.setFixedHeight(38)
-        self.pink_section = QLineEdit()
-        self.pink_section.setPlaceholderText("Section")
-        self.pink_section.setFixedHeight(38)
-        grade_row.addWidget(self.pink_grade)
-        grade_row.addWidget(self.pink_section)
+        self.pink_year = QComboBox()
+        self.pink_year.addItems(["1st","2nd","3rd","4th","5th"])
+        self.pink_year.setFixedHeight(38)
+        self.pink_course = QLineEdit()
+        self.pink_course.setPlaceholderText("Course")
+        self.pink_course.setFixedHeight(38)
+        grade_row.addWidget(self.pink_year)
+        grade_row.addWidget(self.pink_course)
         form_lay.addLayout(grade_row, 1, 1)
 
         form_lay.addWidget(lbl("Semester", True), 1, 2)
         self.pink_sem = QComboBox()
         self.pink_sem.addItems(["1st", "2nd", "Summer"])
         self.pink_sem.setFixedHeight(38)
+        # Set to current semester from config
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            self.pink_sem.setCurrentIndex(0)
+        elif "2nd" in current_sem:
+            self.pink_sem.setCurrentIndex(1)
         form_lay.addWidget(self.pink_sem, 1, 3)
 
         # Row 2
@@ -250,8 +257,8 @@ class PinkSlipPage(BasePage):
                 # Prepare data from form
                 stud_num = self.pink_no.text().strip()
                 stud_name = self.pink_name.text().strip()
-                stud_section = self.pink_section.text().strip()
-                stud_grade = self.pink_grade.currentText()
+                stud_course = self.pink_course.text().strip()
+                stud_year = self.pink_year.currentText()
                 date_issued = self.pink_date.date().toPyDate()
                 violation = self.pink_violation.currentText()
                 action_taken = self.pink_action.currentText()
@@ -262,7 +269,7 @@ class PinkSlipPage(BasePage):
                 # Save to database (student will be auto-added if doesn't exist)
                 add_pink_slip(stud_num, date_issued, violation, action_taken, officer,
                              sem=sem, remarks=remarks, stud_name=stud_name, 
-                             stud_course=stud_section, stud_year=stud_grade)
+                             stud_course=stud_course, stud_year=stud_year)
                 
                 InfoDialog("Record Saved",
                            "Pink Slip record has been saved successfully!",
@@ -287,16 +294,17 @@ class PinkSlipPage(BasePage):
             pink_slips = get_pink_slips(None) or []
             for record in pink_slips:
                 try:
-                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, dateIssued_pink, ...)
+                    # Record structure: (studName, studCourse, studYrLvl, ID, studNumber, dateIssued_pink, violation_pink, actionTaken_pink, offcInCharge_pink, sem_pink, remarks_pink)
                     stud_name = record[0] if len(record) > 0 else "N/A"
                     stud_course = record[1] if len(record) > 1 else "N/A"
                     stud_year = record[2] if len(record) > 2 else "N/A"
                     stud_num = record[4] if len(record) > 4 else "N/A"
-                    date = str(record[5]) if len(record) > 5 else "N/A"
+                    date_issued = str(record[5]) if len(record) > 5 else "N/A"
                     violation = record[6] if len(record) > 6 else "N/A"
-                    action = record[7] if len(record) > 7 else "N/A"
+                    action_taken = record[7] if len(record) > 7 else "N/A"
                     officer = record[8] if len(record) > 8 else "N/A"
-                    sample.append((stud_num, stud_name, stud_year, stud_course, record[9] if len(record) > 9 else "N/A", date[:10], violation, action, officer))
+                    semester = record[9] if len(record) > 9 else "N/A"
+                    sample.append((stud_num, stud_name, stud_year, stud_course, semester, date_issued[:10], violation, action_taken, officer))
                 except:
                     pass
         except:
@@ -310,7 +318,7 @@ class PinkSlipPage(BasePage):
     def _refresh_pink_tracker(self):
         """Refresh the pink slip tracker table"""
         if self.pink_tracker_table is not None:
-            headers = ["Student No.", "Student Name", "Grade", "Section",
+            headers = ["Student No.", "Student Name", "Year", "Course",
                        "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
             data = self._load_pink_tracker_data()
             
@@ -342,9 +350,15 @@ class PinkSlipPage(BasePage):
         search.setFixedHeight(38)
 
         sem_filter = QComboBox()
-        sem_filter.addItems(["All Semesters", "1st Sem 2024–25", "2nd Sem 2024–25"])
+        sem_filter.addItems(["All Semesters", "1st", "2nd", "Summer"])
         sem_filter.setFixedHeight(38)
-        sem_filter.setFixedWidth(190)
+        sem_filter.setFixedWidth(140)
+        # Set to current semester by default
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            sem_filter.setCurrentIndex(1)
+        elif "2nd" in current_sem:
+            sem_filter.setCurrentIndex(2)
 
         top_row.addWidget(search, 1)
         top_row.addWidget(sem_filter)
@@ -356,7 +370,7 @@ class PinkSlipPage(BasePage):
         top_row.addWidget(refresh_btn)
         lay.addLayout(top_row)
 
-        headers = ["Student No.", "Student Name", "Grade", "Section",
+        headers = ["Student No.", "Student Name", "Year", "Course",
                    "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
         sample = self._load_pink_tracker_data()
         
