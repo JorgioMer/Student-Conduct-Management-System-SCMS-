@@ -294,6 +294,8 @@ class GreenSlipPage(BasePage):
                 self._clear_dispensation()
                 # Refresh tracker tab
                 self._refresh_green_tracker()
+                # Refresh summary charts
+                self._refresh_green_summary()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
@@ -349,6 +351,8 @@ class GreenSlipPage(BasePage):
                 self._clear_excuse()
                 # Refresh tracker tab
                 self._refresh_green_tracker()
+                # Refresh summary charts
+                self._refresh_green_summary()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
@@ -652,42 +656,56 @@ class GreenSlipPage(BasePage):
         lay.addWidget(SectionTitle("Green Slip Summary"))
         lay.addWidget(SubTitle("Statistical overview of green slip records"))
 
-        # Period selector
-        period_row = QHBoxLayout()
-        period_row.addWidget(QLabel("View Period:"))
-        period = QComboBox()
-        period.addItems(["This Month (November 2024)",
-                         "Last Month (October 2024)",
-                         "This Semester", "School Year 2024–2025"])
-        period.setFixedHeight(36)
-        period.setFixedWidth(260)
-        period_row.addWidget(period)
-        period_row.addStretch()
-
-        export_btn = QPushButton("   Export Report ")
-        export_btn.setStyleSheet(btn_green())
-        export_btn.setFixedHeight(36)
-        period_row.addWidget(export_btn)
-        lay.addLayout(period_row)
-
         # Stat tiles
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
 
         from ui.components import StatTile
-        # Calculate real statistics
+        # Calculate and display statistics
+        self.green_stat_tiles = {}
+        self._update_green_stats(tiles_row)
+        lay.addLayout(tiles_row)
+
+        # Add refresh button for manual refresh
+        refresh_row = QHBoxLayout()
+        refresh_row.addStretch()
+        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn.setStyleSheet(btn_green())
+        refresh_btn.setFixedHeight(36)
+        refresh_btn.setFixedWidth(150)
+        refresh_btn.clicked.connect(self._refresh_green_summary)
+        refresh_row.addWidget(refresh_btn)
+        refresh_row.addStretch()
+        lay.addLayout(refresh_row)
+
+        # Create and add chart
+        from ui.chart_widgets import GreenSlipChart
+        self.green_chart = GreenSlipChart(w)
+        self.green_chart.setMinimumHeight(380)
+        lay.addWidget(self.green_chart)
+        
+        # Initialize chart with current data
+        self._refresh_green_summary()
+        
+        lay.addStretch()
+        return w
+    
+    def _update_green_stats(self, tiles_row: QHBoxLayout):
+        """Update statistics tiles."""
+        from ui.components import StatTile
         from backend.db_green_slip import get_green_slips
+        
         green_records = get_green_slips(None) or []
         total_green = len(green_records)
-        dispensation_count = sum(1 for r in green_records if len(r) > 2 and r[2])
-        excuse_count = sum(1 for r in green_records if len(r) > 2 and not r[2])
-        active_count = sum(1 for r in green_records if len(r) > 5 and "Active" in str(r[5]))
+        dispensation_count = sum(1 for r in green_records if len(r) > 5 and r[5] == True)
+        excuse_count = sum(1 for r in green_records if len(r) > 5 and r[5] == False)
+        active_count = sum(1 for r in green_records if len(r) > 8 and "Active" in str(r[8]))
         
         # Count students with >2 slips
         student_slip_counts = {}
         for r in green_records:
-            if len(r) > 1:
-                stud = r[1]
+            if len(r) > 0:
+                stud = r[0]
                 student_slip_counts[stud] = student_slip_counts.get(stud, 0) + 1
         multi_slip_students = sum(1 for count in student_slip_counts.values() if count > 2)
         
@@ -700,34 +718,19 @@ class GreenSlipPage(BasePage):
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)
-        lay.addLayout(tiles_row)
-
-        # Chart placeholder
-        chart_frame = QFrame()
-        chart_frame.setFixedHeight(280)
-        chart_frame.setStyleSheet(f"""
-            QFrame {{
-                background: #F1F8E9;
-                border: 2px dashed {GREEN_SLIP}80;
-                border-radius: 12px;
-            }}
-        """)
-        chart_lay = QVBoxLayout(chart_frame)
-        chart_lay.setAlignment(Qt.AlignCenter)
-        chart_icon = QLabel("📊")
-        chart_icon.setFont(QFont("Segoe UI", 48))
-        chart_icon.setAlignment(Qt.AlignCenter)
-        chart_icon.setStyleSheet("background: transparent;")
-        chart_text = QLabel(
-            "Visual charts (Bar / Pie / Line) will be rendered here\n"
-            "using matplotlib or PyQtChart in the final system."
-        )
-        chart_text.setFont(QFont("Segoe UI", 12))
-        chart_text.setAlignment(Qt.AlignCenter)
-        chart_text.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
-        chart_lay.addWidget(chart_icon)
-        chart_lay.addWidget(chart_text)
-        lay.addWidget(chart_frame)
-
-        lay.addStretch()
-        return w
+            self.green_stat_tiles[label] = tile
+    
+    def _refresh_green_summary(self):
+        """Refresh the summary chart with current database data."""
+        from backend.db_green_slip import get_green_slips
+        
+        green_records = get_green_slips(None) or []
+        
+        dispensation_count = sum(1 for r in green_records if len(r) > 5 and r[5] == True)
+        excuse_count = sum(1 for r in green_records if len(r) > 5 and r[5] == False)
+        active_count = sum(1 for r in green_records if len(r) > 8 and "Active" in str(r[8]))
+        expired_count = sum(1 for r in green_records if len(r) > 8 and "Expired" in str(r[8]))
+        
+        # Update chart
+        if hasattr(self, 'green_chart'):
+            self.green_chart.update_data(dispensation_count, excuse_count, active_count, expired_count)

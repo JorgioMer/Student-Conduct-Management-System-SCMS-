@@ -4,9 +4,9 @@
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy,
-    QApplication, QDesktopWidget
+    QApplication, QDesktopWidget, QProgressBar, QDialog
 )
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QLinearGradient
 
 from ui.styles import (
@@ -23,6 +23,145 @@ DEMO_USERS = {
     "staff":  ("staff123",  "Office Staff",  "Staff"),
     "prefect":("prefect123","Prefect Office", "Admin"),
 }
+
+
+# ── Loading Screen ─────────────────────────────────────────────────────────────
+class LoadingScreen(QDialog):
+    """Modal loading screen shown during application initialization."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Loading SCMS...")
+        self.setMinimumSize(500, 250)
+        self.setStyleSheet(f"background: {NAVY_DARK};")
+        self.setModal(True)
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+        self._build_ui()
+        self._center_on_screen()
+        
+        self.main_win = None
+        self.load_step = 0
+
+    def _center_on_screen(self):
+        screen = QDesktopWidget().screenGeometry()
+        size = self.geometry()
+        self.move(
+            (screen.width() - size.width()) // 2,
+            (screen.height() - size.height()) // 2
+        )
+
+    def _build_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(60, 60, 60, 60)
+        lay.setSpacing(20)
+
+        # Logo/Title
+        title = QLabel("CJC")
+        title.setFont(QFont("Segoe UI", 28, QFont.Bold))
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet(f"color: {GOLD}; background: transparent;")
+        lay.addWidget(title)
+
+        # Loading message
+        msg = QLabel("Initializing Student Conduct Management System")
+        msg.setFont(QFont("Segoe UI", 12))
+        msg.setAlignment(Qt.AlignCenter)
+        msg.setStyleSheet(f"color: {WHITE}; background: transparent;")
+        lay.addWidget(msg)
+
+        # Progress bar - BIGGER with percentage display
+        self.progress = QProgressBar()
+        self.progress.setFixedHeight(32)
+        self.progress.setTextVisible(True)
+        self.progress.setFormat("%p%")
+        self.progress.setStyleSheet(f"""
+            QProgressBar {{
+                background: rgba(255,255,255,0.1);
+                border: none;
+                border-radius: 6px;
+                text-align: center;
+                color: {GOLD};
+                font-weight: bold;
+                font-size: 14px;
+            }}
+            QProgressBar::chunk {{
+                background: {GOLD};
+                border-radius: 4px;
+            }}
+        """)
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        lay.addWidget(self.progress)
+
+        # Status text
+        self.status_lbl = QLabel("Loading...")
+        self.status_lbl.setFont(QFont("Segoe UI", 10))
+        self.status_lbl.setAlignment(Qt.AlignCenter)
+        self.status_lbl.setStyleSheet(f"color: rgba(201,168,76,0.8); background: transparent;")
+        lay.addWidget(self.status_lbl)
+
+        lay.addStretch()
+
+    def load_application(self, full_name: str, role: str):
+        """Load the main window and pages with progress updates."""
+        self.full_name = full_name
+        self.role = role
+        self.load_step = 0
+        self._update_loading()
+
+    def _update_loading(self):
+        """Update loading progress with staged initialization."""
+        steps = [
+            (8, "Checking credentials..."),
+            (12, "Loading interface components..."),
+            (20, "Initializing themes..."),
+            (32, "Connecting to database..."),
+            (45, "Initializing database tables..."),
+            (60, "Loading dashboard..."),
+            (70, "Building navigation..."),
+            (80, "Finalizing layout..."),
+            (90, "Rendering interface..."),
+            (100, "Ready!"),
+        ]
+
+        if self.load_step < len(steps):
+            progress, status = steps[self.load_step]
+            self.progress.setValue(progress)
+            self.status_lbl.setText(status)
+
+            if self.load_step == 5:  # Create MainWindow at 60% progress
+                # Actually create MainWindow now
+                from ui.main_window import MainWindow
+                self.main_win = MainWindow(full_name=self.full_name, role=self.role)
+
+            if self.load_step == 9:  # Last step (100%)
+                # Show the main window and wait before closing loading screen
+                if self.main_win:
+                    self.main_win.show()
+                    # Wait 1.5 seconds to let UI fully render, then fade out
+                    QTimer.singleShot(1500, self._fadeout_loading)
+                    return
+
+            self.load_step += 1
+            # Continue to next step (700ms per step for longer animation)
+            QTimer.singleShot(700, self._update_loading)
+        else:
+            # Should not reach here due to explicit timing in step 9
+            if self.main_win:
+                self.main_win.show()
+            self.accept()
+
+    def _fadeout_loading(self):
+        """Smoothly fade out the loading screen before closing."""
+        fadeout = QPropertyAnimation(self, b"windowOpacity")
+        fadeout.setDuration(600)  # 600ms fade-out animation
+        fadeout.setStartValue(1.0)
+        fadeout.setEndValue(0.0)
+        fadeout.setEasingCurve(QEasingCurve.InQuad)
+        fadeout.finished.connect(self.accept)
+        fadeout.start()
+        self.finishedAnimation = fadeout  # Keep reference to prevent garbage collection
+
 
 class LoginWindow(QWidget):
     login_success = pyqtSignal(str, str)   # (full_name, role)
@@ -250,7 +389,7 @@ class LoginWindow(QWidget):
         right_lay.addWidget(card, 0, Qt.AlignCenter)
 
         # Copyright footer
-        copy_lbl = QLabel("© 2024 Office of the Prefect — CJC  |  SCMS v1.0")
+        copy_lbl = QLabel("© 2026 Office of the Prefect — CJC  |  SCMS v1.0")
         copy_lbl.setFont(QFont("Segoe UI", 9))
         copy_lbl.setAlignment(Qt.AlignCenter)
         copy_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; margin-top: 20px;")
@@ -272,12 +411,21 @@ class LoginWindow(QWidget):
             pw, full_name, role = DEMO_USERS[username]
             if password == pw:
                 self._hide_error()
-                self._launch_dashboard(full_name, role)
+                self._show_login_loading()
+                # Give visual feedback before launching dashboard
+                QTimer.singleShot(500, lambda: self._launch_dashboard(full_name, role))
                 return
 
         self._show_error("Incorrect username or password. Please try again.")
         self.password_edit.clear()
         self.password_edit.setFocus()
+
+    def _show_login_loading(self):
+        """Show loading state on the login button."""
+        self.login_btn.setEnabled(False)
+        self.login_btn.setText("  ⟳ Authenticating...")
+        self.username_edit.setEnabled(False)
+        self.password_edit.setEnabled(False)
 
     def _show_error(self, msg: str):
         self.error_lbl.setText(f"[WARNING] {msg}")
@@ -297,7 +445,12 @@ class LoginWindow(QWidget):
         self.error_lbl.setVisible(False)
 
     def _launch_dashboard(self, full_name: str, role: str):
-        from ui.main_window import MainWindow
-        self.main_win = MainWindow(full_name=full_name, role=role)
-        self.main_win.show()
-        self.close()
+        """Show loading screen and initialize application."""
+        loading = LoadingScreen(parent=self)
+        loading.load_application(full_name, role)
+        
+        if loading.exec_() == QDialog.Accepted:
+            # Keep reference to prevent garbage collection
+            self.loading_screen = loading
+            self.main_win = loading.main_win
+            self.close()

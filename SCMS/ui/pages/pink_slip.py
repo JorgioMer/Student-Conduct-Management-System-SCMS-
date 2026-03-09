@@ -276,6 +276,8 @@ class PinkSlipPage(BasePage):
                            success=True, parent=self).exec_()
                 # Refresh tracker tab
                 self._refresh_pink_tracker()
+                # Refresh summary charts
+                self._refresh_pink_summary()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
@@ -402,22 +404,53 @@ class PinkSlipPage(BasePage):
 
         lay.addWidget(SectionTitle("Pink Slip Summary"))
 
-        # Calculate real statistics
+        # Calculate and display statistics
+        tiles_row = QHBoxLayout()
+        tiles_row.setSpacing(14)
+        self.pink_stat_tiles = {}
+        self._update_pink_stats(tiles_row)
+        lay.addLayout(tiles_row)
+
+        # Add refresh button for manual refresh
+        refresh_row = QHBoxLayout()
+        refresh_row.addStretch()
+        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn.setStyleSheet(btn_pink())
+        refresh_btn.setFixedHeight(36)
+        refresh_btn.setFixedWidth(150)
+        refresh_btn.clicked.connect(self._refresh_pink_summary)
+        refresh_row.addWidget(refresh_btn)
+        refresh_row.addStretch()
+        lay.addLayout(refresh_row)
+
+        # Create and add chart
+        from ui.chart_widgets import PinkSlipChart
+        self.pink_chart = PinkSlipChart(w)
+        self.pink_chart.setMinimumHeight(380)
+        lay.addWidget(self.pink_chart)
+        
+        # Initialize chart with current data
+        self._refresh_pink_summary()
+        
+        lay.addStretch()
+        return w
+    
+    def _update_pink_stats(self, tiles_row: QHBoxLayout):
+        """Update statistics tiles."""
         from backend.db_pink_slip import get_pink_slips
+        
         pink_records = get_pink_slips(None) or []
         total_pink = len(pink_records)
-        unique_students_pink = len(set(r[1] for r in pink_records if len(r) > 1))
+        unique_students_pink = len(set(r[0] for r in pink_records if len(r) > 0))
         
         # Find most common violation
         violation_counts = {}
         for r in pink_records:
-            if len(r) > 3:
-                violation = str(r[3])
+            if len(r) > 6:
+                violation = str(r[6])
                 violation_counts[violation] = violation_counts.get(violation, 0) + 1
         most_common = max(violation_counts.items(), key=lambda x: x[1])[0] if violation_counts else "—"
         
-        tiles_row = QHBoxLayout()
-        tiles_row.setSpacing(14)
         for label, val, colour in [
             ("Total Pink Slips (Sem)",   str(total_pink), PINK_SLIP),
             ("Students Issued",          str(unique_students_pink), "#C2185B"),
@@ -426,30 +459,28 @@ class PinkSlipPage(BasePage):
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)
-        lay.addLayout(tiles_row)
-
-        chart_frame = QFrame()
-        chart_frame.setFixedHeight(280)
-        chart_frame.setStyleSheet(f"""
-            QFrame {{
-                background: #FCE4EC;
-                border: 2px dashed {PINK_SLIP}80;
-                border-radius: 12px;
-            }}
-        """)
-        c_lay = QVBoxLayout(chart_frame)
-        c_lay.setAlignment(Qt.AlignCenter)
-        c_icon = QLabel("📊")
-        c_icon.setFont(QFont("Segoe UI", 48))
-        c_icon.setAlignment(Qt.AlignCenter)
-        c_icon.setStyleSheet("background: transparent;")
-        c_text = QLabel("Pink Slip charts will be displayed here\n(Bar chart by violation type, Pie by grade level)")
-        c_text.setFont(QFont("Segoe UI", 12))
-        c_text.setAlignment(Qt.AlignCenter)
-        c_text.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
-        c_lay.addWidget(c_icon)
-        c_lay.addWidget(c_text)
-        lay.addWidget(chart_frame)
-
-        lay.addStretch()
-        return w
+            self.pink_stat_tiles[label] = tile
+    
+    def _refresh_pink_summary(self):
+        """Refresh the summary chart with current database data."""
+        from backend.db_pink_slip import get_pink_slips
+        
+        pink_records = get_pink_slips(None) or []
+        
+        # Build violation type distribution
+        violation_types = {}
+        for r in pink_records:
+            if len(r) > 6:
+                vtype = str(r[6])
+                violation_types[vtype] = violation_types.get(vtype, 0) + 1
+        
+        # Build year/grade level distribution
+        year_distribution = {}
+        for r in pink_records:
+            if len(r) > 2:
+                year = str(r[2])
+                year_distribution[year] = year_distribution.get(year, 0) + 1
+        
+        # Update chart
+        if hasattr(self, 'pink_chart'):
+            self.pink_chart.update_data(violation_types, year_distribution)

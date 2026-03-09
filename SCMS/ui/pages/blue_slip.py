@@ -330,6 +330,8 @@ class BlueSlipPage(BasePage):
                            success=True, parent=self).exec_()
                 # Refresh tracker tab
                 self._refresh_blue_tracker()
+                # Refresh summary charts
+                self._refresh_blue_summary()
             except Exception as e:
                 InfoDialog("Error",
                            f"Failed to save record: {str(e)}",
@@ -664,54 +666,80 @@ class BlueSlipPage(BasePage):
 
         lay.addWidget(SectionTitle("Blue Slip Summary"))
 
-        # Calculate real statistics
-        from backend.db_blue_slip import get_blue_slips
-        blue_records = get_blue_slips(None) or []
-        total_violations = len(blue_records)
-        pending_count = sum(1 for r in blue_records if len(r) > 7 and "Pending" in str(r[7]))
-        escalated_count = sum(1 for r in blue_records if len(r) > 7 and "Escalat" in str(r[7]))
-        resolved_count = sum(1 for r in blue_records if len(r) > 7 and "Resolved" in str(r[7]))
-
-        # FIX: Removed "Unique Students" tile
+        # Calculate and display statistics
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
+        self.blue_stat_tiles = {}
+        self._update_blue_stats(tiles_row)
+        lay.addLayout(tiles_row)
+
+        # Add refresh button for manual refresh
+        refresh_row = QHBoxLayout()
+        refresh_row.addStretch()
+        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn.setStyleSheet(btn_blue())
+        refresh_btn.setFixedHeight(36)
+        refresh_btn.setFixedWidth(150)
+        refresh_btn.clicked.connect(self._refresh_blue_summary)
+        refresh_row.addWidget(refresh_btn)
+        refresh_row.addStretch()
+        lay.addLayout(refresh_row)
+
+        # Create and add chart
+        from ui.chart_widgets import BlueSlipChart
+        self.blue_chart = BlueSlipChart(w)
+        self.blue_chart.setMinimumHeight(380)
+        lay.addWidget(self.blue_chart)
+        
+        # Initialize chart with current data
+        self._refresh_blue_summary()
+        
+        lay.addStretch()
+        return w
+    
+    def _update_blue_stats(self, tiles_row: QHBoxLayout):
+        """Update statistics tiles."""
+        from backend.db_blue_slip import get_blue_slips
+        
+        blue_records = get_blue_slips(None) or []
+        total_violations = len(blue_records)
+        pending_count = sum(1 for r in blue_records if len(r) > 10 and "Pending" in str(r[10]))
+        open_count = sum(1 for r in blue_records if len(r) > 10 and "Open" in str(r[10]))
+        escalated_count = sum(1 for r in blue_records if len(r) > 10 and "Escalat" in str(r[10]))
+        resolved_count = sum(1 for r in blue_records if len(r) > 10 and "Resolved" in str(r[10]))
+
         for label, val, colour in [
             ("Total Violations (Sem)", str(total_violations), BLUE_SLIP),
-            ("Pending / Open",         str(pending_count),    "#F57F17"),
+            ("Pending / Open",         str(pending_count + open_count),    "#F57F17"),
             ("Escalated Cases",        str(escalated_count),  RED_ERR),
             ("Resolved",               str(resolved_count),   "#2E7D32"),
         ]:
             tile = StatTile(label, val, colour)
             tiles_row.addWidget(tile)
-        lay.addLayout(tiles_row)
-
-        chart_frame = QFrame()
-        chart_frame.setFixedHeight(280)
-        chart_frame.setStyleSheet(f"""
-            QFrame {{
-                background: #E3F2FD;
-                border: 2px dashed {BLUE_SLIP}80;
-                border-radius: 12px;
-            }}
-        """)
-        c_lay = QVBoxLayout(chart_frame)
-        c_lay.setAlignment(Qt.AlignCenter)
-        c_icon = QLabel("📊")
-        c_icon.setFont(QFont("Segoe UI", 48))
-        c_icon.setAlignment(Qt.AlignCenter)
-        c_icon.setStyleSheet("background: transparent;")
-        c_text = QLabel(
-            "Blue Slip charts will appear here\n"
-            "(Violations by type, Grade level breakdown, Status pie chart)"
-        )
-        c_text.setFont(QFont("Segoe UI", 12))
-        c_text.setAlignment(Qt.AlignCenter)
-        c_text.setStyleSheet(f"color: {MID_GRAY}; background: transparent;")
-        c_lay.addWidget(c_icon)
-        c_lay.addWidget(c_text)
-        lay.addWidget(chart_frame)
-        lay.addStretch()
-        return w
+            self.blue_stat_tiles[label] = tile
+    
+    def _refresh_blue_summary(self):
+        """Refresh the summary chart with current database data."""
+        from backend.db_blue_slip import get_blue_slips
+        
+        blue_records = get_blue_slips(None) or []
+        
+        # Build violation type distribution
+        violation_types = {}
+        for r in blue_records:
+            if len(r) > 5:
+                vtype = str(r[5])
+                violation_types[vtype] = violation_types.get(vtype, 0) + 1
+        
+        # Count statuses
+        pending_count = sum(1 for r in blue_records if len(r) > 10 and "Pending" in str(r[10]))
+        open_count = sum(1 for r in blue_records if len(r) > 10 and "Open" in str(r[10]))
+        escalated_count = sum(1 for r in blue_records if len(r) > 10 and "Escalat" in str(r[10]))
+        resolved_count = sum(1 for r in blue_records if len(r) > 10 and "Resolved" in str(r[10]))
+        
+        # Update chart
+        if hasattr(self, 'blue_chart'):
+            self.blue_chart.update_data(violation_types, pending_count + open_count, escalated_count, resolved_count)
 
 
 # ── Helper import ─────────────────────────────────────────────────────────────

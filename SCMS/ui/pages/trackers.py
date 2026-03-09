@@ -127,11 +127,11 @@ class TrackersPage(BasePage):
         month_filter.setFixedHeight(38)
         month_filter.setFixedWidth(210)
 
-        grade_filter = QComboBox()
-        grade_filter.addItems(["All Grades", "Grade 7", "Grade 8", "Grade 9",
-                               "Grade 10", "Grade 11", "Grade 12"])
-        grade_filter.setFixedHeight(38)
-        grade_filter.setFixedWidth(130)
+        year_filter = QComboBox()
+        year_filter.addItems(["All Years", "1st", "2nd", "3rd",
+                               "4th", "5th"])
+        year_filter.setFixedHeight(38)
+        year_filter.setFixedWidth(130)
 
         filter_btn = QPushButton("   Apply Filter ")
         filter_btn.setStyleSheet(btn_gold())
@@ -140,11 +140,11 @@ class TrackersPage(BasePage):
         filter_row.addWidget(search, 1)
         filter_row.addWidget(slip_filter)
         filter_row.addWidget(month_filter)
-        filter_row.addWidget(grade_filter)
+        filter_row.addWidget(year_filter)
         filter_row.addWidget(filter_btn)
         lay.addLayout(filter_row)
 
-        headers = ["#", "Student No.", "Student Name", "Grade", "Section",
+        headers = ["#", "Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Filed", "Details", "Status"]
         sample      = []
         all_records = []
@@ -159,8 +159,8 @@ class TrackersPage(BasePage):
             try:
                 stud_name = record[0] if len(record) > 0 else "Unknown"
                 stud_num  = record[4] if len(record) > 4 else "N/A"
-                grade     = record[2] if len(record) > 2 else "N/A"
-                section   = record[1] if len(record) > 1 else "N/A"
+                year      = record[2] if len(record) > 2 else "N/A"
+                course    = record[1] if len(record) > 1 else "N/A"
 
                 if slip_type == "blue":
                     slip_label = "🔵 Blue Slip"
@@ -179,7 +179,7 @@ class TrackersPage(BasePage):
                     date       = str(record[5])[:10] if len(record) > 5 else "N/A"
                     status     = "Completed"
 
-                sample.append((str(i), stud_num, stud_name, grade, section,
+                sample.append((str(i), stud_num, stud_name, year, course,
                                slip_label, date, details, status))
             except:
                 pass
@@ -242,9 +242,9 @@ class TrackersPage(BasePage):
         lbl.setStyleSheet("border: none; background: transparent;")
         s_lay.addWidget(lbl)
 
-        stud_edit  = QLineEdit()
-        stud_edit.setPlaceholderText("Type student number or name to search...")
-        stud_edit.setFixedHeight(40)
+        self.stud_search_edit  = QLineEdit()
+        self.stud_search_edit.setPlaceholderText("Type student number or name to search...")
+        self.stud_search_edit.setFixedHeight(40)
         search_btn = QPushButton("   Search ")
         search_btn.setStyleSheet(btn_gold())
         search_btn.setFixedHeight(40)
@@ -252,48 +252,185 @@ class TrackersPage(BasePage):
         clear_btn.setStyleSheet(btn_outline())
         clear_btn.setFixedHeight(40)
 
-        s_lay.addWidget(stud_edit, 1)
+        search_btn.clicked.connect(self._search_student)
+        clear_btn.clicked.connect(self._clear_student_search)
+
+        s_lay.addWidget(self.stud_search_edit, 1)
         s_lay.addWidget(search_btn)
         s_lay.addWidget(clear_btn)
         lay.addWidget(search_frame)
 
-        profile = QFrame()
-        profile.setStyleSheet(f"""
+        self.profile_frame = QFrame()
+        self.profile_frame.setStyleSheet(f"""
             QFrame {{
                 background: {WHITE};
                 border: 1.5px solid {LIGHT_GRAY};
                 border-radius: 10px;
             }}
         """)
-        p_lay = QVBoxLayout(profile)
-        p_lay.setContentsMargins(20, 14, 20, 14)
-        p_lay.setSpacing(8)
+        self.profile_layout = QVBoxLayout(self.profile_frame)
+        self.profile_layout.setContentsMargins(20, 14, 20, 14)
+        self.profile_layout.setSpacing(8)
 
         profile_lbl = QLabel("Student Profile")
         profile_lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
         profile_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
-        p_lay.addWidget(profile_lbl)
+        self.profile_layout.addWidget(profile_lbl)
 
         divider = Divider()
         divider.setStyleSheet("border: none; background: #E0E0E0; max-height: 1px;")
-        p_lay.addWidget(divider)
+        self.profile_layout.addWidget(divider)
 
-        empty_label = QLabel("Search for a student number to view their profile")
-        empty_label.setAlignment(Qt.AlignCenter)
-        empty_label.setStyleSheet(
+        self.profile_empty = QLabel("Search for a student number to view their profile")
+        self.profile_empty.setAlignment(Qt.AlignCenter)
+        self.profile_empty.setStyleSheet(
             f"color: {MID_GRAY}; background: transparent; border: none; padding: 30px;"
         )
-        p_lay.addWidget(empty_label)
-        lay.addWidget(profile)
+        self.profile_layout.addWidget(self.profile_empty)
+        lay.addWidget(self.profile_frame)
 
         lay.addWidget(SectionTitle("Slip History"))
-        empty_hist = QLabel("Perform a search to view slip history")
-        empty_hist.setAlignment(Qt.AlignCenter)
-        empty_hist.setStyleSheet(f"color: {MID_GRAY}; padding: 30px; border: none;")
-        lay.addWidget(empty_hist)
+        self.history_table_container = QVBoxLayout()
+        self.slip_history_empty = QLabel("Perform a search to view slip history")
+        self.slip_history_empty.setAlignment(Qt.AlignCenter)
+        self.slip_history_empty.setStyleSheet(f"color: {MID_GRAY}; padding: 30px; border: none;")
+        self.history_table_container.addWidget(self.slip_history_empty)
+        lay.addLayout(self.history_table_container)
 
         lay.addStretch()
         return w
+
+    def _search_student(self):
+        """Search for a student and display their profile and slip history."""
+        from backend.db_students import get_student
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+
+        search_term = self.stud_search_edit.text().strip()
+        if not search_term:
+            InfoDialog("Input Required", "Please enter a student number or name to search.", 
+                      success=False, parent=self).exec_()
+            return
+
+        # Get student info
+        student_info = get_student(search_term)
+        
+        if not student_info:
+            InfoDialog("Not Found", f"No student found with number/name: {search_term}", 
+                      success=False, parent=self).exec_()
+            return
+
+        # Clear previous profile display
+        while self.profile_layout.count() > 2:  # Keep header and divider
+            self.profile_layout.takeAt(2).widget().deleteLater()
+
+        # Display student profile
+        stud_num = student_info[0] if len(student_info) > 0 else "N/A"
+        stud_name = student_info[1] if len(student_info) > 1 else "N/A"
+        stud_course = student_info[2] if len(student_info) > 2 else "N/A"
+        stud_year = student_info[3] if len(student_info) > 3 else "N/A"
+
+        profile_grid = QGridLayout()
+        profile_grid.setSpacing(12)
+        
+        profile_fields = [
+            ("Student Number:", stud_num),
+            ("Student Name:", stud_name),
+            ("Year Level:", stud_year),
+            ("Course:", stud_course),
+        ]
+        
+        for i, (label, value) in enumerate(profile_fields):
+            lbl = QLabel(label)
+            lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+            
+            val = QLabel(value)
+            val.setFont(QFont("Segoe UI", 11))
+            val.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
+            
+            profile_grid.addWidget(lbl, i, 0, alignment=Qt.AlignRight)
+            profile_grid.addWidget(val, i, 1, alignment=Qt.AlignLeft)
+        
+        self.profile_layout.addLayout(profile_grid)
+
+        # Get and display slip history
+        history_records = []
+        try:
+            # Get all slip types for this student
+            # Blue: studName[0], course[1], year[2], ID[3], studNumber[4], violationType[5], 
+            #       dateOfViolation[6], ?[7], severity[8], action[9], status[10]
+            for record in get_blue_slips(stud_num) or []:
+                try:
+                    violation = record[5] if len(record) > 5 else "N/A"
+                    date = str(record[6])[:10] if len(record) > 6 else "N/A"
+                    status = record[10] if len(record) > 10 else "Open"
+                    history_records.append(("Blue Slip", violation, date, status))
+                except:
+                    pass
+
+            # Green: studName[0], course[1], year[2], ID[3], studNumber[4], is_disp[5],
+            #        dateAvail[6], daysAbsence[7], status[8], expiry[9]
+            for record in get_green_slips(stud_num) or []:
+                try:
+                    slip_type = "Dispensation" if (record[5] == True if len(record) > 5 else False) else "Excuse"
+                    date = str(record[6])[:10] if len(record) > 6 else "N/A"
+                    status = record[8] if len(record) > 8 else "Active"
+                    history_records.append(("Green ("+slip_type+")", date, status, "-"))
+                except:
+                    pass
+
+            # Pink: studName[0], course[1], year[2], ID[3], studNumber[4], dateIssued[5],
+            #       violation[6], actionTaken[7], officer[8], semester[9]
+            for record in get_pink_slips(stud_num) or []:
+                try:
+                    violation = record[6] if len(record) > 6 else "N/A"
+                    date = str(record[5])[:10] if len(record) > 5 else "N/A"
+                    history_records.append(("Pink Slip", violation, date, "Completed"))
+                except:
+                    pass
+        except:
+            pass
+
+        # Clear previous history display
+        while self.history_table_container.count() > 0:
+            widget = self.history_table_container.takeAt(0).widget()
+            if widget:
+                widget.deleteLater()
+
+        if not history_records:
+            no_records = QLabel(f"No slip records found for {stud_name} ({stud_num})")
+            no_records.setAlignment(Qt.AlignCenter)
+            no_records.setStyleSheet(f"color: {MID_GRAY}; padding: 20px; border: none;")
+            self.history_table_container.addWidget(no_records)
+        else:
+            headers = ["Slip Type", "Details", "Date", "Status"]
+            history_table = build_record_table(headers, history_records)
+            history_table.setMinimumHeight(280)
+            self.history_table_container.addWidget(history_table)
+
+    def _clear_student_search(self):
+        """Clear the student search and reset display."""
+        self.stud_search_edit.clear()
+        
+        # Clear profile display
+        while self.profile_layout.count() > 2:
+            widget = self.profile_layout.takeAt(2).widget()
+            if widget:
+                widget.deleteLater()
+        
+        if not self.profile_empty.parent():
+            self.profile_layout.addWidget(self.profile_empty)
+        
+        # Clear history display
+        while self.history_table_container.count() > 0:
+            widget = self.history_table_container.takeAt(0).widget()
+            if widget:
+                widget.deleteLater()
+        
+        if not self.slip_history_empty.parent():
+            self.history_table_container.addWidget(self.slip_history_empty)
 
     # ── Monthly Summary tab ───────────────────────────────────────────────────
     def _build_monthly_tab(self) -> QWidget:
@@ -342,37 +479,35 @@ class TrackersPage(BasePage):
             tiles_row.addWidget(StatTile(label, val, colour))
         lay.addLayout(tiles_row)
 
-        chart_frame = QFrame()
-        chart_frame.setFixedHeight(300)
-        chart_frame.setStyleSheet(f"""
-            QFrame {{
-                background: {OFF_WHITE};
-                border: 2px dashed {LIGHT_GRAY};
-                border-radius: 12px;
-            }}
-        """)
-        c_lay = QVBoxLayout(chart_frame)
-        c_lay.setAlignment(Qt.AlignCenter)
-        chart_icon = QLabel("📊")
-        chart_icon.setFont(QFont("Segoe UI", 52))
-        chart_icon.setAlignment(Qt.AlignCenter)
-        chart_icon.setStyleSheet("background: transparent; border: none;")
-        chart_text = QLabel(
-            "Monthly Record Summary — Visual Charts\n\n"
-            "Bar Chart: Green / Pink / Blue Slips per Day\n"
-            "Pie Chart: Breakdown by Slip Type\n"
-            "Line Chart: Trend across months\n\n"
-            "(Charts rendered via matplotlib in final system)"
-        )
-        chart_text.setFont(QFont("Segoe UI", 12))
-        chart_text.setAlignment(Qt.AlignCenter)
-        chart_text.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
-        c_lay.addWidget(chart_icon)
-        c_lay.addWidget(chart_text)
-        lay.addWidget(chart_frame)
+        # Create combined chart widget
+        from ui.chart_widgets import CombinedAllSlipsChart
+        
+        combined_chart = CombinedAllSlipsChart(w)
+        combined_chart.setMinimumHeight(380)
+        lay.addWidget(combined_chart)
+        
+        # Refresh chart with current data
+        self._refresh_monthly_chart(combined_chart)
 
         lay.addStretch()
         return w
+
+    def _refresh_monthly_chart(self, chart_widget):
+        """Refresh the monthly summary chart with current database data."""
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        
+        blue_slips = get_blue_slips(None) or []
+        green_slips = get_green_slips(None) or []
+        pink_slips = get_pink_slips(None) or []
+        
+        green_count = len(green_slips)
+        pink_count = len(pink_slips)
+        blue_count = len(blue_slips)
+        
+        # Update chart data
+        chart_widget.update_data(green_count, pink_count, blue_count)
 
 
 # Helper import

@@ -378,7 +378,7 @@ class ReportsPage(BasePage):
         student_counts = {}
         try:
             for record in get_green_slips(None) or []:
-                stud_num = record[1] if len(record) > 1 else None
+                stud_num = record[4] if len(record) > 4 else None
                 if stud_num:
                     if stud_num not in student_counts:
                         student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
@@ -387,7 +387,7 @@ class ReportsPage(BasePage):
                         student_counts[stud_num]["info"] = get_student(stud_num)
 
             for record in get_pink_slips(None) or []:
-                stud_num = record[1] if len(record) > 1 else None
+                stud_num = record[4] if len(record) > 4 else None
                 if stud_num:
                     if stud_num not in student_counts:
                         student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
@@ -396,7 +396,7 @@ class ReportsPage(BasePage):
                         student_counts[stud_num]["info"] = get_student(stud_num)
 
             for record in get_blue_slips(None) or []:
-                stud_num = record[1] if len(record) > 1 else None
+                stud_num = record[4] if len(record) > 4 else None
                 if stud_num:
                     if stud_num not in student_counts:
                         student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
