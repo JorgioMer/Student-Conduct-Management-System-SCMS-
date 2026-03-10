@@ -33,6 +33,7 @@ class BlueSlipPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.blue_tracker_table = None
+        self.blue_tracker_layout = None
         self._build()
 
     def _build(self):
@@ -369,10 +370,24 @@ class BlueSlipPage(BasePage):
 
     def _refresh_blue_tracker(self):
         """Refresh the blue slip tracker table"""
-        if self.blue_tracker_table is not None:
+        if self.blue_tracker_table is not None and self.blue_tracker_layout is not None:
             data = self._load_blue_tracker_data()
+            headers = ["Student No.", "Student Name", "Year", "Violation Type",
+                       "Severity", "Date", "Action Taken", "Status"]
             
-            self.blue_tracker_table.setRowCount(0)
+            # Remove old table from layout and destroy it
+            for i in range(self.blue_tracker_layout.count()):
+                item = self.blue_tracker_layout.itemAt(i)
+                if item and item.widget() is self.blue_tracker_table:
+                    self.blue_tracker_layout.removeWidget(self.blue_tracker_table)
+                    self.blue_tracker_table.deleteLater()
+                    break
+            
+            # Create new table with fresh data
+            self.blue_tracker_table = build_record_table(headers, data)
+            self.blue_tracker_table.setMinimumHeight(260)
+            
+            # Apply status colors
             STATUS_COLORS = {
                 "Under Investigation": ("#FFF3CD", "#856404"),
                 "Resolved":            ("#D4EDDA", "#155724"),
@@ -380,19 +395,15 @@ class BlueSlipPage(BasePage):
                 "Open / Pending":      ("#F8D7DA", "#721C24"),
                 "Escalated":           ("#F8D7DA", "#721C24"),
             }
-            for row_data in data:
-                row_idx = self.blue_tracker_table.rowCount()
-                self.blue_tracker_table.insertRow(row_idx)
-                for col_idx, value in enumerate(row_data):
-                    item = QTableWidgetItem(str(value))
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    self.blue_tracker_table.setItem(row_idx, col_idx, item)
-                
-                status_val = str(row_data[7]) if len(row_data) > 7 else ""
+            for r in range(self.blue_tracker_table.rowCount()):
+                status_val = self.blue_tracker_table.item(r, 7).text() if self.blue_tracker_table.item(r, 7) else ""
                 if status_val in STATUS_COLORS:
                     bg, fg = STATUS_COLORS[status_val]
-                    self.blue_tracker_table.item(row_idx, 7).setBackground(QColor(bg))
-                    self.blue_tracker_table.item(row_idx, 7).setForeground(QColor(fg))
+                    self.blue_tracker_table.item(r, 7).setBackground(QColor(bg))
+                    self.blue_tracker_table.item(r, 7).setForeground(QColor(fg))
+            
+            # Re-add table to layout at the correct position
+            self.blue_tracker_layout.insertWidget(3, self.blue_tracker_table)
 
     # ── Tracker tab ───────────────────────────────────────────────────────────
     def _build_tracker_tab(self) -> QWidget:
@@ -467,6 +478,9 @@ class BlueSlipPage(BasePage):
         
         self.blue_tracker_table.setMinimumHeight(260)
         lay.addWidget(self.blue_tracker_table)
+        
+        # Store reference to layout for refresh functionality
+        self.blue_tracker_layout = lay
 
         action_row = QHBoxLayout()
         action_row.addStretch()

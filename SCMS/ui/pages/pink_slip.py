@@ -319,20 +319,24 @@ class PinkSlipPage(BasePage):
 
     def _refresh_pink_tracker(self):
         """Refresh the pink slip tracker table"""
-        if self.pink_tracker_table is not None:
+        if self.pink_tracker_table is not None and self.pink_tracker_layout is not None:
             headers = ["Student No.", "Student Name", "Year", "Course",
                        "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
             data = self._load_pink_tracker_data()
             
-            # Clear and rebuild table
-            self.pink_tracker_table.setRowCount(0)
-            for row_data in data:
-                row_idx = self.pink_tracker_table.rowCount()
-                self.pink_tracker_table.insertRow(row_idx)
-                for col_idx, value in enumerate(row_data):
-                    item = QTableWidgetItem(str(value))
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    self.pink_tracker_table.setItem(row_idx, col_idx, item)
+            # Remove old table from layout and destroy it
+            for i in range(self.pink_tracker_layout.count()):
+                item = self.pink_tracker_layout.itemAt(i)
+                if item and item.widget() is self.pink_tracker_table:
+                    self.pink_tracker_layout.removeWidget(self.pink_tracker_table)
+                    self.pink_tracker_table.deleteLater()
+                    break
+            
+            # Create new table with fresh data
+            self.pink_tracker_table = build_record_table(headers, data)
+            self.pink_tracker_table.setMinimumHeight(260)
+            # Re-add table to layout at the correct position (after top_row, before action_row)
+            self.pink_tracker_layout.insertWidget(3, self.pink_tracker_table)
 
     # ── Tracker tab ───────────────────────────────────────────────────────────
     def _build_tracker_tab(self) -> QWidget:
@@ -379,6 +383,9 @@ class PinkSlipPage(BasePage):
         self.pink_tracker_table = build_record_table(headers, sample)
         self.pink_tracker_table.setMinimumHeight(260)
         lay.addWidget(self.pink_tracker_table)
+        
+        # Store reference to layout for refresh functionality
+        self.pink_tracker_layout = lay
 
         action_row = QHBoxLayout()
         action_row.addStretch()

@@ -18,26 +18,29 @@ def add_green_slip(stud_num, slip_type, date_avail,
     # First, add student if they don't exist
     add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year)
     
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    # Convert slip_type to Yes/No boolean for Access database
-    # Dispensation = True (Yes), Excuse = False (No)
-    is_dispensation = slip_type.lower() == "dispensation"
-    
-    cursor.execute("""
-        INSERT INTO [Green Slip Record]
-        (studNumber, slipType_green, dateAvail_green,
-         daysOfAbs_greenDisp, status_green, exprDate_greenDisp,
-         purpose_greenDisp, remarks_greenExc,
-         absceneType_greenExc, datesOfAbs_greenExc,
-         suppDoc_greenExc, authBy_green)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (stud_num, is_dispensation, date_avail, days, status,
-          expiry, purpose, remarks, absence_type, 
-          dates_absence, supp_doc, auth_by))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Convert slip_type to Yes/No boolean for Access database
+        # Dispensation = True (Yes), Excuse = False (No)
+        is_dispensation = slip_type.lower() == "dispensation"
+        
+        cursor.execute("""
+            INSERT INTO [Green Slip Record]
+            (studNumber, slipType_green, dateAvail_green,
+             daysOfAbs_greenDisp, status_green, exprDate_greenDisp,
+             purpose_greenDisp, remarks_greenExc,
+             absceneType_greenExc, datesOfAbs_greenExc,
+             suppDoc_greenExc, authBy_green)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (stud_num, is_dispensation, date_avail, days, status,
+              expiry, purpose, remarks, absence_type, 
+              dates_absence, supp_doc, auth_by))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        raise Exception(f"Failed to add green slip for student {stud_num}: {str(e)}")
 
 
 def get_green_slips(student_number):

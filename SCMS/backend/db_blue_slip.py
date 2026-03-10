@@ -9,21 +9,24 @@ def add_blue_slip(stud_num, violation_type, date_of_violation, severity,
     Add a Blue Slip violation record to the database.
     Automatically adds the student if they don't exist.
     """
-    # First, add student if they don't exist
-    add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year)
-    
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO [Blue Slip Record]
-        (studNumber, violationType_blue, dateOfViolation_blue, 
-         severityLvl_blue, actionTaken_blue, status_blue, 
-         violationDesc_blue, witnesses_blue)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (stud_num, violation_type, date_of_violation, severity, 
-          action_taken, status, violation_desc, witnesses))
-    conn.commit()
-    conn.close()
+    try:
+        # First, add student if they don't exist
+        add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year)
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO [Blue Slip Record]
+            (studNumber, violationType_blue, dateOfViolation_blue, 
+             severityLvl_blue, actionTaken_blue, status_blue, 
+             violationDesc_blue, witnesses_blue)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (stud_num, violation_type, date_of_violation, severity, 
+              action_taken, status, violation_desc, witnesses))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        raise Exception(f"Failed to add blue slip for student {stud_num}: {str(e)}")
 
 
 def get_blue_slips(student_number):
@@ -50,3 +53,6 @@ def get_blue_slips(student_number):
             WHERE b.studNumber = ?
         """, (student_number,))
     
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

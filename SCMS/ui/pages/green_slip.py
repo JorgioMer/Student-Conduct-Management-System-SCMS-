@@ -34,6 +34,7 @@ class GreenSlipPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.green_tracker_table = None
+        self.green_tracker_layout = None
         self._build()
 
     def _build(self):
@@ -392,18 +393,24 @@ class GreenSlipPage(BasePage):
 
     def _refresh_green_tracker(self):
         """Refresh the green slip tracker table"""
-        if self.green_tracker_table is not None:
+        if self.green_tracker_table is not None and self.green_tracker_layout is not None:
+            headers = ["Student No.", "Student Name", "Year", "Course",
+                       "Slip Type", "Date Availed", "Days / Absence Type", "Expiry / Date", "Status"]
             data = self._load_green_tracker_data()
             
-            # Clear and rebuild table
-            self.green_tracker_table.setRowCount(0)
-            for row_data in data:
-                row_idx = self.green_tracker_table.rowCount()
-                self.green_tracker_table.insertRow(row_idx)
-                for col_idx, value in enumerate(row_data):
-                    item = QTableWidgetItem(str(value))
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    self.green_tracker_table.setItem(row_idx, col_idx, item)
+            # Remove old table from layout and destroy it
+            for i in range(self.green_tracker_layout.count()):
+                item = self.green_tracker_layout.itemAt(i)
+                if item and item.widget() is self.green_tracker_table:
+                    self.green_tracker_layout.removeWidget(self.green_tracker_table)
+                    self.green_tracker_table.deleteLater()
+                    break
+            
+            # Create new table with fresh data
+            self.green_tracker_table = build_record_table(headers, data)
+            self.green_tracker_table.setMinimumHeight(280)
+            # Re-add table to layout at the correct position
+            self.green_tracker_layout.insertWidget(2, self.green_tracker_table)
 
     def _build_excuse_tab(self) -> QWidget:
         w = QWidget()
@@ -626,6 +633,9 @@ class GreenSlipPage(BasePage):
         self.green_tracker_table = build_record_table(headers, sample)
         self.green_tracker_table.setMinimumHeight(280)
         lay.addWidget(self.green_tracker_table)
+        
+        # Store reference to layout for refresh functionality
+        self.green_tracker_layout = lay
 
         action_row = QHBoxLayout()
         action_row.addStretch()

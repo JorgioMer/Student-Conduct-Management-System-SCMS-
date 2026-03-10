@@ -586,7 +586,7 @@ class SettingsPage(BasePage):
             
             InfoDialog("Settings Saved",
                       "System settings have been saved successfully!\n\n"
-                      "The semester setting will be applied to new records.",
+                      "The school year will be applied to NEW student records.",
                       parent=self).exec_()
         except Exception as e:
             InfoDialog("Error",
