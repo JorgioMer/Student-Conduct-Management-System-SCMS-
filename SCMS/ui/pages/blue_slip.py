@@ -143,7 +143,7 @@ class BlueSlipPage(BasePage):
         form_lay.addWidget(self.blue_name, 0, 3)
 
         # Row 1
-        form_lay.addWidget(lbl("Course & Year"), 1, 0)
+        form_lay.addWidget(lbl("Year & Course"), 1, 0)
         grade_row = QHBoxLayout()
         self.blue_year = QComboBox()
         self.blue_year.addItems(["1st","2nd","3rd","4th"])

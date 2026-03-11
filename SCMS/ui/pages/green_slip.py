@@ -471,7 +471,7 @@ class GreenSlipPage(BasePage):
         self.exc_stud_name.setFixedHeight(38)
         form_lay.addWidget(self.exc_stud_name, 0, 3)
 
-        form_lay.addWidget(lbl("Year & Section"), 1, 0)
+        form_lay.addWidget(lbl("Year & Course"), 1, 0)
         grade_row = QHBoxLayout()
         self.exc_year = QComboBox()
         self.exc_year.addItems(["1st","2nd","3rd","4th","5th"])
