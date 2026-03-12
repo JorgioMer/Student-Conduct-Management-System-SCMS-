@@ -256,8 +256,8 @@ class SettingsPage(BasePage):
         table.setColumnWidth(2, 75)
         table.setColumnWidth(3, 75)
         table.setColumnWidth(4, 115)
-        table.setColumnWidth(5, 80)   # Edit button column
-        table.setColumnWidth(6, 80)   # Delete button column
+        table.setColumnWidth(5, 120)   # Edit button column
+        table.setColumnWidth(6, 120)   # Delete button column
         table.horizontalHeader().setStretchLastSection(False)
         table.setAlternatingRowColors(True)
         table.setStyleSheet(f"""
@@ -277,25 +277,28 @@ class SettingsPage(BasePage):
                 table.setItem(r, c, item)
 
             edit_btn = QPushButton("Edit")
-            edit_btn.setFixedHeight(32)
-            edit_btn.setStyleSheet(btn_outline())
+            edit_btn.setFixedSize(90, 38)
+            edit_btn.setStyleSheet(btn_primary())
 
             del_btn = QPushButton("Delete")
-            del_btn.setFixedHeight(32)
+            del_btn.setFixedSize(90, 38)
             del_btn.setStyleSheet(btn_danger())
 
             # Wrap each button in its own centered widget
             for col_idx, btn in [(5, edit_btn), (6, del_btn)]:
                 cell_w = QWidget()
+                cell_w.setFixedHeight(44)
                 cell_w.setStyleSheet("background: transparent;")
                 cell_lay = QHBoxLayout(cell_w)
-                cell_lay.setContentsMargins(6, 5, 6, 5)
+                cell_lay.setContentsMargins(10, 0, 10, 0)
+                cell_lay.setSpacing(0)
+                cell_lay.setAlignment(Qt.AlignCenter)
                 cell_lay.addWidget(btn)
-                table.setCellWidget(r, col_idx, cell_w)
+                table.setCellWidget(r, col_idx, btn)
 
-            table.setRowHeight(r, 44)
+            table.setRowHeight(r, 50)
 
-        table.setFixedHeight(258)
+        table.setFixedHeight(300)
         lay.addWidget(table)
         lay.addStretch()
         return w
