@@ -47,12 +47,10 @@ class TrackersPage(BasePage):
 
         t_lbl = QLabel("   Record Trackers — Monthly Overview")
         t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
-        # FIX: border: none stops QFrame border from being inherited by the label
         t_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none; padding: 0;")
 
         s_lbl = QLabel("View and filter all slip records — Green, Pink, and Blue — in one place")
         s_lbl.setFont(QFont("Segoe UI", 11))
-        # FIX: TEXT_DARK for readability on light yellow + border: none
         s_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none; padding: 0;")
 
         h_left.addWidget(t_lbl)
@@ -128,8 +126,7 @@ class TrackersPage(BasePage):
         month_filter.setFixedWidth(210)
 
         year_filter = QComboBox()
-        year_filter.addItems(["All Years", "1st", "2nd", "3rd",
-                               "4th", "5th"])
+        year_filter.addItems(["All Years", "1st", "2nd", "3rd", "4th", "5th"])
         year_filter.setFixedHeight(38)
         year_filter.setFixedWidth(130)
 
@@ -242,13 +239,15 @@ class TrackersPage(BasePage):
         lbl.setStyleSheet("border: none; background: transparent;")
         s_lay.addWidget(lbl)
 
-        self.stud_search_edit  = QLineEdit()
+        self.stud_search_edit = QLineEdit()
         self.stud_search_edit.setPlaceholderText("Type student number or name to search...")
         self.stud_search_edit.setFixedHeight(40)
+
         search_btn = QPushButton("   Search ")
         search_btn.setStyleSheet(btn_gold())
         search_btn.setFixedHeight(40)
-        clear_btn  = QPushButton("Clear")
+
+        clear_btn = QPushButton("Clear")
         clear_btn.setStyleSheet(btn_outline())
         clear_btn.setFixedHeight(40)
 
@@ -309,84 +308,85 @@ class TrackersPage(BasePage):
 
         search_term = self.stud_search_edit.text().strip()
         if not search_term:
-            InfoDialog("Input Required", "Please enter a student number or name to search.", 
-                      success=False, parent=self).exec_()
+            InfoDialog("Input Required", "Please enter a student number or name to search.",
+                       success=False, parent=self).exec_()
             return
 
-        # Get student info
         student_info = get_student(search_term)
-        
+
         if not student_info:
-            InfoDialog("Not Found", f"No student found with number/name: {search_term}", 
-                      success=False, parent=self).exec_()
+            InfoDialog("Not Found", f"No student found with number/name: {search_term}",
+                       success=False, parent=self).exec_()
             return
 
-        # Clear previous profile display
-        while self.profile_layout.count() > 2:  # Keep header and divider
-            self.profile_layout.takeAt(2).widget().deleteLater()
+        # Clear previous profile display (keep index 0=title, 1=divider)
+        while self.profile_layout.count() > 2:
+            item = self.profile_layout.takeAt(2)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+            layout = item.layout()
+            if layout:
+                while layout.count():
+                    child = layout.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
 
         # Display student profile
-        stud_num = student_info[0] if len(student_info) > 0 else "N/A"
-        stud_name = student_info[1] if len(student_info) > 1 else "N/A"
+        stud_num    = student_info[0] if len(student_info) > 0 else "N/A"
+        stud_name   = student_info[1] if len(student_info) > 1 else "N/A"
         stud_course = student_info[2] if len(student_info) > 2 else "N/A"
-        stud_year = student_info[3] if len(student_info) > 3 else "N/A"
+        stud_year   = student_info[3] if len(student_info) > 3 else "N/A"
 
         profile_grid = QGridLayout()
         profile_grid.setSpacing(12)
-        
+
         profile_fields = [
             ("Student Number:", stud_num),
-            ("Student Name:", stud_name),
-            ("Year Level:", stud_year),
-            ("Course:", stud_course),
+            ("Student Name:",   stud_name),
+            ("Year Level:",     stud_year),
+            ("Course:",         stud_course),
         ]
-        
+
         for i, (label, value) in enumerate(profile_fields):
             lbl = QLabel(label)
             lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
             lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
-            
+
             val = QLabel(value)
             val.setFont(QFont("Segoe UI", 11))
             val.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
-            
+
             profile_grid.addWidget(lbl, i, 0, alignment=Qt.AlignRight)
             profile_grid.addWidget(val, i, 1, alignment=Qt.AlignLeft)
-        
+
         self.profile_layout.addLayout(profile_grid)
 
         # Get and display slip history
         history_records = []
         try:
-            # Get all slip types for this student
-            # Blue: studName[0], course[1], year[2], ID[3], studNumber[4], violationType[5], 
-            #       dateOfViolation[6], ?[7], severity[8], action[9], status[10]
             for record in get_blue_slips(stud_num) or []:
                 try:
                     violation = record[5] if len(record) > 5 else "N/A"
-                    date = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status = record[10] if len(record) > 10 else "Open"
+                    date      = str(record[6])[:10] if len(record) > 6 else "N/A"
+                    status    = record[10] if len(record) > 10 else "Open"
                     history_records.append(("Blue Slip", violation, date, status))
                 except:
                     pass
 
-            # Green: studName[0], course[1], year[2], ID[3], studNumber[4], is_disp[5],
-            #        dateAvail[6], daysAbsence[7], status[8], expiry[9]
             for record in get_green_slips(stud_num) or []:
                 try:
                     slip_type = "Dispensation" if (record[5] == True if len(record) > 5 else False) else "Excuse"
-                    date = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status = record[8] if len(record) > 8 else "Active"
-                    history_records.append(("Green ("+slip_type+")", date, status, "-"))
+                    date      = str(record[6])[:10] if len(record) > 6 else "N/A"
+                    status    = record[8] if len(record) > 8 else "Active"
+                    history_records.append(("Green (" + slip_type + ")", date, status, "-"))
                 except:
                     pass
 
-            # Pink: studName[0], course[1], year[2], ID[3], studNumber[4], dateIssued[5],
-            #       violation[6], actionTaken[7], officer[8], semester[9]
             for record in get_pink_slips(stud_num) or []:
                 try:
                     violation = record[6] if len(record) > 6 else "N/A"
-                    date = str(record[5])[:10] if len(record) > 5 else "N/A"
+                    date      = str(record[5])[:10] if len(record) > 5 else "N/A"
                     history_records.append(("Pink Slip", violation, date, "Completed"))
                 except:
                     pass
@@ -395,7 +395,8 @@ class TrackersPage(BasePage):
 
         # Clear previous history display
         while self.history_table_container.count() > 0:
-            widget = self.history_table_container.takeAt(0).widget()
+            item   = self.history_table_container.takeAt(0)
+            widget = item.widget()
             if widget:
                 widget.deleteLater()
 
@@ -410,45 +411,44 @@ class TrackersPage(BasePage):
             history_table.setMinimumHeight(280)
             self.history_table_container.addWidget(history_table)
 
-def _clear_student_search(self):
-    """Clear the student search and reset display."""
-    self.stud_search_edit.clear()
+    def _clear_student_search(self):
+        """Clear the student search and reset display."""
+        self.stud_search_edit.clear()
 
-    # ── Clear profile (keep index 0=title, 1=divider) ──────────────────
-    while self.profile_layout.count() > 2:
-        item = self.profile_layout.takeAt(2)
-        widget = item.widget()
-        if widget and widget is not self.profile_empty:
-            widget.deleteLater()
-        layout = item.layout()
-        if layout:
-            # Clear any nested layouts (e.g. the QGridLayout from profile_grid)
-            while layout.count():
-                child = layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
+        # Clear profile (keep index 0=title, 1=divider)
+        while self.profile_layout.count() > 2:
+            item   = self.profile_layout.takeAt(2)
+            widget = item.widget()
+            if widget and widget is not self.profile_empty:
+                widget.deleteLater()
+            layout = item.layout()
+            if layout:
+                while layout.count():
+                    child = layout.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
 
-    # Re-add placeholder only if it's not already in the layout
-    found = any(
-        self.profile_layout.itemAt(i).widget() is self.profile_empty
-        for i in range(self.profile_layout.count())
-    )
-    if not found:
-        self.profile_layout.addWidget(self.profile_empty)
+        # Re-add placeholder only if not already present
+        found = any(
+            self.profile_layout.itemAt(i).widget() is self.profile_empty
+            for i in range(self.profile_layout.count())
+        )
+        if not found:
+            self.profile_layout.addWidget(self.profile_empty)
 
-    # ── Clear history ───────────────────────────────────────────────────
-    while self.history_table_container.count() > 0:
-        item = self.history_table_container.takeAt(0)
-        widget = item.widget()
-        if widget and widget is not self.slip_history_empty:
-            widget.deleteLater()
+        # Clear history
+        while self.history_table_container.count() > 0:
+            item   = self.history_table_container.takeAt(0)
+            widget = item.widget()
+            if widget and widget is not self.slip_history_empty:
+                widget.deleteLater()
 
-    found = any(
-        self.history_table_container.itemAt(i).widget() is self.slip_history_empty
-        for i in range(self.history_table_container.count())
-    )
-    if not found:
-        self.history_table_container.addWidget(self.slip_history_empty)
+        found = any(
+            self.history_table_container.itemAt(i).widget() is self.slip_history_empty
+            for i in range(self.history_table_container.count())
+        )
+        if not found:
+            self.history_table_container.addWidget(self.slip_history_empty)
 
     # ── Monthly Summary tab ───────────────────────────────────────────────────
     def _build_monthly_tab(self) -> QWidget:
@@ -465,6 +465,7 @@ def _clear_student_search(self):
         lbl = QLabel("Select Month:")
         lbl.setStyleSheet("border: none; background: transparent;")
         period_row.addWidget(lbl)
+
         period = QComboBox()
         period.addItems(["November 2024", "October 2024", "September 2024", "August 2024"])
         period.setFixedHeight(36)
@@ -492,19 +493,17 @@ def _clear_student_search(self):
             ("Green Slips", str(len(green_slips)), GREEN_SLIP),
             ("Pink Slips",  str(len(pink_slips)),  PINK_SLIP),
             ("Blue Slips",  str(len(blue_slips)),  BLUE_SLIP),
-            ("Total", str(len(green_slips) + len(pink_slips) + len(blue_slips)), NAVY),
+            ("Total",       str(len(green_slips) + len(pink_slips) + len(blue_slips)), NAVY),
         ]:
             tiles_row.addWidget(StatTile(label, val, colour))
         lay.addLayout(tiles_row)
 
-        # Create combined chart widget
         from ui.chart_widgets import CombinedAllSlipsChart
-        
+
         combined_chart = CombinedAllSlipsChart(w)
         combined_chart.setMinimumHeight(380)
         lay.addWidget(combined_chart)
-        
-        # Refresh chart with current data
+
         self._refresh_monthly_chart(combined_chart)
 
         lay.addStretch()
@@ -515,16 +514,15 @@ def _clear_student_search(self):
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip import get_pink_slips
-        
-        blue_slips = get_blue_slips(None) or []
+
+        blue_slips  = get_blue_slips(None)  or []
         green_slips = get_green_slips(None) or []
-        pink_slips = get_pink_slips(None) or []
-        
+        pink_slips  = get_pink_slips(None)  or []
+
         green_count = len(green_slips)
-        pink_count = len(pink_slips)
-        blue_count = len(blue_slips)
-        
-        # Update chart data
+        pink_count  = len(pink_slips)
+        blue_count  = len(blue_slips)
+
         chart_widget.update_data(green_count, pink_count, blue_count)
 
 
