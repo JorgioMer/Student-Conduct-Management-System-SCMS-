@@ -410,27 +410,45 @@ class TrackersPage(BasePage):
             history_table.setMinimumHeight(280)
             self.history_table_container.addWidget(history_table)
 
-    def _clear_student_search(self):
-        """Clear the student search and reset display."""
-        self.stud_search_edit.clear()
-        
-        # Clear profile display
-        while self.profile_layout.count() > 2:
-            widget = self.profile_layout.takeAt(2).widget()
-            if widget:
-                widget.deleteLater()
-        
-        if not self.profile_empty.parent():
-            self.profile_layout.addWidget(self.profile_empty)
-        
-        # Clear history display
-        while self.history_table_container.count() > 0:
-            widget = self.history_table_container.takeAt(0).widget()
-            if widget:
-                widget.deleteLater()
-        
-        if not self.slip_history_empty.parent():
-            self.history_table_container.addWidget(self.slip_history_empty)
+def _clear_student_search(self):
+    """Clear the student search and reset display."""
+    self.stud_search_edit.clear()
+
+    # ── Clear profile (keep index 0=title, 1=divider) ──────────────────
+    while self.profile_layout.count() > 2:
+        item = self.profile_layout.takeAt(2)
+        widget = item.widget()
+        if widget and widget is not self.profile_empty:
+            widget.deleteLater()
+        layout = item.layout()
+        if layout:
+            # Clear any nested layouts (e.g. the QGridLayout from profile_grid)
+            while layout.count():
+                child = layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+
+    # Re-add placeholder only if it's not already in the layout
+    found = any(
+        self.profile_layout.itemAt(i).widget() is self.profile_empty
+        for i in range(self.profile_layout.count())
+    )
+    if not found:
+        self.profile_layout.addWidget(self.profile_empty)
+
+    # ── Clear history ───────────────────────────────────────────────────
+    while self.history_table_container.count() > 0:
+        item = self.history_table_container.takeAt(0)
+        widget = item.widget()
+        if widget and widget is not self.slip_history_empty:
+            widget.deleteLater()
+
+    found = any(
+        self.history_table_container.itemAt(i).widget() is self.slip_history_empty
+        for i in range(self.history_table_container.count())
+    )
+    if not found:
+        self.history_table_container.addWidget(self.slip_history_empty)
 
     # ── Monthly Summary tab ───────────────────────────────────────────────────
     def _build_monthly_tab(self) -> QWidget:
