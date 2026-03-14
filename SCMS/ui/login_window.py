@@ -6,7 +6,10 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy,
     QApplication, QDesktopWidget, QProgressBar, QDialog
 )
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal, QTimer
+from PyQt5.QtCore import (
+    Qt, QPropertyAnimation, QEasingCurve, QRect,
+    pyqtSignal, QTimer, QThread, pyqtSlot
+)
 from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QLinearGradient
 
 from ui.styles import (
@@ -19,16 +22,81 @@ from ui.components import add_shadow, Divider
 
 # ── Demo credentials (UI simulation only) ─────────────────────────────────────
 DEMO_USERS = {
-    "admin":  ("admin123",  "Administrator", "Admin"),
-    "staff":  ("staff123",  "Office Staff",  "Staff"),
-    "prefect":("prefect123","Prefect Office", "Admin"),
+    "admin":   ("admin123",   "Administrator",  "Admin"),
+    "staff":   ("staff123",   "Office Staff",   "Staff"),
+    "prefect": ("prefect123", "Prefect Office", "Admin"),
 }
+
+
+# ── Background worker: builds MainWindow off the UI thread ────────────────────
+class AppLoaderThread(QThread):
+    """
+    Runs heavy initialization (DB connections, page construction) in a
+    background thread so the loading screen stays responsive.
+
+    NOTE: Qt widgets must only be created on the main thread.
+          We only do non-widget work here (imports, DB warm-up, etc.).
+          MainWindow itself is created back on the main thread via the signal.
+    """
+    progress_update = pyqtSignal(int, str)   # (percent, status text)
+    ready           = pyqtSignal()           # emitted when pre-loading is done
+
+    def __init__(self, full_name: str, role: str, parent=None):
+        super().__init__(parent)
+        self.full_name = full_name
+        self.role      = role
+
+    def run(self):
+        """Pre-load heavy imports and warm up DB connections off the UI thread."""
+        steps = [
+            (10,  "Checking credentials..."),
+            (20,  "Loading interface components..."),
+            (35,  "Initializing themes..."),
+            (50,  "Connecting to database..."),
+            (65,  "Warming up database tables..."),
+            (80,  "Loading modules..."),
+            (90,  "Preparing interface..."),
+        ]
+
+        for percent, status in steps:
+            self.progress_update.emit(percent, status)
+            self.msleep(120)   # ← short sleep keeps progress visible;
+                               #   real work below replaces these sleeps
+
+        # ── Actual heavy work (imports + DB warm-up) ──────────────────────
+        # Importing here caches the modules so MainWindow builds faster on
+        # the main thread.  All DB calls that don't touch Qt widgets are
+        # safe here.
+        try:
+            self.progress_update.emit(52, "Connecting to database...")
+            from backend.db_blue_slip  import get_blue_slips
+            from backend.db_green_slip import get_green_slips
+            from backend.db_pink_slip  import get_pink_slips
+            from backend.db_students   import get_student
+
+            # Fire a lightweight query to open/cache the DB connection
+            get_blue_slips(None)
+            get_green_slips(None)
+            get_pink_slips(None)
+        except Exception:
+            pass   # DB errors are handled gracefully in the pages themselves
+
+        try:
+            self.progress_update.emit(70, "Loading UI modules...")
+            import ui.main_window          # pre-import so __init__ is fast
+            import ui.pages.trackers       # heaviest page — pre-import it
+        except Exception:
+            pass
+
+        self.progress_update.emit(88, "Almost ready...")
+        self.msleep(80)
+        self.ready.emit()
 
 
 # ── Loading Screen ─────────────────────────────────────────────────────────────
 class LoadingScreen(QDialog):
     """Modal loading screen shown during application initialization."""
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Loading SCMS...")
@@ -38,16 +106,16 @@ class LoadingScreen(QDialog):
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self._build_ui()
         self._center_on_screen()
-        
-        self.main_win = None
-        self.load_step = 0
+
+        self.main_win   = None
+        self._thread    = None
 
     def _center_on_screen(self):
         screen = QDesktopWidget().screenGeometry()
-        size = self.geometry()
+        size   = self.geometry()
         self.move(
-            (screen.width() - size.width()) // 2,
-            (screen.height() - size.height()) // 2
+            (screen.width()  - size.width())  // 2,
+            (screen.height() - size.height()) // 2,
         )
 
     def _build_ui(self):
@@ -55,21 +123,18 @@ class LoadingScreen(QDialog):
         lay.setContentsMargins(60, 60, 60, 60)
         lay.setSpacing(20)
 
-        # Logo/Title
         title = QLabel("CJC")
         title.setFont(QFont("Segoe UI", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(f"color: {GOLD}; background: transparent;")
         lay.addWidget(title)
 
-        # Loading message
         msg = QLabel("Initializing Student Conduct Management System")
         msg.setFont(QFont("Segoe UI", 12))
         msg.setAlignment(Qt.AlignCenter)
         msg.setStyleSheet(f"color: {WHITE}; background: transparent;")
         lay.addWidget(msg)
 
-        # Progress bar - BIGGER with percentage display
         self.progress = QProgressBar()
         self.progress.setFixedHeight(32)
         self.progress.setTextVisible(True)
@@ -93,76 +158,60 @@ class LoadingScreen(QDialog):
         self.progress.setValue(0)
         lay.addWidget(self.progress)
 
-        # Status text
         self.status_lbl = QLabel("Loading...")
         self.status_lbl.setFont(QFont("Segoe UI", 10))
         self.status_lbl.setAlignment(Qt.AlignCenter)
-        self.status_lbl.setStyleSheet(f"color: rgba(201,168,76,0.8); background: transparent;")
+        self.status_lbl.setStyleSheet(
+            f"color: rgba(201,168,76,0.8); background: transparent;"
+        )
         lay.addWidget(self.status_lbl)
-
         lay.addStretch()
 
+    # ── Public API ─────────────────────────────────────────────────────────
     def load_application(self, full_name: str, role: str):
-        """Load the main window and pages with progress updates."""
-        self.full_name = full_name
-        self.role = role
-        self.load_step = 0
-        self._update_loading()
+        """Kick off background loading and show the dialog."""
+        self._thread = AppLoaderThread(full_name, role, parent=self)
+        self._thread.progress_update.connect(self._on_progress)
+        self._thread.ready.connect(lambda: self._on_preload_done(full_name, role))
+        self._thread.start()
 
-    def _update_loading(self):
-        """Update loading progress with staged initialization."""
-        steps = [
-            (8, "Checking credentials..."),
-            (12, "Loading interface components..."),
-            (20, "Initializing themes..."),
-            (32, "Connecting to database..."),
-            (45, "Initializing database tables..."),
-            (60, "Loading dashboard..."),
-            (70, "Building navigation..."),
-            (80, "Finalizing layout..."),
-            (90, "Rendering interface..."),
-            (100, "Ready!"),
-        ]
+    # ── Slots ──────────────────────────────────────────────────────────────
+    @pyqtSlot(int, str)
+    def _on_progress(self, value: int, status: str):
+        self.progress.setValue(value)
+        self.status_lbl.setText(status)
 
-        if self.load_step < len(steps):
-            progress, status = steps[self.load_step]
-            self.progress.setValue(progress)
-            self.status_lbl.setText(status)
+    @pyqtSlot()
+    def _on_preload_done(self, full_name: str, role: str):
+        """
+        Called on the MAIN thread when the background thread finishes.
+        Now safe to create Qt widgets.
+        """
+        self._on_progress(95, "Building interface...")
 
-            if self.load_step == 5:  # Create MainWindow at 60% progress
-                # Actually create MainWindow now
-                from ui.main_window import MainWindow
-                self.main_win = MainWindow(full_name=self.full_name, role=self.role)
+        # Create MainWindow here — main thread only
+        from ui.main_window import MainWindow
+        self.main_win = MainWindow(full_name=full_name, role=role)
 
-            if self.load_step == 9:  # Last step (100%)
-                # Show the main window and wait before closing loading screen
-                if self.main_win:
-                    self.main_win.show()
-                    # Wait 1.5 seconds to let UI fully render, then fade out
-                    QTimer.singleShot(1500, self._fadeout_loading)
-                    return
+        self._on_progress(100, "Ready!")
 
-            self.load_step += 1
-            # Continue to next step (700ms per step for longer animation)
-            QTimer.singleShot(700, self._update_loading)
-        else:
-            # Should not reach here due to explicit timing in step 9
-            if self.main_win:
-                self.main_win.show()
-            self.accept()
+        # Show main window, then fade out loading screen after a short pause
+        self.main_win.show()
+        QTimer.singleShot(800, self._fadeout_loading)
 
     def _fadeout_loading(self):
-        """Smoothly fade out the loading screen before closing."""
+        """Smoothly fade out the loading screen."""
         fadeout = QPropertyAnimation(self, b"windowOpacity")
-        fadeout.setDuration(600)  # 600ms fade-out animation
+        fadeout.setDuration(500)
         fadeout.setStartValue(1.0)
         fadeout.setEndValue(0.0)
         fadeout.setEasingCurve(QEasingCurve.InQuad)
         fadeout.finished.connect(self.accept)
         fadeout.start()
-        self.finishedAnimation = fadeout  # Keep reference to prevent garbage collection
+        self._fadeout_anim = fadeout   # keep reference — prevents GC crash
 
 
+# ── Login Window ───────────────────────────────────────────────────────────────
 class LoginWindow(QWidget):
     login_success = pyqtSignal(str, str)   # (full_name, role)
 
@@ -174,16 +223,14 @@ class LoginWindow(QWidget):
         self._build_ui()
         self._center_on_screen()
 
-    # ── Center window ─────────────────────────────────────────────────────────
     def _center_on_screen(self):
         screen = QDesktopWidget().screenGeometry()
         size   = self.geometry()
         self.move(
             (screen.width()  - size.width())  // 2,
-            (screen.height() - size.height()) // 2
+            (screen.height() - size.height()) // 2,
         )
 
-    # ── Build layout ──────────────────────────────────────────────────────────
     def _build_ui(self):
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -209,7 +256,6 @@ class LoginWindow(QWidget):
         left_lay.setContentsMargins(50, 60, 50, 40)
         left_lay.setSpacing(0)
 
-        # Emblem / crest
         crest = QLabel("")
         crest.setFont(QFont("Segoe UI", 72))
         crest.setAlignment(Qt.AlignCenter)
@@ -218,21 +264,29 @@ class LoginWindow(QWidget):
         school_lbl = QLabel("CJC")
         school_lbl.setFont(QFont("Segoe UI", 32, QFont.Bold))
         school_lbl.setAlignment(Qt.AlignCenter)
-        school_lbl.setStyleSheet(f"color: {WHITE}; background: transparent; letter-spacing: 6px;")
+        school_lbl.setStyleSheet(
+            f"color: {WHITE}; background: transparent; letter-spacing: 6px;"
+        )
 
         divider_gold = QFrame()
         divider_gold.setFrameShape(QFrame.HLine)
-        divider_gold.setStyleSheet(f"color: {GOLD}; background: {GOLD}; max-height: 2px; margin: 10px 60px;")
+        divider_gold.setStyleSheet(
+            f"color: {GOLD}; background: {GOLD}; max-height: 2px; margin: 10px 60px;"
+        )
 
         office_lbl = QLabel("Office of the Prefect")
         office_lbl.setFont(QFont("Segoe UI", 15, QFont.Bold))
         office_lbl.setAlignment(Qt.AlignCenter)
-        office_lbl.setStyleSheet(f"color: {GOLD}; background: transparent; letter-spacing: 1px;")
+        office_lbl.setStyleSheet(
+            f"color: {GOLD}; background: transparent; letter-spacing: 1px;"
+        )
 
         sys_lbl = QLabel("Student Conduct\nManagement System")
         sys_lbl.setFont(QFont("Segoe UI", 13))
         sys_lbl.setAlignment(Qt.AlignCenter)
-        sys_lbl.setStyleSheet(f"color: rgba(255,255,255,0.70); background: transparent; line-height: 1.5;")
+        sys_lbl.setStyleSheet(
+            f"color: rgba(255,255,255,0.70); background: transparent; line-height: 1.5;"
+        )
 
         left_lay.addStretch(2)
         left_lay.addWidget(crest)
@@ -244,7 +298,6 @@ class LoginWindow(QWidget):
         left_lay.addWidget(sys_lbl)
         left_lay.addStretch(3)
 
-        # Footer
         footer = QLabel("For authorized personnel only\nAll actions are logged.")
         footer.setFont(QFont("Segoe UI", 10))
         footer.setAlignment(Qt.AlignCenter)
@@ -260,7 +313,6 @@ class LoginWindow(QWidget):
         right_lay.setSpacing(0)
         right_lay.setAlignment(Qt.AlignCenter)
 
-        # Login card
         card = QFrame()
         card.setObjectName("LoginCard")
         card.setMaximumWidth(380)
@@ -277,24 +329,26 @@ class LoginWindow(QWidget):
         card_lay.setContentsMargins(36, 36, 36, 36)
         card_lay.setSpacing(0)
 
-        # Welcome heading
         welcome = QLabel("Welcome Back")
         welcome.setFont(QFont("Segoe UI", 20, QFont.Bold))
         welcome.setStyleSheet(f"color: {NAVY}; background: transparent;")
 
         sub = QLabel("Please enter your credentials to continue")
         sub.setFont(QFont("Segoe UI", 11))
-        sub.setStyleSheet(f"color: {MID_GRAY}; background: transparent; margin-bottom: 24px;")
+        sub.setStyleSheet(
+            f"color: {MID_GRAY}; background: transparent; margin-bottom: 24px;"
+        )
 
         card_lay.addWidget(welcome)
         card_lay.addSpacing(4)
         card_lay.addWidget(sub)
         card_lay.addSpacing(20)
 
-        # Username
         user_lbl = QLabel("Username")
         user_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
-        user_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; margin-bottom: 4px;")
+        user_lbl.setStyleSheet(
+            f"color: {TEXT_DARK}; background: transparent; margin-bottom: 4px;"
+        )
 
         self.username_edit = QLineEdit()
         self.username_edit.setPlaceholderText("Enter your username")
@@ -306,10 +360,11 @@ class LoginWindow(QWidget):
         card_lay.addWidget(self.username_edit)
         card_lay.addSpacing(16)
 
-        # Password
         pass_lbl = QLabel("Password")
         pass_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
-        pass_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; margin-bottom: 4px;")
+        pass_lbl.setStyleSheet(
+            f"color: {TEXT_DARK}; background: transparent; margin-bottom: 4px;"
+        )
 
         self.password_edit = QLineEdit()
         self.password_edit.setPlaceholderText("Enter your password")
@@ -322,7 +377,6 @@ class LoginWindow(QWidget):
         card_lay.addWidget(self.password_edit)
         card_lay.addSpacing(6)
 
-        # Error message label (hidden by default)
         self.error_lbl = QLabel("")
         self.error_lbl.setFont(QFont("Segoe UI", 11))
         self.error_lbl.setStyleSheet(f"""
@@ -339,7 +393,6 @@ class LoginWindow(QWidget):
         card_lay.addWidget(self.error_lbl)
         card_lay.addSpacing(20)
 
-        # Login button
         self.login_btn = QPushButton("  Log In")
         self.login_btn.setFixedHeight(46)
         self.login_btn.setFont(QFont("Segoe UI", 13, QFont.Bold))
@@ -369,7 +422,6 @@ class LoginWindow(QWidget):
         card_lay.addWidget(self.login_btn)
         card_lay.addSpacing(20)
 
-        # Demo hint
         hint = QLabel(
             "<b>Demo credentials:</b><br>"
             "admin / admin123 &nbsp;·&nbsp; staff / staff123"
@@ -388,17 +440,18 @@ class LoginWindow(QWidget):
 
         right_lay.addWidget(card, 0, Qt.AlignCenter)
 
-        # Copyright footer
         copy_lbl = QLabel("© 2026 Office of the Prefect — CJC  |  SCMS v1.0")
         copy_lbl.setFont(QFont("Segoe UI", 9))
         copy_lbl.setAlignment(Qt.AlignCenter)
-        copy_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; margin-top: 20px;")
+        copy_lbl.setStyleSheet(
+            f"color: {MID_GRAY}; background: transparent; margin-top: 20px;"
+        )
         right_lay.addWidget(copy_lbl)
 
         root.addWidget(left)
         root.addWidget(right, 1)
 
-    # ── Login handler (UI simulation) ─────────────────────────────────────────
+    # ── Login handler ─────────────────────────────────────────────────────────
     def _on_login(self):
         username = self.username_edit.text().strip().lower()
         password = self.password_edit.text()
@@ -412,8 +465,7 @@ class LoginWindow(QWidget):
             if password == pw:
                 self._hide_error()
                 self._show_login_loading()
-                # Give visual feedback before launching dashboard
-                QTimer.singleShot(500, lambda: self._launch_dashboard(full_name, role))
+                QTimer.singleShot(300, lambda: self._launch_dashboard(full_name, role))
                 return
 
         self._show_error("Incorrect username or password. Please try again.")
@@ -421,36 +473,34 @@ class LoginWindow(QWidget):
         self.password_edit.setFocus()
 
     def _show_login_loading(self):
-        """Show loading state on the login button."""
         self.login_btn.setEnabled(False)
         self.login_btn.setText("  ⟳ Authenticating...")
         self.username_edit.setEnabled(False)
         self.password_edit.setEnabled(False)
 
     def _show_error(self, msg: str):
-        self.error_lbl.setText(f"[WARNING] {msg}")
+        self.error_lbl.setText(f"⚠  {msg}")
         self.error_lbl.setVisible(True)
-        # Shake animation on the field
         anim = QPropertyAnimation(self.login_btn, b"geometry")
         anim.setDuration(120)
         geo = self.login_btn.geometry()
         anim.setKeyValueAt(0.0, geo)
         anim.setKeyValueAt(0.2, geo.adjusted(-4, 0, -4, 0))
-        anim.setKeyValueAt(0.5, geo.adjusted(4, 0, 4, 0))
+        anim.setKeyValueAt(0.5, geo.adjusted(4,  0,  4, 0))
         anim.setKeyValueAt(0.8, geo.adjusted(-2, 0, -2, 0))
         anim.setKeyValueAt(1.0, geo)
         anim.start()
+        self._shake_anim = anim   # keep reference
 
     def _hide_error(self):
         self.error_lbl.setVisible(False)
 
     def _launch_dashboard(self, full_name: str, role: str):
-        """Show loading screen and initialize application."""
+        """Show loading screen; background thread does the heavy lifting."""
         loading = LoadingScreen(parent=self)
         loading.load_application(full_name, role)
-        
+
         if loading.exec_() == QDialog.Accepted:
-            # Keep reference to prevent garbage collection
-            self.loading_screen = loading
-            self.main_win = loading.main_win
+            self.loading_screen = loading      # prevent GC
+            self.main_win       = loading.main_win
             self.close()

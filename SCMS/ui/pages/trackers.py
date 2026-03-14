@@ -299,6 +299,44 @@ class TrackersPage(BasePage):
         lay.addStretch()
         return w
 
+    # ─────────────────────────────────────────────────────────────────────────
+    def _clear_profile_layout(self):
+        """Remove all items from profile_layout after the title/divider (index 0 & 1),
+        but NEVER delete self.profile_empty — just detach it from the layout."""
+        while self.profile_layout.count() > 2:
+            item = self.profile_layout.takeAt(2)
+
+            widget = item.widget()
+            if widget is not None:
+                # Protect the placeholder — hide & detach instead of deleting
+                if widget is self.profile_empty:
+                    widget.setParent(None)
+                else:
+                    widget.deleteLater()
+                continue
+
+            nested = item.layout()
+            if nested is not None:
+                # Recursively clear the nested layout's widgets
+                while nested.count():
+                    child = nested.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+
+    def _clear_history_layout(self):
+        """Remove all items from history_table_container,
+        but NEVER delete self.slip_history_empty — just detach it."""
+        while self.history_table_container.count() > 0:
+            item = self.history_table_container.takeAt(0)
+
+            widget = item.widget()
+            if widget is not None:
+                if widget is self.slip_history_empty:
+                    widget.setParent(None)
+                else:
+                    widget.deleteLater()
+
+    # ─────────────────────────────────────────────────────────────────────────
     def _search_student(self):
         """Search for a student and display their profile and slip history."""
         from backend.db_students import get_student
@@ -313,24 +351,13 @@ class TrackersPage(BasePage):
             return
 
         student_info = get_student(search_term)
-
         if not student_info:
             InfoDialog("Not Found", f"No student found with number/name: {search_term}",
                        success=False, parent=self).exec_()
             return
 
-        # Clear previous profile display (keep index 0=title, 1=divider)
-        while self.profile_layout.count() > 2:
-            item = self.profile_layout.takeAt(2)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-            layout = item.layout()
-            if layout:
-                while layout.count():
-                    child = layout.takeAt(0)
-                    if child.widget():
-                        child.widget().deleteLater()
+        # Clear previous profile (protects self.profile_empty)
+        self._clear_profile_layout()
 
         # Display student profile
         stud_num    = student_info[0] if len(student_info) > 0 else "N/A"
@@ -341,14 +368,12 @@ class TrackersPage(BasePage):
         profile_grid = QGridLayout()
         profile_grid.setSpacing(12)
 
-        profile_fields = [
+        for i, (label, value) in enumerate([
             ("Student Number:", stud_num),
             ("Student Name:",   stud_name),
             ("Year Level:",     stud_year),
             ("Course:",         stud_course),
-        ]
-
-        for i, (label, value) in enumerate(profile_fields):
+        ]):
             lbl = QLabel(label)
             lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
             lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
@@ -362,7 +387,7 @@ class TrackersPage(BasePage):
 
         self.profile_layout.addLayout(profile_grid)
 
-        # Get and display slip history
+        # Build slip history
         history_records = []
         try:
             for record in get_blue_slips(stud_num) or []:
@@ -376,7 +401,7 @@ class TrackersPage(BasePage):
 
             for record in get_green_slips(stud_num) or []:
                 try:
-                    slip_type = "Dispensation" if (record[5] == True if len(record) > 5 else False) else "Excuse"
+                    slip_type = "Dispensation" if (record[5] is True if len(record) > 5 else False) else "Excuse"
                     date      = str(record[6])[:10] if len(record) > 6 else "N/A"
                     status    = record[8] if len(record) > 8 else "Active"
                     history_records.append(("Green (" + slip_type + ")", date, status, "-"))
@@ -393,12 +418,8 @@ class TrackersPage(BasePage):
         except:
             pass
 
-        # Clear previous history display
-        while self.history_table_container.count() > 0:
-            item   = self.history_table_container.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
+        # Clear previous history (protects self.slip_history_empty)
+        self._clear_history_layout()
 
         if not history_records:
             no_records = QLabel(f"No slip records found for {stud_name} ({stud_num})")
@@ -415,40 +436,13 @@ class TrackersPage(BasePage):
         """Clear the student search and reset display."""
         self.stud_search_edit.clear()
 
-        # Clear profile (keep index 0=title, 1=divider)
-        while self.profile_layout.count() > 2:
-            item   = self.profile_layout.takeAt(2)
-            widget = item.widget()
-            if widget and widget is not self.profile_empty:
-                widget.deleteLater()
-            layout = item.layout()
-            if layout:
-                while layout.count():
-                    child = layout.takeAt(0)
-                    if child.widget():
-                        child.widget().deleteLater()
+        # Clear profile content, then restore placeholder
+        self._clear_profile_layout()
+        self.profile_layout.addWidget(self.profile_empty)
 
-        # Re-add placeholder only if not already present
-        found = any(
-            self.profile_layout.itemAt(i).widget() is self.profile_empty
-            for i in range(self.profile_layout.count())
-        )
-        if not found:
-            self.profile_layout.addWidget(self.profile_empty)
-
-        # Clear history
-        while self.history_table_container.count() > 0:
-            item   = self.history_table_container.takeAt(0)
-            widget = item.widget()
-            if widget and widget is not self.slip_history_empty:
-                widget.deleteLater()
-
-        found = any(
-            self.history_table_container.itemAt(i).widget() is self.slip_history_empty
-            for i in range(self.history_table_container.count())
-        )
-        if not found:
-            self.history_table_container.addWidget(self.slip_history_empty)
+        # Clear history content, then restore placeholder
+        self._clear_history_layout()
+        self.history_table_container.addWidget(self.slip_history_empty)
 
     # ── Monthly Summary tab ───────────────────────────────────────────────────
     def _build_monthly_tab(self) -> QWidget:
@@ -519,11 +513,7 @@ class TrackersPage(BasePage):
         green_slips = get_green_slips(None) or []
         pink_slips  = get_pink_slips(None)  or []
 
-        green_count = len(green_slips)
-        pink_count  = len(pink_slips)
-        blue_count  = len(blue_slips)
-
-        chart_widget.update_data(green_count, pink_count, blue_count)
+        chart_widget.update_data(len(green_slips), len(pink_slips), len(blue_slips))
 
 
 # Helper import
