@@ -26,6 +26,12 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.config import load_config, save_config, get_school_years_list, add_school_year
+from backend.db_accounts import (
+    ensure_default_accounts,
+    get_accounts,
+    add_account,
+    get_account_by_username,
+)
 
 
 class SettingsPage(BasePage):
@@ -34,7 +40,15 @@ class SettingsPage(BasePage):
         # Store references to settings widgets
         self.settings_combos = {}
         self.settings_checkboxes = {}
+        self.users_table = None
+        self._ensure_accounts_ready()
         self._build()
+
+    def _ensure_accounts_ready(self):
+        try:
+            ensure_default_accounts()
+        except Exception:
+            pass
 
     def _build(self):
         # FIX: removed emoji from title, added border: none + padding: 0 to labels
@@ -227,18 +241,8 @@ class SettingsPage(BasePage):
         top_row.addWidget(add_btn)
         lay.addLayout(top_row)
 
-        headers = ["Username", "Full Name", "Role", "Status", "Last Login", "Actions"]
-        users = [
-            ("admin",   "Administrator",    "Admin", "Active", "Nov 20, 2024"),
-            ("staff",   "Office Staff",     "Staff", "Active", "Nov 19, 2024"),
-            ("prefect", "Prefect Office",   "Admin", "Active", "Nov 18, 2024"),
-            ("staff2",  "Mary Anne Santos", "Staff", "Active", "Nov 15, 2024"),
-        ]
-
-        from PyQt5.QtWidgets import QSizePolicy
-
         # Use 5 columns only — replace Actions column with two separate button columns
-        table = QTableWidget(len(users), 7)
+        table = QTableWidget(0, 7)
         table.setHorizontalHeaderLabels(
             ["Username", "Full Name", "Role", "Status", "Last Login", "Edit", "Delete"]
         )
@@ -270,9 +274,35 @@ class SettingsPage(BasePage):
             }}
         """)
 
-        for r, (uname, name, role, status, last) in enumerate(users):
-            for c, val in enumerate([uname, name, role, status, last]):
-                item = QTableWidgetItem(val)
+        table.setFixedHeight(300)
+        self.users_table = table
+        self._refresh_users_table()
+        lay.addWidget(self.users_table)
+        lay.addStretch()
+        return w
+
+    def _refresh_users_table(self):
+        if not self.users_table:
+            return
+
+        try:
+            rows = get_accounts()
+        except Exception:
+            rows = []
+
+        def _fmt_login(value):
+            if not value:
+                return "-"
+            if hasattr(value, "strftime"):
+                return value.strftime("%b %d, %Y %I:%M %p")
+            return str(value)
+
+        table = self.users_table
+        table.setRowCount(len(rows))
+
+        for r, (uname, name, role, status, last_login) in enumerate(rows):
+            for c, val in enumerate([uname, name, role, status, _fmt_login(last_login)]):
+                item = QTableWidgetItem(str(val))
                 item.setTextAlignment(Qt.AlignCenter)
                 table.setItem(r, c, item)
 
@@ -284,7 +314,6 @@ class SettingsPage(BasePage):
             del_btn.setFixedSize(90, 38)
             del_btn.setStyleSheet(btn_danger())
 
-            # Wrap each button in its own centered widget
             for col_idx, btn in [(5, edit_btn), (6, del_btn)]:
                 cell_w = QWidget()
                 cell_w.setFixedHeight(44)
@@ -294,14 +323,9 @@ class SettingsPage(BasePage):
                 cell_lay.setSpacing(0)
                 cell_lay.setAlignment(Qt.AlignCenter)
                 cell_lay.addWidget(btn)
-                table.setCellWidget(r, col_idx, btn)
+                table.setCellWidget(r, col_idx, cell_w)
 
             table.setRowHeight(r, 50)
-
-        table.setFixedHeight(300)
-        lay.addWidget(table)
-        lay.addStretch()
-        return w
 
     def _show_add_user(self):
         from PyQt5.QtWidgets import QDialog, QVBoxLayout, QGridLayout
@@ -325,6 +349,11 @@ class SettingsPage(BasePage):
         g.setSpacing(10)
         g.setColumnStretch(1, 1)
 
+        name_input = None
+        user_input = None
+        pass_input = None
+        role_cb = None
+
         for row, (label, placeholder) in enumerate([
             ("Full Name", "Enter full name"),
             ("Username",  "Enter username"),
@@ -339,6 +368,11 @@ class SettingsPage(BasePage):
                 inp.setFixedHeight(38)
                 if label == "Password":
                     inp.setEchoMode(QLineEdit.Password)
+                    pass_input = inp
+                elif label == "Username":
+                    user_input = inp
+                else:
+                    name_input = inp
                 g.addWidget(inp, row, 1)
             else:
                 role_cb = QComboBox()
@@ -358,14 +392,44 @@ class SettingsPage(BasePage):
         save = QPushButton("Save User")
         save.setStyleSheet(btn_primary())
         save.setFixedHeight(38)
-        save.clicked.connect(lambda: (dlg.accept(),
-                                      InfoDialog("User Added",
-                                                 "New user has been added successfully.",
-                                                 parent=self).exec_()))
+        save.clicked.connect(lambda: self._save_new_user(
+            dlg, name_input, user_input, pass_input, role_cb
+        ))
         btn_row.addWidget(cancel)
         btn_row.addWidget(save)
         lay.addLayout(btn_row)
         dlg.exec_()
+
+    def _save_new_user(self, dlg, name_input, user_input, pass_input, role_cb):
+        full_name = (name_input.text() if name_input else "").strip()
+        username = (user_input.text() if user_input else "").strip().lower()
+        password = (pass_input.text() if pass_input else "").strip()
+        role = role_cb.currentText() if role_cb else "Staff"
+
+        if not full_name or not username or not password:
+            InfoDialog("Input Required",
+                      "Please fill in all required fields.",
+                      success=False, parent=self).exec_()
+            return
+
+        try:
+            if get_account_by_username(username):
+                InfoDialog("Duplicate User",
+                          f"Username '{username}' already exists.",
+                          success=False, parent=self).exec_()
+                return
+            add_account(username, full_name, password, role, status="Active")
+        except Exception as e:
+            InfoDialog("Error",
+                      f"Failed to add user: {str(e)}",
+                      success=False, parent=self).exec_()
+            return
+
+        dlg.accept()
+        self._refresh_users_table()
+        InfoDialog("User Added",
+                  "New user has been added successfully.",
+                  parent=self).exec_()
 
     # ── System Settings tab ───────────────────────────────────────────────────
     def _build_system_tab(self) -> QWidget:

@@ -235,7 +235,7 @@ class TrackersPage(BasePage):
         s_lay.setContentsMargins(16, 12, 16, 12)
         s_lay.setSpacing(10)
 
-        lbl = QLabel("Student Number / Name:")
+        lbl = QLabel("Student Number:")
         lbl.setStyleSheet("border: none; background: transparent;")
         s_lay.addWidget(lbl)
 

@@ -20,12 +20,11 @@ from ui.styles import (
 from ui.components import add_shadow, Divider
 
 
-# ── Demo credentials (UI simulation only) ─────────────────────────────────────
-DEMO_USERS = {
-    "admin":   ("admin123",   "Administrator",  "Admin"),
-    "staff":   ("staff123",   "Office Staff",   "Staff"),
-    "prefect": ("prefect123", "Prefect Office", "Admin"),
-}
+# Backend imports
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from backend.db_accounts import ensure_default_accounts, validate_login
 
 
 # ── Background worker: builds MainWindow off the UI thread ────────────────────
@@ -220,8 +219,16 @@ class LoginWindow(QWidget):
         self.setWindowTitle("SCMS — Login")
         self.setMinimumSize(960, 600)
         self.setStyleSheet(f"background: {NAVY_DARK};")
+        self._db_error = None
+        self._ensure_default_accounts()
         self._build_ui()
         self._center_on_screen()
+
+    def _ensure_default_accounts(self):
+        try:
+            ensure_default_accounts()
+        except Exception as e:
+            self._db_error = str(e)
 
     def _center_on_screen(self):
         screen = QDesktopWidget().screenGeometry()
@@ -460,13 +467,22 @@ class LoginWindow(QWidget):
             self._show_error("Please enter both username and password.")
             return
 
-        if username in DEMO_USERS:
-            pw, full_name, role = DEMO_USERS[username]
-            if password == pw:
-                self._hide_error()
-                self._show_login_loading()
-                QTimer.singleShot(300, lambda: self._launch_dashboard(full_name, role))
-                return
+        if self._db_error:
+            self._show_error(f"Database error: {self._db_error}")
+            return
+
+        try:
+            result = validate_login(username, password)
+        except Exception as e:
+            self._show_error(f"Database error: {str(e)}")
+            return
+
+        if result:
+            full_name, role = result
+            self._hide_error()
+            self._show_login_loading()
+            QTimer.singleShot(300, lambda: self._launch_dashboard(full_name, role))
+            return
 
         self._show_error("Incorrect username or password. Please try again.")
         self.password_edit.clear()
