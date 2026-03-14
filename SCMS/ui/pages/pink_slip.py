@@ -27,6 +27,59 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_pink_slip import add_pink_slip, get_pink_slips
 from backend.config import get_current_semester
 
+class CalendarDateEdit(QDateEdit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setCalendarPopup(True)
+        svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>'''
+
+        import tempfile, os
+        self._icon_file = tempfile.NamedTemporaryFile(
+            suffix=".svg", delete=False, mode='w', encoding='utf-8'
+        )
+        self._icon_file.write(svg_data)
+        self._icon_file.flush()
+        self._icon_path = self._icon_file.name.replace("\\", "/")
+        self._icon_file.close()
+
+    def apply_icon_style(self, base_style):
+        icon_style = base_style + f"""
+            QDateEdit::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: right center;
+                width: 36px;
+                background: {PINK_SLIP};
+                border-left: none;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }}
+            QDateEdit::drop-down:hover {{
+                background: #C2185B;
+            }}
+            QDateEdit::drop-down:disabled {{
+                background: #E0BFC9;
+            }}
+            QDateEdit::down-arrow {{
+                image: url("{self._icon_path}");
+                width: 18px;
+                height: 18px;
+            }}
+        """
+        self.setStyleSheet(icon_style)
+
+    def __del__(self):
+        import os
+        try:
+            os.unlink(self._icon_path)
+        except Exception:
+            pass
+
 
 # ── Filter-panel shared styles ────────────────────────────────────────────────
 def _filter_panel_style(accent):
@@ -70,13 +123,14 @@ def _date_edit_style(accent):
     """
 
 def _combo_style(accent):
-    """QComboBox styled to match system inputs."""
+    """QComboBox styled with a solid accent-colored dropdown button and chevron icon."""
     return f"""
         QComboBox {{
             background: {WHITE};
             border: 1px solid #D0D5DD;
             border-radius: 6px;
             padding: 4px 10px;
+            padding-right: 42px;
             font-size: 13px;
             font-family: "Segoe UI";
             color: {TEXT_DARK};
@@ -84,17 +138,45 @@ def _combo_style(accent):
         QComboBox:focus {{
             border: 1.5px solid {accent};
         }}
+        QComboBox:hover {{
+            border: 1.5px solid {accent};
+        }}
         QComboBox::drop-down {{
-            border: none;
-            width: 24px;
+            subcontrol-origin: padding;
+            subcontrol-position: right center;
+            width: 36px;
+            background: {accent};
+            border-left: none;
+            border-top-right-radius: 5px;
+            border-bottom-right-radius: 5px;
+        }}
+        QComboBox::drop-down:hover {{
+            background: #C2185B;
+        }}
+        QComboBox::down-arrow {{
+            width: 0px;
+            height: 0px;
+            border-style: solid;
+            border-width: 5px 4px 0px 4px;
+            border-color: white transparent transparent transparent;
         }}
         QComboBox QAbstractItemView {{
             background: {WHITE};
             border: 1px solid #D0D5DD;
-            selection-background-color: {accent}20;
+            border-radius: 4px;
+            selection-background-color: {accent}30;
             selection-color: {TEXT_DARK};
             font-size: 13px;
             font-family: "Segoe UI";
+            padding: 2px;
+            outline: none;
+        }}
+        QComboBox QAbstractItemView::item {{
+            padding: 6px 10px;
+            min-height: 28px;
+        }}
+        QComboBox QAbstractItemView::item:hover {{
+            background: {accent}20;
         }}
     """
 
@@ -235,6 +317,7 @@ class PinkSlipPage(BasePage):
         self.pink_year = QComboBox()
         self.pink_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.pink_year.setFixedHeight(38)
+        self.pink_year.setStyleSheet(_combo_style(PINK_SLIP))
         self.pink_course = QLineEdit()
         self.pink_course.setPlaceholderText("Course")
         self.pink_course.setFixedHeight(38)
@@ -246,6 +329,7 @@ class PinkSlipPage(BasePage):
         self.pink_sem = QComboBox()
         self.pink_sem.addItems(["1st", "2nd", "Summer"])
         self.pink_sem.setFixedHeight(38)
+        self.pink_sem.setStyleSheet(_combo_style(PINK_SLIP))
         current_sem = get_current_semester()
         if "1st" in current_sem:
             self.pink_sem.setCurrentIndex(0)
@@ -254,10 +338,10 @@ class PinkSlipPage(BasePage):
         form_lay.addWidget(self.pink_sem, 1, 3)
 
         form_lay.addWidget(lbl("Date Issued", True), 2, 0)
-        self.pink_date = QDateEdit(QDate.currentDate())
-        self.pink_date.setCalendarPopup(True)
+        self.pink_date = CalendarDateEdit(QDate.currentDate())
         self.pink_date.setFixedHeight(38)
         self.pink_date.setDisplayFormat("MMMM d, yyyy")
+        self.pink_date.apply_icon_style(_date_edit_style(PINK_SLIP))
         form_lay.addWidget(self.pink_date, 2, 1)
 
         form_lay.addWidget(lbl("Violation / Reason", True), 2, 2)
@@ -268,6 +352,7 @@ class PinkSlipPage(BasePage):
             "Other (specify in remarks)",
         ])
         self.pink_violation.setFixedHeight(38)
+        self.pink_violation.setStyleSheet(_combo_style(PINK_SLIP))
         form_lay.addWidget(self.pink_violation, 2, 3)
 
         form_lay.addWidget(lbl("Description / Remarks"), 3, 0)
@@ -283,6 +368,7 @@ class PinkSlipPage(BasePage):
             "Community Service", "Suspension", "Other",
         ])
         self.pink_action.setFixedHeight(38)
+        self.pink_action.setStyleSheet(_combo_style(PINK_SLIP))
         form_lay.addWidget(self.pink_action, 4, 1)
 
         form_lay.addWidget(lbl("Officer in Charge", True), 4, 2)
@@ -519,24 +605,22 @@ class PinkSlipPage(BasePage):
         self._pink_from_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
         self._pink_from_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
 
-        self._pink_date_from = QDateEdit(QDate.currentDate().addMonths(-1))
-        self._pink_date_from.setCalendarPopup(True)
+        self._pink_date_from = CalendarDateEdit(QDate.currentDate().addMonths(-1))
         self._pink_date_from.setFixedHeight(38)
         self._pink_date_from.setFixedWidth(165)
         self._pink_date_from.setDisplayFormat("MMM d, yyyy")
-        self._pink_date_from.setStyleSheet(_date_edit_style(PINK_SLIP))
+        self._pink_date_from.apply_icon_style(_date_edit_style(PINK_SLIP))
         self._pink_date_from.setEnabled(False)
 
         self._pink_to_lbl = QLabel("To:")
         self._pink_to_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
         self._pink_to_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
-
-        self._pink_date_to = QDateEdit(QDate.currentDate())
-        self._pink_date_to.setCalendarPopup(True)
+        
+        self._pink_date_to = CalendarDateEdit(QDate.currentDate())
         self._pink_date_to.setFixedHeight(38)
         self._pink_date_to.setFixedWidth(165)
         self._pink_date_to.setDisplayFormat("MMM d, yyyy")
-        self._pink_date_to.setStyleSheet(_date_edit_style(PINK_SLIP))
+        self._pink_date_to.apply_icon_style(_date_edit_style(PINK_SLIP))
         self._pink_date_to.setEnabled(False)
 
         def _toggle_pink_dates(idx):

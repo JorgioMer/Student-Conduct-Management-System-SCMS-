@@ -28,6 +28,61 @@ from backend.db_green_slip import add_green_slip, get_green_slips
 from backend.db_students import add_student, get_student
 from backend.config import get_current_semester
 
+import base64
+from PyQt5.QtWidgets import QDateEdit
+from PyQt5.QtCore import QRect, Qt
+
+class CalendarDateEdit(QDateEdit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setCalendarPopup(True)
+        # Write a clean white calendar SVG as a temp file and use it
+        svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>'''
+        
+        import tempfile, os
+        self._icon_file = tempfile.NamedTemporaryFile(
+            suffix=".svg", delete=False, mode='w', encoding='utf-8'
+        )
+        self._icon_file.write(svg_data)
+        self._icon_file.flush()
+        self._icon_path = self._icon_file.name.replace("\\", "/")
+        self._icon_file.close()
+
+    def apply_icon_style(self, base_style):
+        icon_style = base_style + f"""
+            QDateEdit::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: right center;
+                width: 36px;
+                background: #2E7D32;
+                border-left: none;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }}
+            QDateEdit::drop-down:hover {{
+                background: #1B5E20;
+            }}
+            QDateEdit::down-arrow {{
+                image: url("{self._icon_path}");
+                width: 18px;
+                height: 18px;
+            }}
+        """
+        self.setStyleSheet(icon_style)
+
+    def __del__(self):
+        import os
+        try:
+            os.unlink(self._icon_path)
+        except Exception:
+            pass
+
 
 # ── Filter-panel shared styles ────────────────────────────────────────────────
 def _filter_panel_style(accent):
@@ -63,21 +118,78 @@ def _date_edit_style(accent):
         QDateEdit::drop-down {{
             subcontrol-origin: padding;
             subcontrol-position: right center;
-            width: 28px;
-            border-left: 1px solid #E5E7EB;
+            width: 32px;
+            background: {accent};
+            border-left: 1px solid {accent};
             border-top-right-radius: 6px;
             border-bottom-right-radius: 6px;
+        }}
+        QDateEdit::drop-down:hover {{
+            background: #388E3C;
+        }}
+        QDateEdit::down-arrow {{
+            image: none;
+            width: 16px;
+            height: 16px;
+        }}
+       
+        /* ── Calendar popup ── */
+        QCalendarWidget QWidget {{
+            background: #FFFFFF;
+            color: #1A1A2E;
+            font-family: "Segoe UI";
+            font-size: 12px;
+        }}
+        QCalendarWidget QAbstractItemView {{
+            background: #FFFFFF;
+            color: #1A1A2E;
+            selection-background-color: {accent};
+            selection-color: #FFFFFF;
+            gridline-color: #E5E7EB;
+        }}
+        QCalendarWidget QAbstractItemView:disabled {{
+            color: #9CA3AF;
+        }}
+        QCalendarWidget QToolButton {{
+            background: {accent};
+            color: #FFFFFF;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 13px;
+        }}
+        QCalendarWidget QToolButton:hover {{
+            background: #388E3C;
+        }}
+        QCalendarWidget QToolButton::menu-indicator {{
+            image: none;
+        }}
+        QCalendarWidget QSpinBox {{
+            background: #FFFFFF;
+            color: #1A1A2E;
+            border: 1px solid #D0D5DD;
+            border-radius: 4px;
+            padding: 2px 6px;
+            selection-background-color: {accent};
+            selection-color: #FFFFFF;
+        }}
+        QCalendarWidget QWidget#qt_calendar_navigationbar {{
+            background: {accent};
+            border-radius: 6px;
+            padding: 4px;
         }}
     """
 
 def _combo_style(accent):
-    """QComboBox styled to match system inputs."""
+    """QComboBox styled with a solid accent-colored dropdown button and chevron icon."""
     return f"""
         QComboBox {{
             background: {WHITE};
             border: 1px solid #D0D5DD;
             border-radius: 6px;
             padding: 4px 10px;
+            padding-right: 42px;
             font-size: 13px;
             font-family: "Segoe UI";
             color: {TEXT_DARK};
@@ -85,17 +197,45 @@ def _combo_style(accent):
         QComboBox:focus {{
             border: 1.5px solid {accent};
         }}
+        QComboBox:hover {{
+            border: 1.5px solid {accent};
+        }}
         QComboBox::drop-down {{
-            border: none;
-            width: 24px;
+            subcontrol-origin: padding;
+            subcontrol-position: right center;
+            width: 36px;
+            background: {accent};
+            border-left: none;
+            border-top-right-radius: 5px;
+            border-bottom-right-radius: 5px;
+        }}
+        QComboBox::drop-down:hover {{
+            background: #1B5E20;
+        }}
+        QComboBox::down-arrow {{
+            width: 0px;
+            height: 0px;
+            border-style: solid;
+            border-width: 5px 4px 0px 4px;
+            border-color: white transparent transparent transparent;
         }}
         QComboBox QAbstractItemView {{
             background: {WHITE};
             border: 1px solid #D0D5DD;
-            selection-background-color: {accent}20;
+            border-radius: 4px;
+            selection-background-color: {accent}30;
             selection-color: {TEXT_DARK};
             font-size: 13px;
             font-family: "Segoe UI";
+            padding: 2px;
+            outline: none;
+        }}
+        QComboBox QAbstractItemView::item {{
+            padding: 6px 10px;
+            min-height: 28px;
+        }}
+        QComboBox QAbstractItemView::item:hover {{
+            background: {accent}20;
         }}
     """
 
@@ -237,6 +377,7 @@ class GreenSlipPage(BasePage):
         self.disp_year = QComboBox()
         self.disp_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.disp_year.setFixedHeight(38)
+        self.disp_year.setStyleSheet(_combo_style(GREEN_SLIP))
         self.disp_course = QLineEdit()
         self.disp_course.setPlaceholderText("Course")
         self.disp_course.setFixedHeight(38)
@@ -245,10 +386,10 @@ class GreenSlipPage(BasePage):
         form_lay.addLayout(grade_row, 1, 1)
 
         form_lay.addWidget(lbl("Date Availed", True), 1, 2)
-        self.disp_date = QDateEdit(QDate.currentDate())
-        self.disp_date.setCalendarPopup(True)
+        self.disp_date = CalendarDateEdit(QDate.currentDate())
         self.disp_date.setFixedHeight(38)
         self.disp_date.setDisplayFormat("MMMM d, yyyy")
+        self.disp_date.apply_icon_style(_date_edit_style(GREEN_SLIP))
         form_lay.addWidget(self.disp_date, 1, 3)
 
         form_lay.addWidget(lbl("Number of Days", True), 2, 0)
@@ -260,12 +401,13 @@ class GreenSlipPage(BasePage):
         form_lay.addWidget(self.disp_days, 2, 1)
 
         form_lay.addWidget(lbl("Expiry Date"), 2, 2)
-        self.disp_expiry = QDateEdit(QDate.currentDate().addDays(1))
-        self.disp_expiry.setCalendarPopup(True)
+        self.disp_expiry = CalendarDateEdit(QDate.currentDate().addDays(1))
         self.disp_expiry.setFixedHeight(38)
         self.disp_expiry.setDisplayFormat("MMMM d, yyyy")
         self.disp_expiry.setReadOnly(True)
-        self.disp_expiry.setStyleSheet(f"background: {LIGHT_GRAY};")
+        self.disp_expiry.apply_icon_style(_date_edit_style(GREEN_SLIP) + f"""
+            QDateEdit {{ background: {LIGHT_GRAY}; color: #9CA3AF; }}
+        """)
         form_lay.addWidget(self.disp_expiry, 2, 3)
 
         def update_expiry(val):
@@ -289,12 +431,14 @@ class GreenSlipPage(BasePage):
         self.disp_status = QComboBox()
         self.disp_status.addItems(["Active", "Expired", "Cancelled"])
         self.disp_status.setFixedHeight(38)
+        self.disp_status.setStyleSheet(_combo_style(GREEN_SLIP))
         form_lay.addWidget(self.disp_status, 4, 3)
 
         form_lay.addWidget(lbl("Semester", True), 5, 0)
         self.disp_semester = QComboBox()
         self.disp_semester.addItems(["1st", "2nd", "Summer"])
         self.disp_semester.setFixedHeight(38)
+        self.disp_semester.setStyleSheet(_combo_style(GREEN_SLIP))
         current_sem = get_current_semester()
         if "1st" in current_sem:
             self.disp_semester.setCurrentIndex(0)
@@ -489,6 +633,7 @@ class GreenSlipPage(BasePage):
         self.exc_year = QComboBox()
         self.exc_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.exc_year.setFixedHeight(38)
+        self.exc_year.setStyleSheet(_combo_style(GREEN_SLIP))
         self.exc_course = QLineEdit()
         self.exc_course.setPlaceholderText("Course")
         self.exc_course.setFixedHeight(38)
@@ -497,10 +642,10 @@ class GreenSlipPage(BasePage):
         form_lay.addLayout(grade_row, 1, 1)
 
         form_lay.addWidget(lbl("Date Availed", True), 1, 2)
-        self.exc_date = QDateEdit(QDate.currentDate())
-        self.exc_date.setCalendarPopup(True)
+        self.exc_date = CalendarDateEdit(QDate.currentDate())
         self.exc_date.setFixedHeight(38)
         self.exc_date.setDisplayFormat("MMMM d, yyyy")
+        self.exc_date.apply_icon_style(_date_edit_style(GREEN_SLIP))
         form_lay.addWidget(self.exc_date, 1, 3)
 
         form_lay.addWidget(lbl("Absence Type", True), 2, 0)
@@ -510,7 +655,9 @@ class GreenSlipPage(BasePage):
             "School Event / Activity", "Official Function",
             "Weather / Calamity", "Other (specify below)",
         ])
+        
         self.exc_type.setFixedHeight(38)
+        self.exc_type.setStyleSheet(_combo_style(GREEN_SLIP))
         form_lay.addWidget(self.exc_type, 2, 1)
 
         form_lay.addWidget(lbl("Date(s) of Absence", True), 2, 2)
@@ -536,12 +683,14 @@ class GreenSlipPage(BasePage):
         self.exc_doc.addItems(["Medical Certificate", "Parent Letter",
                                "Official Document", "None"])
         self.exc_doc.setFixedHeight(38)
+        self.exc_doc.setStyleSheet(_combo_style(GREEN_SLIP))
         form_lay.addWidget(self.exc_doc, 4, 3)
 
         form_lay.addWidget(lbl("Semester", True), 5, 0)
         self.exc_semester = QComboBox()
         self.exc_semester.addItems(["1st", "2nd", "Summer"])
         self.exc_semester.setFixedHeight(38)
+        self.exc_semester.setStyleSheet(_combo_style(GREEN_SLIP))
         current_sem = get_current_semester()
         if "1st" in current_sem:
             self.exc_semester.setCurrentIndex(0)
@@ -768,24 +917,22 @@ class GreenSlipPage(BasePage):
         self._green_from_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
         self._green_from_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
 
-        self._green_date_from = QDateEdit(QDate.currentDate().addMonths(-1))
-        self._green_date_from.setCalendarPopup(True)
+        self._green_date_from = CalendarDateEdit(QDate.currentDate().addMonths(-1))
         self._green_date_from.setFixedHeight(38)
         self._green_date_from.setFixedWidth(165)
         self._green_date_from.setDisplayFormat("MMM d, yyyy")
-        self._green_date_from.setStyleSheet(_date_edit_style(GREEN_SLIP))
+        self._green_date_from.apply_icon_style(_date_edit_style(GREEN_SLIP))
         self._green_date_from.setEnabled(False)
-
+        
         self._green_to_lbl = QLabel("To:")
         self._green_to_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
         self._green_to_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
 
-        self._green_date_to = QDateEdit(QDate.currentDate())
-        self._green_date_to.setCalendarPopup(True)
+        self._green_date_to = CalendarDateEdit(QDate.currentDate())
         self._green_date_to.setFixedHeight(38)
         self._green_date_to.setFixedWidth(165)
         self._green_date_to.setDisplayFormat("MMM d, yyyy")
-        self._green_date_to.setStyleSheet(_date_edit_style(GREEN_SLIP))
+        self._green_date_to.apply_icon_style(_date_edit_style(GREEN_SLIP))
         self._green_date_to.setEnabled(False)
 
         def _toggle_green_dates(idx):

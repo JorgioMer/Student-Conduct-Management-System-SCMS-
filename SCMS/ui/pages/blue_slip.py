@@ -27,6 +27,59 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_blue_slip import add_blue_slip, get_blue_slips
 from backend.config import get_current_semester
 
+class CalendarDateEdit(QDateEdit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setCalendarPopup(True)
+        svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>'''
+
+        import tempfile, os
+        self._icon_file = tempfile.NamedTemporaryFile(
+            suffix=".svg", delete=False, mode='w', encoding='utf-8'
+        )
+        self._icon_file.write(svg_data)
+        self._icon_file.flush()
+        self._icon_path = self._icon_file.name.replace("\\", "/")
+        self._icon_file.close()
+
+    def apply_icon_style(self, base_style):
+        icon_style = base_style + f"""
+            QDateEdit::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: right center;
+                width: 36px;
+                background: {BLUE_SLIP};
+                border-left: none;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }}
+            QDateEdit::drop-down:hover {{
+                background: #1565C0;
+            }}
+            QDateEdit::drop-down:disabled {{
+                background: #B0BEC5;
+            }}
+            QDateEdit::down-arrow {{
+                image: url("{self._icon_path}");
+                width: 18px;
+                height: 18px;
+            }}
+        """
+        self.setStyleSheet(icon_style)
+
+    def __del__(self):
+        import os
+        try:
+            os.unlink(self._icon_path)
+        except Exception:
+            pass
+
 
 # ── Filter-panel shared styles ────────────────────────────────────────────────
 def _filter_panel_style(accent):
@@ -70,13 +123,14 @@ def _date_edit_style(accent):
     """
 
 def _combo_style(accent):
-    """QComboBox styled to match system inputs."""
+    """QComboBox styled with a solid accent-colored dropdown button and chevron icon."""
     return f"""
         QComboBox {{
             background: {WHITE};
             border: 1px solid #D0D5DD;
             border-radius: 6px;
             padding: 4px 10px;
+            padding-right: 42px;
             font-size: 13px;
             font-family: "Segoe UI";
             color: {TEXT_DARK};
@@ -84,17 +138,45 @@ def _combo_style(accent):
         QComboBox:focus {{
             border: 1.5px solid {accent};
         }}
+        QComboBox:hover {{
+            border: 1.5px solid {accent};
+        }}
         QComboBox::drop-down {{
-            border: none;
-            width: 24px;
+            subcontrol-origin: padding;
+            subcontrol-position: right center;
+            width: 36px;
+            background: {accent};
+            border-left: none;
+            border-top-right-radius: 5px;
+            border-bottom-right-radius: 5px;
+        }}
+        QComboBox::drop-down:hover {{
+            background: #1565C0;
+        }}
+        QComboBox::down-arrow {{
+            width: 0px;
+            height: 0px;
+            border-style: solid;
+            border-width: 5px 4px 0px 4px;
+            border-color: white transparent transparent transparent;
         }}
         QComboBox QAbstractItemView {{
             background: {WHITE};
             border: 1px solid #D0D5DD;
-            selection-background-color: {accent}20;
+            border-radius: 4px;
+            selection-background-color: {accent}30;
             selection-color: {TEXT_DARK};
             font-size: 13px;
             font-family: "Segoe UI";
+            padding: 2px;
+            outline: none;
+        }}
+        QComboBox QAbstractItemView::item {{
+            padding: 6px 10px;
+            min-height: 28px;
+        }}
+        QComboBox QAbstractItemView::item:hover {{
+            background: {accent}20;
         }}
     """
 
@@ -236,6 +318,7 @@ class BlueSlipPage(BasePage):
         self.blue_year = QComboBox()
         self.blue_year.addItems(["1st","2nd","3rd","4th"])
         self.blue_year.setFixedHeight(38)
+        self.blue_year.setStyleSheet(_combo_style(BLUE_SLIP))
         self.blue_course = QLineEdit()
         self.blue_course.setPlaceholderText("Course")
         self.blue_course.setFixedHeight(38)
@@ -244,10 +327,10 @@ class BlueSlipPage(BasePage):
         form_lay.addLayout(grade_row, 1, 1)
 
         form_lay.addWidget(lbl("Date of Violation", True), 1, 2)
-        self.blue_date = QDateEdit(QDate.currentDate())
-        self.blue_date.setCalendarPopup(True)
+        self.blue_date = CalendarDateEdit(QDate.currentDate())
         self.blue_date.setFixedHeight(38)
         self.blue_date.setDisplayFormat("MMMM d, yyyy")
+        self.blue_date.apply_icon_style(_date_edit_style(BLUE_SLIP))
         form_lay.addWidget(self.blue_date, 1, 3)
 
         form_lay.addWidget(lbl("Violation Type", True), 2, 0)
@@ -266,6 +349,7 @@ class BlueSlipPage(BasePage):
             "Other (specify in description)",
         ])
         self.blue_vtype.setFixedHeight(38)
+        self.blue_vtype.setStyleSheet(_combo_style(BLUE_SLIP))
         form_lay.addWidget(self.blue_vtype, 2, 1)
 
         form_lay.addWidget(lbl("Severity Level", True), 2, 2)
@@ -277,6 +361,7 @@ class BlueSlipPage(BasePage):
             "Level 4 — Grave / Serious",
         ])
         self.blue_severity.setFixedHeight(38)
+        self.blue_severity.setStyleSheet(_combo_style(BLUE_SLIP))
         form_lay.addWidget(self.blue_severity, 2, 3)
 
         form_lay.addWidget(lbl("Violation Description", True), 3, 0)
@@ -293,6 +378,7 @@ class BlueSlipPage(BasePage):
             "Endorsement to Guidance", "Probation", "Other",
         ])
         self.blue_action.setFixedHeight(38)
+        self.blue_action.setStyleSheet(_combo_style(BLUE_SLIP))
         form_lay.addWidget(self.blue_action, 4, 1)
 
         form_lay.addWidget(lbl("Officer in Charge", True), 4, 2)
@@ -308,8 +394,10 @@ class BlueSlipPage(BasePage):
             "Action Taken", "Resolved", "Escalated",
         ])
         self.blue_status.setFixedHeight(38)
+        self.blue_status.setStyleSheet(_combo_style(BLUE_SLIP))
         form_lay.addWidget(self.blue_status, 5, 1)
-
+        
+        
         form_lay.addWidget(lbl("Witnesses / Notes"), 5, 2)
         self.blue_witnesses = QLineEdit()
         self.blue_witnesses.setPlaceholderText("Names of witnesses (optional)")
@@ -320,6 +408,9 @@ class BlueSlipPage(BasePage):
         self.blue_semester = QComboBox()
         self.blue_semester.addItems(["1st", "2nd", "Summer"])
         self.blue_semester.setFixedHeight(38)
+        self.blue_semester.setStyleSheet(_combo_style(BLUE_SLIP))
+        current_sem = get_current_semester()
+        
         current_sem = get_current_semester()
         if "1st" in current_sem:
             self.blue_semester.setCurrentIndex(0)
@@ -617,24 +708,22 @@ class BlueSlipPage(BasePage):
         self._blue_from_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
         self._blue_from_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
 
-        self._blue_date_from = QDateEdit(QDate.currentDate().addMonths(-1))
-        self._blue_date_from.setCalendarPopup(True)
+        self._blue_date_from = CalendarDateEdit(QDate.currentDate().addMonths(-1))
         self._blue_date_from.setFixedHeight(38)
         self._blue_date_from.setFixedWidth(165)
         self._blue_date_from.setDisplayFormat("MMM d, yyyy")
-        self._blue_date_from.setStyleSheet(_date_edit_style(BLUE_SLIP))
+        self._blue_date_from.apply_icon_style(_date_edit_style(BLUE_SLIP))
         self._blue_date_from.setEnabled(False)
 
         self._blue_to_lbl = QLabel("To:")
         self._blue_to_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
         self._blue_to_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
 
-        self._blue_date_to = QDateEdit(QDate.currentDate())
-        self._blue_date_to.setCalendarPopup(True)
+        self._blue_date_to = CalendarDateEdit(QDate.currentDate())
         self._blue_date_to.setFixedHeight(38)
         self._blue_date_to.setFixedWidth(165)
         self._blue_date_to.setDisplayFormat("MMM d, yyyy")
-        self._blue_date_to.setStyleSheet(_date_edit_style(BLUE_SLIP))
+        self._blue_date_to.apply_icon_style(_date_edit_style(BLUE_SLIP))
         self._blue_date_to.setEnabled(False)
 
         def _toggle_blue_dates(idx):
