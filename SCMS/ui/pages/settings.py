@@ -5,10 +5,10 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
     QPushButton, QFrame, QTabWidget, QWidget,
     QGridLayout, QGroupBox, QCheckBox, QTableWidget,
-    QTableWidgetItem, QHeaderView
+    QTableWidgetItem, QHeaderView, QScrollArea
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QPixmap, QPainter, QPainterPath
 
 from ui.styles import (
     NAVY, NAVY_DARK, GOLD, WHITE, OFF_WHITE,
@@ -37,7 +37,6 @@ from backend.db_accounts import (
 class SettingsPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
-        # Store references to settings widgets
         self.settings_combos = {}
         self.settings_checkboxes = {}
         self.users_table = None
@@ -51,7 +50,6 @@ class SettingsPage(BasePage):
             pass
 
     def _build(self):
-        # FIX: removed emoji from title, added border: none + padding: 0 to labels
         header = QFrame()
         header.setFixedHeight(82)
         header.setStyleSheet(f"""
@@ -73,12 +71,10 @@ class SettingsPage(BasePage):
 
         t_lbl = QLabel("Settings & Administration")
         t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
-        # FIX: border: none prevents the QFrame border from appearing around the label
         t_lbl.setStyleSheet(f"color: {GOLD}; background: transparent; border: none; padding: 0;")
 
         s_lbl = QLabel("System configuration, user management, and preferences")
         s_lbl.setFont(QFont("Segoe UI", 11))
-        # FIX: bumped opacity to 0.85 for readability, border: none
         s_lbl.setStyleSheet("color: rgba(255,255,255,0.85); background: transparent; border: none; padding: 0;")
 
         col.addWidget(t_lbl)
@@ -86,7 +82,6 @@ class SettingsPage(BasePage):
         h_lay.addLayout(col)
         self.main_layout.addWidget(header)
 
-        # FIX: removed all emojis from tab labels
         tabs = QTabWidget()
         tabs.addTab(self._build_account_tab(), "  My Account ")
         tabs.addTab(self._build_users_tab(),   "  User Management ")
@@ -106,8 +101,6 @@ class SettingsPage(BasePage):
 
         lay.addWidget(SectionTitle("My Account — Change Password"))
 
-        # FIX: replaced QGroupBox (which adds its own title border line) with a
-        # clean QFrame + manual title label — eliminates the double-border look
         pw_frame = QFrame()
         pw_frame.setStyleSheet(f"""
             QFrame {{
@@ -171,7 +164,6 @@ class SettingsPage(BasePage):
         lay.addWidget(Divider())
         lay.addWidget(SectionTitle("Account Information"))
 
-        # FIX: cleaner info frame — labels get border: none explicitly
         info_frame = QFrame()
         info_frame.setStyleSheet(f"""
             QFrame {{
@@ -227,11 +219,9 @@ class SettingsPage(BasePage):
 
         top_row = QHBoxLayout()
         search = QLineEdit()
-        # FIX: removed emoji from placeholder
         search.setPlaceholderText("  Search users...")
         search.setFixedHeight(38)
 
-        # FIX: removed emoji from button
         add_btn = QPushButton("  Add New User")
         add_btn.setStyleSheet(btn_primary())
         add_btn.setFixedHeight(38)
@@ -241,7 +231,6 @@ class SettingsPage(BasePage):
         top_row.addWidget(add_btn)
         lay.addLayout(top_row)
 
-        # Use 5 columns only — replace Actions column with two separate button columns
         table = QTableWidget(0, 7)
         table.setHorizontalHeaderLabels(
             ["Username", "Full Name", "Role", "Status", "Last Login", "Edit", "Delete"]
@@ -260,8 +249,8 @@ class SettingsPage(BasePage):
         table.setColumnWidth(2, 75)
         table.setColumnWidth(3, 75)
         table.setColumnWidth(4, 115)
-        table.setColumnWidth(5, 120)   # Edit button column
-        table.setColumnWidth(6, 120)   # Delete button column
+        table.setColumnWidth(5, 120)
+        table.setColumnWidth(6, 120)
         table.horizontalHeader().setStretchLastSection(False)
         table.setAlternatingRowColors(True)
         table.setStyleSheet(f"""
@@ -388,7 +377,6 @@ class SettingsPage(BasePage):
         cancel.setFixedHeight(38)
         cancel.clicked.connect(dlg.reject)
 
-        # FIX: removed emoji from Save button
         save = QPushButton("Save User")
         save.setStyleSheet(btn_primary())
         save.setFixedHeight(38)
@@ -441,11 +429,9 @@ class SettingsPage(BasePage):
 
         lay.addWidget(SectionTitle("System Configuration"))
 
-        # Load current config
         current_config = load_config()
         school_years = get_school_years_list()
 
-        # ──── Academic Year Settings ────────────────────────────────────────
         year_frame = QFrame()
         year_frame.setStyleSheet(f"""
             QFrame {{
@@ -463,7 +449,6 @@ class SettingsPage(BasePage):
         year_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
         year_outer.addWidget(year_title)
 
-        # School Year selector
         y_lay = QGridLayout()
         y_lay.setSpacing(10)
         y_lay.setColumnStretch(0, 1)
@@ -471,7 +456,7 @@ class SettingsPage(BasePage):
         lbl_w = QLabel("Current School Year:")
         lbl_w.setFont(QFont("Segoe UI", 12))
         lbl_w.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
-        
+
         year_combo = QComboBox()
         year_combo.addItems(school_years)
         year_combo.setFixedHeight(36)
@@ -485,11 +470,10 @@ class SettingsPage(BasePage):
         y_lay.addWidget(lbl_w, 0, 0)
         y_lay.addWidget(year_combo, 0, 1)
 
-        # Add new school year section
         add_year_lbl = QLabel("Add New School Year:")
         add_year_lbl.setFont(QFont("Segoe UI", 12))
         add_year_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
-        
+
         year_input = QLineEdit()
         year_input.setPlaceholderText("e.g., 2025–2026")
         year_input.setFixedHeight(36)
@@ -508,7 +492,6 @@ class SettingsPage(BasePage):
         year_outer.addLayout(y_lay)
         lay.addWidget(year_frame)
 
-        # ──── Semester Settings ──────────────────────────────────────────────
         sem_frame = QFrame()
         sem_frame.setStyleSheet(f"""
             QFrame {{
@@ -549,7 +532,6 @@ class SettingsPage(BasePage):
         sem_outer.addLayout(s_lay)
         lay.addWidget(sem_frame)
 
-        # ──── Notifications & Alerts ──────────────────────────────────────────
         notif_frame = QFrame()
         notif_frame.setStyleSheet(f"""
             QFrame {{
@@ -562,7 +544,6 @@ class SettingsPage(BasePage):
         n_outer.setContentsMargins(20, 14, 20, 14)
         n_outer.setSpacing(12)
 
-        # Thresholds
         thresh_title = QLabel("Notifications & Alerts")
         thresh_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
         thresh_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
@@ -595,7 +576,6 @@ class SettingsPage(BasePage):
 
         n_outer.addLayout(thresh_lay)
 
-        # Checkboxes
         n_outer.addWidget(Divider())
         pref_title = QLabel("Notification Preferences")
         pref_title.setFont(QFont("Segoe UI", 11, QFont.Bold))
@@ -608,9 +588,9 @@ class SettingsPage(BasePage):
             ("Auto-flag Blue Slip as 'Escalated' on 3rd repeat offense", "auto_escalate"),
             ("Show monthly summary reminder on login", "monthly_summary"),
         ]
-        
+
         notif_config = current_config.get("notifications", {})
-        
+
         for label, config_key in notif_map:
             cb = QCheckBox(label)
             cb.setFont(QFont("Segoe UI", 12))
@@ -623,7 +603,6 @@ class SettingsPage(BasePage):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        # FIX: removed emoji from Save button
         save_btn = QPushButton("Save Settings")
         save_btn.setStyleSheet(btn_primary())
         save_btn.setFixedHeight(40)
@@ -634,23 +613,15 @@ class SettingsPage(BasePage):
         return w
 
     def _save_system_settings(self):
-        """Save all system settings to config file"""
         try:
             config = load_config()
-            
-            # Update combo box settings
             for key, combo in self.settings_combos.items():
                 config[key] = combo.currentText()
-            
-            # Update checkbox settings
             notif_config = {}
             for key, checkbox in self.settings_checkboxes.items():
                 notif_config[key] = checkbox.isChecked()
             config["notifications"] = notif_config
-            
-            # Save config
             save_config(config)
-            
             InfoDialog("Settings Saved",
                       "System settings have been saved successfully!\n\n"
                       "The school year will be applied to NEW student records.",
@@ -661,16 +632,13 @@ class SettingsPage(BasePage):
                       success=False, parent=self).exec_()
 
     def _add_school_year(self, input_field, combo_box):
-        """Add a new school year"""
         new_year = input_field.text().strip()
         if not new_year:
             InfoDialog("Input Required",
                       "Please enter a school year (e.g., 2025–2026)",
                       success=False, parent=self).exec_()
             return
-        
         if add_school_year(new_year):
-            # Update combo box
             combo_box.clear()
             combo_box.addItems(get_school_years_list())
             input_field.clear()
@@ -686,12 +654,21 @@ class SettingsPage(BasePage):
     def _build_about_tab(self) -> QWidget:
         w = QWidget()
         w.setStyleSheet(f"background: {WHITE};")
-        lay = QVBoxLayout(w)
+
+        # Wrap everything in a scroll area so content is always reachable
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("background: transparent; border: none;")
+
+        content = QWidget()
+        content.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(content)
         lay.setContentsMargins(40, 30, 40, 30)
         lay.setSpacing(16)
         lay.setAlignment(Qt.AlignTop)
 
-        # FIX: removed emoji icon, replaced with a clean styled text badge
+        # ── SCMS badge ────────────────────────────────────────────────────────
         crest = QLabel("SCMS")
         crest.setFont(QFont("Segoe UI", 36, QFont.Bold))
         crest.setAlignment(Qt.AlignCenter)
@@ -734,5 +711,230 @@ class SettingsPage(BasePage):
         info_text.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
         lay.addWidget(info_text)
 
+        # ── Developer Section ─────────────────────────────────────────────────
+        lay.addWidget(Divider())
+
+        dev_section_title = QLabel("Meet the Developers")
+        dev_section_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        dev_section_title.setAlignment(Qt.AlignCenter)
+        dev_section_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        lay.addWidget(dev_section_title)
+
+        dev_subtitle = QLabel("Software Engineering Project — CJC")
+        dev_subtitle.setFont(QFont("Segoe UI", 11))
+        dev_subtitle.setAlignment(Qt.AlignCenter)
+        dev_subtitle.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
+        lay.addWidget(dev_subtitle)
+
+        # Developer data
+        developers = [
+            {
+                "name":     "Daisy Mae Lascuña",
+                "email":    "daisylascuna@g.cjc.edu.ph",
+                "facebook": "facebook.com/daisy.crujedo",
+                "photo":    "dev1.jpg",
+            },
+            {
+                
+                "name":     "Merandreas Jorgio",
+                "email":    "jorgiomer@g.cjc.edu.ph",
+                "facebook": "facebook.com/merandreas.andre",
+                "photo":    "dev2.jpg",
+            },
+            {
+                "name":     "Juliana Bless Eltagonde",
+                "email":    "eltagondejuliana@g.cjc.edu.ph",
+                "facebook": "facebook.com/juliana.eltagonde.2025",
+                "photo":    "dev3.jpg",
+            },
+        ]
+
+        # Row of three developer cards
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(20)
+        cards_row.setContentsMargins(0, 8, 0, 8)
+
+        for dev in developers:
+            card = self._build_dev_card(dev)
+            cards_row.addWidget(card)
+
+        lay.addLayout(cards_row)
         lay.addStretch()
+
+        scroll.setWidget(content)
+
+        # Outer layout for the tab widget
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
         return w
+
+    # ── Developer card builder ────────────────────────────────────────────────
+    def _build_dev_card(self, dev: dict) -> QFrame:
+        """
+        Creates a single developer card with:
+          - Circular profile picture (loaded from SCMS/assets/<photo>)
+          - Full name
+          - Email
+          - Facebook link (displayed as plain label)
+        """
+        card = QFrame()
+        card.setStyleSheet(f"""
+            QFrame#devCard {{
+                background: {WHITE};
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 14px;
+            }}
+            QFrame#devCard:hover {{
+                border: 1.5px solid {NAVY};
+                background: {OFF_WHITE};
+            }}
+        """)
+        card.setObjectName("devCard")
+        card.setMinimumWidth(200)
+        add_shadow(card, blur=14, y=4, color=(0, 0, 0, 18))
+
+        card_lay = QVBoxLayout(card)
+        card_lay.setContentsMargins(20, 24, 20, 24)
+        card_lay.setSpacing(10)
+        card_lay.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+
+        # ── Profile picture ───────────────────────────────────────────────────
+        pic_size = 100
+        photo_label = QLabel()
+        photo_label.setFixedSize(pic_size, pic_size)
+        photo_label.setAlignment(Qt.AlignCenter)
+        photo_label.setStyleSheet("background: transparent; border: none;")
+
+        # Build the asset path relative to this file's location
+        assets_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'assets')
+        photo_path = os.path.join(assets_dir, dev["photo"])
+
+        pixmap = QPixmap(photo_path)
+
+        if pixmap.isNull():
+            # Fallback: draw initials inside a coloured circle
+            pixmap = self._make_initials_avatar(dev["name"], pic_size)
+        else:
+            pixmap = self._make_circular_pixmap(pixmap, pic_size)
+
+        photo_label.setPixmap(pixmap)
+
+        # Centre the photo label
+        pic_row = QHBoxLayout()
+        pic_row.addStretch()
+        pic_row.addWidget(photo_label)
+        pic_row.addStretch()
+        card_lay.addLayout(pic_row)
+
+        # ── Name ──────────────────────────────────────────────────────────────
+        name_lbl = QLabel(dev["name"])
+        name_lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        name_lbl.setAlignment(Qt.AlignCenter)
+        name_lbl.setWordWrap(True)
+        name_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        card_lay.addWidget(name_lbl)
+
+        # ── Thin accent line below name ───────────────────────────────────────
+        accent = QFrame()
+        accent.setFixedHeight(2)
+        accent.setStyleSheet(f"background: {LIGHT_GRAY}; border: none; border-radius: 1px;")
+        card_lay.addWidget(accent)
+
+        # ── Email (clickable) ─────────────────────────────────────────────────
+        email_row = QHBoxLayout()
+        email_row.setSpacing(6)
+
+        email_icon = QLabel("✉")
+        email_icon.setFont(QFont("Segoe UI", 11))
+        email_icon.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        email_icon.setFixedWidth(18)
+
+        email_lbl = QLabel(f'<a href="mailto:{dev["email"]}" style="color:{NAVY}; text-decoration:underline;">{dev["email"]}</a>')
+        email_lbl.setFont(QFont("Segoe UI", 10))
+        email_lbl.setWordWrap(True)
+        email_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        email_lbl.setStyleSheet("background: transparent; border: none;")
+        email_lbl.setOpenExternalLinks(True)
+        email_lbl.setCursor(Qt.PointingHandCursor)
+        email_lbl.setToolTip(f"Send email to {dev['email']}")
+
+        email_row.addWidget(email_icon)
+        email_row.addWidget(email_lbl, 1)
+        card_lay.addLayout(email_row)
+
+        # ── Facebook (clickable) ──────────────────────────────────────────────
+        fb_row = QHBoxLayout()
+        fb_row.setSpacing(6)
+
+        fb_icon = QLabel("f")
+        fb_icon.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        fb_icon.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        fb_icon.setFixedWidth(18)
+
+        fb_full_url = f'https://www.{dev["facebook"]}'
+        fb_lbl = QLabel(f'<a href="{fb_full_url}" style="color:{NAVY}; text-decoration:underline;">{dev["facebook"]}</a>')
+        fb_lbl.setFont(QFont("Segoe UI", 10))
+        fb_lbl.setWordWrap(True)
+        fb_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        fb_lbl.setStyleSheet("background: transparent; border: none;")
+        fb_lbl.setOpenExternalLinks(True)
+        fb_lbl.setCursor(Qt.PointingHandCursor)
+        fb_lbl.setToolTip(f"Open Facebook profile")
+
+        fb_row.addWidget(fb_icon)
+        fb_row.addWidget(fb_lbl, 1)
+        card_lay.addLayout(fb_row)
+
+        return card
+
+    # ── Image helpers ─────────────────────────────────────────────────────────
+    @staticmethod
+    def _make_circular_pixmap(pixmap: QPixmap, size: int) -> QPixmap:
+        """Crop a pixmap into a circle of the given size."""
+        scaled = pixmap.scaled(
+            size, size,
+            Qt.KeepAspectRatioByExpanding,
+            Qt.SmoothTransformation
+        )
+        # Crop to square from centre
+        x = (scaled.width()  - size) // 2
+        y = (scaled.height() - size) // 2
+        scaled = scaled.copy(x, y, size, size)
+
+        result = QPixmap(size, size)
+        result.fill(Qt.transparent)
+
+        painter = QPainter(result)
+        painter.setRenderHint(QPainter.Antialiasing)
+        path = QPainterPath()
+        path.addEllipse(0, 0, size, size)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, scaled)
+        painter.end()
+        return result
+
+    @staticmethod
+    def _make_initials_avatar(name: str, size: int) -> QPixmap:
+        """Generate a fallback circular avatar with the person's initials."""
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # Draw filled circle using NAVY colour
+        from PyQt5.QtGui import QColor, QBrush
+        painter.setBrush(QBrush(QColor(NAVY)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(0, 0, size, size)
+
+        # Draw initials
+        parts = name.strip().split()
+        initials = "".join(p[0].upper() for p in parts[:2])
+        painter.setPen(QColor(WHITE))
+        font = QFont("Segoe UI", size // 3, QFont.Bold)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, initials)
+        painter.end()
+        return pixmap
