@@ -1,7 +1,9 @@
 # =============================================================================
 #  SCMS — Chart Widgets — Reusable chart components with auto-update
 # =============================================================================
-import matplotlib.pyplot as plt
+import matplotlib
+# Ensure a Qt-compatible backend; avoid pyplot to reduce side effects.
+matplotlib.use("Qt5Agg")
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt5.QtWidgets import QWidget, QVBoxLayout

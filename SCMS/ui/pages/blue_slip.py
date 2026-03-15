@@ -20,6 +20,7 @@ from ui.components import (
     FieldLabel, add_shadow, ConfirmDialog, InfoDialog, StatTile
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
+from ui.data_events import data_events
 
 import sys
 import os
@@ -83,7 +84,6 @@ class CalendarDateEdit(QDateEdit):
 
 # ── Filter-panel shared styles ────────────────────────────────────────────────
 def _filter_panel_style(accent):
-    """Clean, borderless panel — soft neutral background only."""
     return f"""
         QFrame {{
             background: #F8F9FA;
@@ -93,7 +93,6 @@ def _filter_panel_style(accent):
     """
 
 def _date_edit_style(accent):
-    """QDateEdit styled to match system inputs; calendar popup is always on."""
     return f"""
         QDateEdit {{
             background: {WHITE};
@@ -123,7 +122,6 @@ def _date_edit_style(accent):
     """
 
 def _combo_style(accent):
-    """QComboBox styled with a solid accent-colored dropdown button and chevron icon."""
     return f"""
         QComboBox {{
             background: {WHITE};
@@ -181,7 +179,6 @@ def _combo_style(accent):
     """
 
 def _search_style(accent):
-    """Search QLineEdit — slightly larger font, clean border."""
     return f"""
         QLineEdit {{
             background: {WHITE};
@@ -203,8 +200,13 @@ class BlueSlipPage(BasePage):
         super().__init__(parent)
         self.blue_tracker_table = None
         self.blue_tracker_layout = None
-        self._all_blue_records = []    # cache for client-side filtering
-        self._blue_table_index = 3     # position in lay for table widget
+        self._all_blue_records = []
+        self._blue_table_index = 3
+        self.blue_stat_tiles = {}
+        self.blue_chart = None          # always initialise to None
+        self._summary_built = False
+        self._tabs = None
+        data_events.slips_changed.connect(self._on_slips_changed)
         self._build()
 
     def _build(self):
@@ -215,6 +217,7 @@ class BlueSlipPage(BasePage):
         ))
 
         tabs = QTabWidget()
+        self._tabs = tabs
         tabs.setStyleSheet(f"""
             QTabBar::tab:selected {{
                 background: {BLUE_SLIP};
@@ -242,13 +245,14 @@ class BlueSlipPage(BasePage):
         tabs.addTab(self._build_record_tab(),   "  File Blue Slip ")
         tabs.addTab(self._build_tracker_tab(),  "  Blue Slip Tracker ")
         tabs.addTab(self._build_progress_tab(), "   Violation Progress")
-        tabs.addTab(self._build_summary_tab(),  "   Summary & Charts ")
+        tabs.addTab(self._build_summary_placeholder(), "   Summary & Charts ")
+        tabs.currentChanged.connect(self._on_tab_changed)
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
 
     # =========================================================================
-    # Record form tab  (UNCHANGED)
+    # Record form tab
     # =========================================================================
     def _build_record_tab(self) -> QWidget:
         w = QWidget()
@@ -396,8 +400,7 @@ class BlueSlipPage(BasePage):
         self.blue_status.setFixedHeight(38)
         self.blue_status.setStyleSheet(_combo_style(BLUE_SLIP))
         form_lay.addWidget(self.blue_status, 5, 1)
-        
-        
+
         form_lay.addWidget(lbl("Witnesses / Notes"), 5, 2)
         self.blue_witnesses = QLineEdit()
         self.blue_witnesses.setPlaceholderText("Names of witnesses (optional)")
@@ -409,8 +412,6 @@ class BlueSlipPage(BasePage):
         self.blue_semester.addItems(["1st", "2nd", "Summer"])
         self.blue_semester.setFixedHeight(38)
         self.blue_semester.setStyleSheet(_combo_style(BLUE_SLIP))
-        current_sem = get_current_semester()
-        
         current_sem = get_current_semester()
         if "1st" in current_sem:
             self.blue_semester.setCurrentIndex(0)
@@ -440,6 +441,7 @@ class BlueSlipPage(BasePage):
         clear_btn = QPushButton("Clear")
         clear_btn.setStyleSheet(btn_outline())
         clear_btn.setFixedHeight(40)
+        clear_btn.clicked.connect(self._clear_blue_form)
 
         save_btn = QPushButton("   Save Violation Record ")
         save_btn.setStyleSheet(btn_blue())
@@ -451,6 +453,28 @@ class BlueSlipPage(BasePage):
         btn_row.addWidget(save_btn)
         lay.addLayout(btn_row)
         return w
+
+    def _clear_blue_form(self):
+        self.blue_no.clear()
+        self.blue_name.clear()
+        self.blue_course.clear()
+        self.blue_desc.clear()
+        self.blue_officer.clear()
+        self.blue_witnesses.clear()
+        self.blue_year.setCurrentIndex(0)
+        self.blue_vtype.setCurrentIndex(0)
+        self.blue_severity.setCurrentIndex(0)
+        self.blue_action.setCurrentIndex(0)
+        self.blue_status.setCurrentIndex(0)
+        self.blue_date.setDate(QDate.currentDate())
+        current_sem = get_current_semester()
+        if "1st" in current_sem:
+            self.blue_semester.setCurrentIndex(0)
+        elif "2nd" in current_sem:
+            self.blue_semester.setCurrentIndex(1)
+        else:
+            self.blue_semester.setCurrentIndex(0)
+        self.blue_escalate_chk.setChecked(False)
 
     def _check_history(self):
         InfoDialog(
@@ -472,18 +496,18 @@ class BlueSlipPage(BasePage):
                             "Save this Blue Slip violation record?", parent=self)
         if dlg.exec_():
             try:
-                stud_num        = self.blue_no.text().strip()
-                stud_name       = self.blue_name.text().strip()
-                stud_course     = self.blue_course.text().strip()
-                stud_year       = self.blue_year.currentText()
-                semester        = self.blue_semester.currentText()
-                violation_type  = self.blue_vtype.currentText()
+                stud_num          = self.blue_no.text().strip()
+                stud_name         = self.blue_name.text().strip()
+                stud_course       = self.blue_course.text().strip()
+                stud_year         = self.blue_year.currentText()
+                semester          = self.blue_semester.currentText()
+                violation_type    = self.blue_vtype.currentText()
                 date_of_violation = self.blue_date.date().toPyDate()
-                severity        = self.blue_severity.currentText()
-                action_taken    = self.blue_action.currentText()
-                status          = self.blue_status.currentText()
-                violation_desc  = self.blue_desc.toPlainText().strip()
-                witnesses       = self.blue_witnesses.text().strip()
+                severity          = self.blue_severity.currentText()
+                action_taken      = self.blue_action.currentText()
+                status            = self.blue_status.currentText()
+                violation_desc    = self.blue_desc.toPlainText().strip()
+                witnesses         = self.blue_witnesses.text().strip()
                 add_blue_slip(stud_num, violation_type, date_of_violation, severity,
                               action_taken, status=status, violation_desc=violation_desc,
                               witnesses=witnesses, stud_name=stud_name,
@@ -491,17 +515,15 @@ class BlueSlipPage(BasePage):
                 InfoDialog("Record Saved",
                            "Blue Slip violation record has been saved successfully!",
                            success=True, parent=self).exec_()
-                self._refresh_blue_tracker()
-                self._refresh_blue_summary()
+                data_events.slips_changed.emit()
             except Exception as e:
                 InfoDialog("Error", f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
 
     # =========================================================================
-    # Tracker tab — NEW: fully wired search / semester / status / date filters
+    # Tracker tab
     # =========================================================================
     def _load_blue_tracker_data(self):
-        """Fetch all records from DB and cache them."""
         from backend.db_blue_slip import get_blue_slips
         sample = []
         try:
@@ -532,23 +554,22 @@ class BlueSlipPage(BasePage):
         ]
 
     def _apply_blue_filters(self):
-        """Re-filter cached records and rebuild table."""
-        search_text    = self._blue_search.text().strip().lower()
-        sem_val        = self._blue_sem_filter.currentText()
-        status_val     = self._blue_status_filter.currentText()
-        severity_val   = self._blue_severity_filter.currentText()
-        use_date       = self._blue_date_toggle.currentText() == "Filter by Date Range"
-        date_from      = self._blue_date_from.date()
-        date_to        = self._blue_date_to.date()
+        search_text  = self._blue_search.text().strip().lower()
+        sem_val      = self._blue_sem_filter.currentText()
+        status_val   = self._blue_status_filter.currentText()
+        severity_val = self._blue_severity_filter.currentText()
+        use_date     = self._blue_date_toggle.currentText() == "Filter by Date Range"
+        date_from    = self._blue_date_from.date()
+        date_to      = self._blue_date_to.date()
 
         filtered = []
         for row in self._all_blue_records:
             stud_num, stud_name, year, vtype, severity, date_str, action, status = row
 
             if search_text and (
-                search_text not in stud_num.lower()
-                and search_text not in stud_name.lower()
-                and search_text not in vtype.lower()
+                    search_text not in stud_num.lower()
+                    and search_text not in stud_name.lower()
+                    and search_text not in vtype.lower()
             ):
                 continue
 
@@ -556,7 +577,7 @@ class BlueSlipPage(BasePage):
                 continue
 
             if severity_val != "All Levels":
-                level_num = severity_val.split()[-1]   # "Level 1" → "1"
+                level_num = severity_val.split()[-1]
                 if f"Level {level_num}" not in str(severity):
                     continue
 
@@ -575,7 +596,6 @@ class BlueSlipPage(BasePage):
             filtered = [("No results",
                          "No records match the selected filters",
                          "-", "-", "-", "-", "-", "-")]
-
         self._rebuild_blue_table(filtered)
 
     STATUS_COLORS = {
@@ -599,7 +619,6 @@ class BlueSlipPage(BasePage):
                 break
         self.blue_tracker_table = build_record_table(headers, data)
         self.blue_tracker_table.setMinimumHeight(260)
-        # Colour-code status column
         for r in range(self.blue_tracker_table.rowCount()):
             cell = self.blue_tracker_table.item(r, 7)
             if cell and cell.text() in self.STATUS_COLORS:
@@ -610,7 +629,6 @@ class BlueSlipPage(BasePage):
                                               self.blue_tracker_table)
 
     def _refresh_blue_tracker(self):
-        """Reload from DB then re-apply active filters."""
         self._load_blue_tracker_data()
         self._apply_blue_filters()
 
@@ -624,14 +642,12 @@ class BlueSlipPage(BasePage):
         lay.addWidget(SectionTitle("Blue Slip Record Tracker"))
         lay.addWidget(SubTitle("All filed violations and their current status"))
 
-        # ── Filter Panel ──────────────────────────────────────────────────────
         filter_panel = QFrame()
         filter_panel.setStyleSheet(_filter_panel_style(BLUE_SLIP))
         panel_lay = QVBoxLayout(filter_panel)
         panel_lay.setContentsMargins(16, 14, 16, 14)
         panel_lay.setSpacing(10)
 
-        # Row 1 — Search + Semester + Status + Severity + Refresh
         row1 = QHBoxLayout()
         row1.setSpacing(10)
 
@@ -646,7 +662,6 @@ class BlueSlipPage(BasePage):
         self._blue_sem_filter.addItems(["All Semesters", "1st", "2nd", "Summer"])
         self._blue_sem_filter.setFixedHeight(38)
         self._blue_sem_filter.setFixedWidth(145)
-        self._blue_sem_filter.setToolTip("Filter by semester")
         self._blue_sem_filter.setStyleSheet(_combo_style(BLUE_SLIP))
         current_sem = get_current_semester()
         if "1st" in current_sem:
@@ -662,7 +677,6 @@ class BlueSlipPage(BasePage):
         ])
         self._blue_status_filter.setFixedHeight(38)
         self._blue_status_filter.setFixedWidth(190)
-        self._blue_status_filter.setToolTip("Filter by case status")
         self._blue_status_filter.setStyleSheet(_combo_style(BLUE_SLIP))
         self._blue_status_filter.currentIndexChanged.connect(self._apply_blue_filters)
 
@@ -671,7 +685,6 @@ class BlueSlipPage(BasePage):
             ["All Levels", "Level 1", "Level 2", "Level 3", "Level 4"])
         self._blue_severity_filter.setFixedHeight(38)
         self._blue_severity_filter.setFixedWidth(120)
-        self._blue_severity_filter.setToolTip("Filter by severity level")
         self._blue_severity_filter.setStyleSheet(_combo_style(BLUE_SLIP))
         self._blue_severity_filter.currentIndexChanged.connect(self._apply_blue_filters)
 
@@ -679,7 +692,6 @@ class BlueSlipPage(BasePage):
         refresh_btn.setStyleSheet(btn_blue())
         refresh_btn.setFixedHeight(38)
         refresh_btn.setFixedWidth(110)
-        refresh_btn.setToolTip("Reload all records from the database")
         refresh_btn.clicked.connect(self._refresh_blue_tracker)
 
         row1.addWidget(self._blue_search, 1)
@@ -689,7 +701,6 @@ class BlueSlipPage(BasePage):
         row1.addWidget(refresh_btn)
         panel_lay.addLayout(row1)
 
-        # Row 2 — Date Range filter
         row2 = QHBoxLayout()
         row2.setSpacing(10)
 
@@ -701,7 +712,6 @@ class BlueSlipPage(BasePage):
         self._blue_date_toggle.addItems(["All Dates", "Filter by Date Range"])
         self._blue_date_toggle.setFixedHeight(38)
         self._blue_date_toggle.setFixedWidth(185)
-        self._blue_date_toggle.setToolTip("Toggle date range filtering")
         self._blue_date_toggle.setStyleSheet(_combo_style(BLUE_SLIP))
 
         self._blue_from_lbl = QLabel("From:")
@@ -749,12 +759,10 @@ class BlueSlipPage(BasePage):
 
         lay.addWidget(filter_panel)
 
-        # ── Table ─────────────────────────────────────────────────────────────
         headers = ["Student No.", "Student Name", "Year", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
         sample = self._load_blue_tracker_data()
         self.blue_tracker_table = build_record_table(headers, sample)
-        # Apply initial status colours
         for r in range(self.blue_tracker_table.rowCount()):
             cell = self.blue_tracker_table.item(r, 7)
             if cell and cell.text() in self.STATUS_COLORS:
@@ -765,7 +773,6 @@ class BlueSlipPage(BasePage):
         lay.addWidget(self.blue_tracker_table)
 
         self.blue_tracker_layout = lay
-        # lay indices: 0=SectionTitle, 1=SubTitle, 2=filter_panel, 3=table
         self._blue_table_index = 3
 
         action_row = QHBoxLayout()
@@ -787,7 +794,7 @@ class BlueSlipPage(BasePage):
         return w
 
     # =========================================================================
-    # Violation Progress tab  (UNCHANGED)
+    # Violation Progress tab
     # =========================================================================
     def _build_progress_tab(self) -> QWidget:
         w = QWidget()
@@ -845,11 +852,11 @@ class BlueSlipPage(BasePage):
         p_lay.addWidget(name_lbl)
 
         steps = [
-            ("1st Offense", "Verbal Warning",                        "", False, False),
-            ("2nd Offense", "Written Warning",                       "", False, False),
-            ("3rd Offense", "Parent Meeting + Community Service",    "", False, False),
-            ("4th Offense", "Suspension",                            "", False, False),
-            ("5th Offense", "Endorsement / Probation",               "", False, False),
+            ("1st Offense", "Verbal Warning",                     "", False, False),
+            ("2nd Offense", "Written Warning",                    "", False, False),
+            ("3rd Offense", "Parent Meeting + Community Service", "", False, False),
+            ("4th Offense", "Suspension",                         "", False, False),
+            ("5th Offense", "Endorsement / Probation",            "", False, False),
         ]
 
         for step_name, action, date, done, current in steps:
@@ -923,8 +930,28 @@ class BlueSlipPage(BasePage):
         return w
 
     # =========================================================================
-    # Summary tab  (UNCHANGED — refresh button already exists)
+    # Summary tab
     # =========================================================================
+    def _build_summary_placeholder(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+        lay.addWidget(SectionTitle("Blue Slip Summary"))
+        lay.addWidget(SubTitle("Loading summary..."))
+        lay.addStretch()
+        return w
+
+    def _on_tab_changed(self, idx: int):
+        # Summary tab is index 3
+        if idx == 3 and not self._summary_built:
+            self._summary_built = True
+            summary = self._build_summary_tab()
+            self._tabs.removeTab(3)
+            self._tabs.insertTab(3, summary, "   Summary & Charts ")
+            self._tabs.setCurrentIndex(3)
+
     def _build_summary_tab(self) -> QWidget:
         w = QWidget()
         w.setStyleSheet(f"background: {WHITE};")
@@ -937,7 +964,7 @@ class BlueSlipPage(BasePage):
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
         self.blue_stat_tiles = {}
-        self._update_blue_stats(tiles_row)
+        self._init_blue_stat_tiles(tiles_row)
         lay.addLayout(tiles_row)
 
         refresh_row = QHBoxLayout()
@@ -956,46 +983,76 @@ class BlueSlipPage(BasePage):
         self.blue_chart.setMinimumHeight(380)
         lay.addWidget(self.blue_chart)
 
+        # Populate with real data immediately
         self._refresh_blue_summary()
         lay.addStretch()
         return w
 
-    def _update_blue_stats(self, tiles_row: QHBoxLayout):
-        from backend.db_blue_slip import get_blue_slips
-        blue_records    = get_blue_slips(None) or []
-        total           = len(blue_records)
-        pending_count   = sum(1 for r in blue_records if len(r) > 10 and "Pending"  in str(r[10]))
-        open_count      = sum(1 for r in blue_records if len(r) > 10 and "Open"     in str(r[10]))
-        escalated_count = sum(1 for r in blue_records if len(r) > 10 and "Escalat"  in str(r[10]))
-        resolved_count  = sum(1 for r in blue_records if len(r) > 10 and "Resolved" in str(r[10]))
-        for label, val, colour in [
-            ("Total Violations (Sem)", str(total),                        BLUE_SLIP),
-            ("Pending / Open",         str(pending_count + open_count),   "#F57F17"),
-            ("Escalated Cases",        str(escalated_count),              RED_ERR),
-            ("Resolved",               str(resolved_count),               "#2E7D32"),
+    def _init_blue_stat_tiles(self, tiles_row: QHBoxLayout):
+        """Create the four stat tiles with zero values — _refresh fills them."""
+        for label, colour in [
+            ("Total Violations (Sem)", BLUE_SLIP),
+            ("Pending / Open",         "#F57F17"),
+            ("Escalated Cases",        RED_ERR),
+            ("Resolved",               "#2E7D32"),
         ]:
-            tile = StatTile(label, val, colour)
+            tile = StatTile(label, "0", colour)
             tiles_row.addWidget(tile)
             self.blue_stat_tiles[label] = tile
 
     def _refresh_blue_summary(self):
+        """
+        Recompute all stats from DB and push them to tiles + chart.
+        Safe to call even before summary tab is built (guards handle it).
+        """
         from backend.db_blue_slip import get_blue_slips
-        blue_records    = get_blue_slips(None) or []
-        violation_types = {}
+        blue_records = get_blue_slips(None) or []
+
+        # ── Compute all metrics ───────────────────────────────────────────────
+        total           = len(blue_records)
+        pending_count   = sum(1 for r in blue_records
+                              if len(r) > 10 and "Open / Pending" in str(r[10]))
+        escalated_count = sum(1 for r in blue_records
+                              if len(r) > 10 and "Escalated"      in str(r[10]))
+        resolved_count  = sum(1 for r in blue_records
+                              if len(r) > 10 and "Resolved"       in str(r[10]))
+
+        violation_types: dict = {}
         for r in blue_records:
             if len(r) > 5:
                 vtype = str(r[5])
                 violation_types[vtype] = violation_types.get(vtype, 0) + 1
-        pending_count   = sum(1 for r in blue_records if len(r) > 10 and "Pending"  in str(r[10]))
-        open_count      = sum(1 for r in blue_records if len(r) > 10 and "Open"     in str(r[10]))
-        escalated_count = sum(1 for r in blue_records if len(r) > 10 and "Escalat"  in str(r[10]))
-        resolved_count  = sum(1 for r in blue_records if len(r) > 10 and "Resolved" in str(r[10]))
-        if hasattr(self, 'blue_chart'):
-            self.blue_chart.update_data(violation_types,
-                                        pending_count + open_count,
-                                        escalated_count, resolved_count)
+
+        # ── Update stat tiles (only if summary tab has been built) ────────────
+        if self.blue_stat_tiles:
+            self.blue_stat_tiles["Total Violations (Sem)"].set_value(total)
+            self.blue_stat_tiles["Pending / Open"].set_value(pending_count)
+            self.blue_stat_tiles["Escalated Cases"].set_value(escalated_count)
+            self.blue_stat_tiles["Resolved"].set_value(resolved_count)
+
+        # ── Update chart (only if summary tab has been built) ─────────────────
+        if self.blue_chart is not None:
+            self.blue_chart.update_data(
+                violation_types,
+                pending_count,
+                escalated_count,
+                resolved_count,
+                )
+
+    # =========================================================================
+    # Event handlers
+    # =========================================================================
+    def _on_slips_changed(self):
+        """Fired whenever any slip is saved — refresh tracker + summary."""
+        try:
+            self._refresh_blue_tracker()
+        except Exception:
+            pass
+        try:
+            self._refresh_blue_summary()
+        except Exception:
+            pass
 
 
-# ── Helper import ─────────────────────────────────────────────────────────────
 from ui.components import Divider
 from ui.pages.base_page import build_record_table

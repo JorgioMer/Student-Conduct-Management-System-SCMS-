@@ -17,9 +17,10 @@ from ui.styles import (
 )
 from ui.components import (
     SectionTitle, SubTitle, Divider,
-    FieldLabel, Card, add_shadow, ConfirmDialog, InfoDialog
+    FieldLabel, Card, add_shadow, ConfirmDialog, InfoDialog, StatTile
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
+from ui.data_events import data_events
 
 import sys
 import os
@@ -36,7 +37,6 @@ class CalendarDateEdit(QDateEdit):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setCalendarPopup(True)
-        # Write a clean white calendar SVG as a temp file and use it
         svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
             stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -44,7 +44,7 @@ class CalendarDateEdit(QDateEdit):
             <line x1="8" y1="2" x2="8" y2="6"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
         </svg>'''
-        
+
         import tempfile, os
         self._icon_file = tempfile.NamedTemporaryFile(
             suffix=".svg", delete=False, mode='w', encoding='utf-8'
@@ -84,9 +84,7 @@ class CalendarDateEdit(QDateEdit):
             pass
 
 
-# ── Filter-panel shared styles ────────────────────────────────────────────────
 def _filter_panel_style(accent):
-    """Clean, borderless panel — soft neutral background only."""
     return f"""
         QFrame {{
             background: #F8F9FA;
@@ -96,7 +94,6 @@ def _filter_panel_style(accent):
     """
 
 def _date_edit_style(accent):
-    """QDateEdit styled to match system inputs; calendar popup is always on."""
     return f"""
         QDateEdit {{
             background: {WHITE};
@@ -132,8 +129,6 @@ def _date_edit_style(accent):
             width: 16px;
             height: 16px;
         }}
-       
-        /* ── Calendar popup ── */
         QCalendarWidget QWidget {{
             background: #FFFFFF;
             color: #1A1A2E;
@@ -182,7 +177,6 @@ def _date_edit_style(accent):
     """
 
 def _combo_style(accent):
-    """QComboBox styled with a solid accent-colored dropdown button and chevron icon."""
     return f"""
         QComboBox {{
             background: {WHITE};
@@ -240,7 +234,6 @@ def _combo_style(accent):
     """
 
 def _search_style(accent):
-    """Search QLineEdit — slightly larger font, clean border."""
     return f"""
         QLineEdit {{
             background: {WHITE};
@@ -262,8 +255,13 @@ class GreenSlipPage(BasePage):
         super().__init__(parent)
         self.green_tracker_table = None
         self.green_tracker_layout = None
-        self._all_green_records = []   # cache for client-side filtering
-        self._green_table_index = 3    # position in lay for table widget
+        self._all_green_records = []
+        self._green_table_index = 3
+        self.green_stat_tiles = {}
+        self.green_chart = None         # always initialise to None
+        self._summary_built = False
+        self._tabs = None
+        data_events.slips_changed.connect(self._on_slips_changed)
         self._build()
 
     def _build(self):
@@ -274,6 +272,7 @@ class GreenSlipPage(BasePage):
         ))
 
         tabs = QTabWidget()
+        self._tabs = tabs
         tabs.setStyleSheet(f"""
             QTabWidget::pane {{
                 border: 1px solid {LIGHT_GRAY};
@@ -305,13 +304,14 @@ class GreenSlipPage(BasePage):
         tabs.addTab(self._build_dispensation_tab(), "   Dispensation Green Slip ")
         tabs.addTab(self._build_excuse_tab(),        "   Excuse Green Slip ")
         tabs.addTab(self._build_tracker_tab(),       "   Green Slip Tracker ")
-        tabs.addTab(self._build_summary_tab(),       "  Summary & Charts ")
+        tabs.addTab(self._build_summary_placeholder(), "  Summary & Charts ")
+        tabs.currentChanged.connect(self._on_tab_changed)
 
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
 
     # =========================================================================
-    # Dispensation tab  (UNCHANGED logic, form intact)
+    # Dispensation tab
     # =========================================================================
     def _build_dispensation_tab(self) -> QWidget:
         w = QWidget()
@@ -509,14 +509,13 @@ class GreenSlipPage(BasePage):
                            "Dispensation Green Slip record has been saved successfully!",
                            success=True, parent=self).exec_()
                 self._clear_dispensation()
-                self._refresh_green_tracker()
-                self._refresh_green_summary()
+                data_events.slips_changed.emit()
             except Exception as e:
                 InfoDialog("Error", f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
 
     # =========================================================================
-    # Excuse tab  (UNCHANGED logic, form intact)
+    # Excuse tab
     # =========================================================================
     def _clear_excuse(self):
         self.exc_stud_no.clear()
@@ -538,22 +537,22 @@ class GreenSlipPage(BasePage):
                             "Save this Excuse Green Slip record?", parent=self)
         if dlg.exec_():
             try:
-                stud_num     = self.exc_stud_no.text().strip()
-                stud_name    = self.exc_stud_name.text().strip()
-                stud_course  = self.exc_course.text().strip()
-                stud_year    = self.exc_year.currentText()
-                slip_type    = "Excuse"
-                date_avail   = self.exc_date.date().toPyDate()
-                days         = 0
-                status       = "Active"
-                expiry       = self.exc_date.date().toPyDate()
-                purpose      = ""
-                remarks      = self.exc_remarks.toPlainText().strip()
-                absence_type = self.exc_type.currentText()
+                stud_num      = self.exc_stud_no.text().strip()
+                stud_name     = self.exc_stud_name.text().strip()
+                stud_course   = self.exc_course.text().strip()
+                stud_year     = self.exc_year.currentText()
+                slip_type     = "Excuse"
+                date_avail    = self.exc_date.date().toPyDate()
+                days          = 0
+                status        = "Active"
+                expiry        = self.exc_date.date().toPyDate()
+                purpose       = ""
+                remarks       = self.exc_remarks.toPlainText().strip()
+                absence_type  = self.exc_type.currentText()
                 dates_absence = self.exc_abs_date.text().strip()
-                supp_doc     = self.exc_doc.currentText()
-                auth_by      = self.exc_auth.text().strip()
-                semester     = self.exc_semester.currentText()
+                supp_doc      = self.exc_doc.currentText()
+                auth_by       = self.exc_auth.text().strip()
+                semester      = self.exc_semester.currentText()
                 add_green_slip(stud_num, slip_type, date_avail, days, status,
                                expiry, purpose, remarks, absence_type,
                                dates_absence, supp_doc, auth_by,
@@ -563,8 +562,7 @@ class GreenSlipPage(BasePage):
                            "Excuse Green Slip record has been saved successfully!",
                            success=True, parent=self).exec_()
                 self._clear_excuse()
-                self._refresh_green_tracker()
-                self._refresh_green_summary()
+                data_events.slips_changed.emit()
             except Exception as e:
                 InfoDialog("Error", f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
@@ -655,7 +653,6 @@ class GreenSlipPage(BasePage):
             "School Event / Activity", "Official Function",
             "Weather / Calamity", "Other (specify below)",
         ])
-        
         self.exc_type.setFixedHeight(38)
         self.exc_type.setStyleSheet(_combo_style(GREEN_SLIP))
         form_lay.addWidget(self.exc_type, 2, 1)
@@ -722,10 +719,9 @@ class GreenSlipPage(BasePage):
         return w
 
     # =========================================================================
-    # Tracker tab  — NEW: fully wired search / semester / date filters
+    # Tracker tab
     # =========================================================================
     def _load_green_tracker_data(self):
-        """Fetch all records from DB and cache them."""
         from backend.db_green_slip import get_green_slips
         sample = []
         try:
@@ -759,7 +755,6 @@ class GreenSlipPage(BasePage):
         ]
 
     def _apply_green_filters(self):
-        """Re-filter the cached records and rebuild the table."""
         search_text = self._green_search.text().strip().lower()
         type_val    = self._green_type_filter.currentText()
         sem_val     = self._green_sem_filter.currentText()
@@ -773,8 +768,8 @@ class GreenSlipPage(BasePage):
             stud_num, stud_name, year, course, slip_type, date_str, _, _, _ = row
 
             if search_text and (
-                search_text not in stud_num.lower()
-                and search_text not in stud_name.lower()
+                    search_text not in stud_num.lower()
+                    and search_text not in stud_name.lower()
             ):
                 continue
 
@@ -783,10 +778,6 @@ class GreenSlipPage(BasePage):
 
             if grade_val != "All Grades" and year != grade_val:
                 continue
-
-            # Semester: green slips store semester inside record but we
-            # only have what's in the table row; skip sem filter for now
-            # (semester column not returned by current DB query for green)
 
             if use_date and date_str not in ("-", "N/A"):
                 try:
@@ -803,7 +794,6 @@ class GreenSlipPage(BasePage):
             filtered = [("No results",
                          "No records match the selected filters",
                          "-", "-", "-", "-", "-", "-", "-")]
-
         self._rebuild_green_table(filtered)
 
     def _rebuild_green_table(self, data):
@@ -824,7 +814,6 @@ class GreenSlipPage(BasePage):
                                                self.green_tracker_table)
 
     def _refresh_green_tracker(self):
-        """Reload from DB then re-apply active filters."""
         self._load_green_tracker_data()
         self._apply_green_filters()
 
@@ -838,14 +827,12 @@ class GreenSlipPage(BasePage):
         lay.addWidget(SectionTitle("Green Slip Record Tracker"))
         lay.addWidget(SubTitle("All dispensation and excuse slips are listed below"))
 
-        # ── Filter Panel ──────────────────────────────────────────────────────
         filter_panel = QFrame()
         filter_panel.setStyleSheet(_filter_panel_style(GREEN_SLIP))
         panel_lay = QVBoxLayout(filter_panel)
         panel_lay.setContentsMargins(16, 14, 16, 14)
         panel_lay.setSpacing(10)
 
-        # Row 1 — Search + Type + Semester + Grade + Refresh
         row1 = QHBoxLayout()
         row1.setSpacing(10)
 
@@ -859,7 +846,6 @@ class GreenSlipPage(BasePage):
         self._green_type_filter.addItems(["All Types", "Dispensation", "Excuse"])
         self._green_type_filter.setFixedHeight(38)
         self._green_type_filter.setFixedWidth(155)
-        self._green_type_filter.setToolTip("Filter by slip type")
         self._green_type_filter.setStyleSheet(_combo_style(GREEN_SLIP))
         self._green_type_filter.currentIndexChanged.connect(self._apply_green_filters)
 
@@ -867,7 +853,6 @@ class GreenSlipPage(BasePage):
         self._green_sem_filter.addItems(["All Semesters", "1st", "2nd", "Summer"])
         self._green_sem_filter.setFixedHeight(38)
         self._green_sem_filter.setFixedWidth(145)
-        self._green_sem_filter.setToolTip("Filter by semester")
         self._green_sem_filter.setStyleSheet(_combo_style(GREEN_SLIP))
         current_sem = get_current_semester()
         if "1st" in current_sem:
@@ -880,7 +865,6 @@ class GreenSlipPage(BasePage):
         self._green_grade_filter.addItems(["All Grades","1st","2nd","3rd","4th","5th"])
         self._green_grade_filter.setFixedHeight(38)
         self._green_grade_filter.setFixedWidth(130)
-        self._green_grade_filter.setToolTip("Filter by year level")
         self._green_grade_filter.setStyleSheet(_combo_style(GREEN_SLIP))
         self._green_grade_filter.currentIndexChanged.connect(self._apply_green_filters)
 
@@ -888,7 +872,6 @@ class GreenSlipPage(BasePage):
         refresh_btn.setStyleSheet(btn_green())
         refresh_btn.setFixedHeight(38)
         refresh_btn.setFixedWidth(110)
-        refresh_btn.setToolTip("Reload all records from the database")
         refresh_btn.clicked.connect(self._refresh_green_tracker)
 
         row1.addWidget(self._green_search, 1)
@@ -898,7 +881,6 @@ class GreenSlipPage(BasePage):
         row1.addWidget(refresh_btn)
         panel_lay.addLayout(row1)
 
-        # Row 2 — Date Range filter
         row2 = QHBoxLayout()
         row2.setSpacing(10)
 
@@ -910,7 +892,6 @@ class GreenSlipPage(BasePage):
         self._green_date_toggle.addItems(["All Dates", "Filter by Date Range"])
         self._green_date_toggle.setFixedHeight(38)
         self._green_date_toggle.setFixedWidth(185)
-        self._green_date_toggle.setToolTip("Toggle date range filtering")
         self._green_date_toggle.setStyleSheet(_combo_style(GREEN_SLIP))
 
         self._green_from_lbl = QLabel("From:")
@@ -923,7 +904,7 @@ class GreenSlipPage(BasePage):
         self._green_date_from.setDisplayFormat("MMM d, yyyy")
         self._green_date_from.apply_icon_style(_date_edit_style(GREEN_SLIP))
         self._green_date_from.setEnabled(False)
-        
+
         self._green_to_lbl = QLabel("To:")
         self._green_to_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
         self._green_to_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
@@ -958,7 +939,6 @@ class GreenSlipPage(BasePage):
 
         lay.addWidget(filter_panel)
 
-        # ── Table ─────────────────────────────────────────────────────────────
         headers = ["Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Availed", "Days / Absence Type",
                    "Expiry / Date", "Status"]
@@ -968,7 +948,6 @@ class GreenSlipPage(BasePage):
         lay.addWidget(self.green_tracker_table)
 
         self.green_tracker_layout = lay
-        # lay indices: 0=SectionTitle, 1=SubTitle, 2=filter_panel, 3=table
         self._green_table_index = 3
 
         action_row = QHBoxLayout()
@@ -986,8 +965,28 @@ class GreenSlipPage(BasePage):
         return w
 
     # =========================================================================
-    # Summary tab  (UNCHANGED — refresh button already exists)
+    # Summary tab
     # =========================================================================
+    def _build_summary_placeholder(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+        lay.addWidget(SectionTitle("Green Slip Summary"))
+        lay.addWidget(SubTitle("Loading summary..."))
+        lay.addStretch()
+        return w
+
+    def _on_tab_changed(self, idx: int):
+        # Summary tab is index 3
+        if idx == 3 and not self._summary_built:
+            self._summary_built = True
+            summary = self._build_summary_tab()
+            self._tabs.removeTab(3)
+            self._tabs.insertTab(3, summary, "  Summary & Charts ")
+            self._tabs.setCurrentIndex(3)
+
     def _build_summary_tab(self) -> QWidget:
         w = QWidget()
         w.setStyleSheet(f"background: {WHITE};")
@@ -1000,9 +999,8 @@ class GreenSlipPage(BasePage):
 
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
-        from ui.components import StatTile
         self.green_stat_tiles = {}
-        self._update_green_stats(tiles_row)
+        self._init_green_stat_tiles(tiles_row)
         lay.addLayout(tiles_row)
 
         refresh_row = QHBoxLayout()
@@ -1021,41 +1019,74 @@ class GreenSlipPage(BasePage):
         self.green_chart.setMinimumHeight(380)
         lay.addWidget(self.green_chart)
 
+        # Populate with real data immediately
         self._refresh_green_summary()
         lay.addStretch()
         return w
 
-    def _update_green_stats(self, tiles_row: QHBoxLayout):
-        from ui.components import StatTile
-        from backend.db_green_slip import get_green_slips
-        green_records      = get_green_slips(None) or []
-        total_green        = len(green_records)
-        dispensation_count = sum(1 for r in green_records if len(r) > 5 and r[5] == True)
-        excuse_count       = sum(1 for r in green_records if len(r) > 5 and r[5] == False)
-        active_count       = sum(1 for r in green_records if len(r) > 8 and "Active" in str(r[8]))
-        stud_counts = {}
-        for r in green_records:
-            if len(r) > 0:
-                stud_counts[r[0]] = stud_counts.get(r[0], 0) + 1
-        multi = sum(1 for c in stud_counts.values() if c > 2)
-        for label, val, colour in [
-            ("Total Green Slips",       str(total_green),        GREEN_SLIP),
-            ("Dispensation Slips",      str(dispensation_count), "#388E3C"),
-            ("Excuse Slips",            str(excuse_count),       "#66BB6A"),
-            ("Currently Active",        str(active_count),       "#2E7D32"),
-            ("Students with >2 Slips",  str(multi),              "#F57F17"),
+    def _init_green_stat_tiles(self, tiles_row: QHBoxLayout):
+        """Create stat tiles with zero values — _refresh_green_summary fills them."""
+        for label, colour in [
+            ("Total Green Slips",      GREEN_SLIP),
+            ("Dispensation Slips",     "#388E3C"),
+            ("Excuse Slips",           "#66BB6A"),
+            ("Currently Active",       "#2E7D32"),
+            ("Students with >2 Slips", "#F57F17"),
         ]:
-            tile = StatTile(label, val, colour)
+            tile = StatTile(label, "0", colour)
             tiles_row.addWidget(tile)
             self.green_stat_tiles[label] = tile
 
     def _refresh_green_summary(self):
+        """
+        Recompute all stats from DB and push them to tiles + chart.
+        Safe to call even before summary tab is built (guards handle it).
+        """
         from backend.db_green_slip import get_green_slips
-        green_records      = get_green_slips(None) or []
-        dispensation_count = sum(1 for r in green_records if len(r) > 5 and r[5] == True)
-        excuse_count       = sum(1 for r in green_records if len(r) > 5 and r[5] == False)
-        active_count       = sum(1 for r in green_records if len(r) > 8 and "Active"  in str(r[8]))
-        expired_count      = sum(1 for r in green_records if len(r) > 8 and "Expired" in str(r[8]))
-        if hasattr(self, 'green_chart'):
-            self.green_chart.update_data(dispensation_count, excuse_count,
-                                         active_count, expired_count)
+        green_records = get_green_slips(None) or []
+
+        # ── Compute all metrics ───────────────────────────────────────────────
+        total              = len(green_records)
+        dispensation_count = sum(1 for r in green_records
+                                 if len(r) > 5 and r[5] == True)
+        excuse_count       = sum(1 for r in green_records
+                                 if len(r) > 5 and r[5] == False)
+        active_count       = sum(1 for r in green_records
+                                 if len(r) > 8 and "Active"  in str(r[8]))
+        expired_count      = sum(1 for r in green_records
+                                 if len(r) > 8 and "Expired" in str(r[8]))
+
+        stud_counts: dict = {}
+        for r in green_records:
+            if len(r) > 0:
+                stud_counts[r[0]] = stud_counts.get(r[0], 0) + 1
+        multi = sum(1 for c in stud_counts.values() if c > 2)
+
+        # ── Update stat tiles (only if summary tab has been built) ────────────
+        if self.green_stat_tiles:
+            self.green_stat_tiles["Total Green Slips"].set_value(total)
+            self.green_stat_tiles["Dispensation Slips"].set_value(dispensation_count)
+            self.green_stat_tiles["Excuse Slips"].set_value(excuse_count)
+            self.green_stat_tiles["Currently Active"].set_value(active_count)
+            self.green_stat_tiles["Students with >2 Slips"].set_value(multi)
+
+        # ── Update chart (only if summary tab has been built) ─────────────────
+        if self.green_chart is not None:
+            self.green_chart.update_data(
+                dispensation_count, excuse_count,
+                active_count, expired_count,
+            )
+
+    # =========================================================================
+    # Event handlers
+    # =========================================================================
+    def _on_slips_changed(self):
+        """Fired whenever any slip is saved — refresh tracker + summary."""
+        try:
+            self._refresh_green_tracker()
+        except Exception:
+            pass
+        try:
+            self._refresh_green_summary()
+        except Exception:
+            pass

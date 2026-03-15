@@ -207,16 +207,19 @@ class StatTile(QFrame):
         lay.setContentsMargins(18, 12, 18, 12)
         lay.setSpacing(2)
 
-        val_lbl = QLabel(value)
-        val_lbl.setFont(QFont("Segoe UI", 32, QFont.Bold))
-        val_lbl.setStyleSheet(f"color: {colour}; background: transparent;")
+        self._value_label = QLabel(value)
+        self._value_label.setFont(QFont("Segoe UI", 32, QFont.Bold))
+        self._value_label.setStyleSheet(f"color: {colour}; background: transparent;")
 
         lbl = QLabel(label)
         lbl.setFont(QFont("Segoe UI", 14))
         lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent;")
 
-        lay.addWidget(val_lbl)
+        lay.addWidget(self._value_label)
         lay.addWidget(lbl)
+
+    def set_value(self, value: str):
+        self._value_label.setText(str(value))
 
 
 # ── Top header bar ────────────────────────────────────────────────────────────

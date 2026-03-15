@@ -62,31 +62,6 @@ class AppLoaderThread(QThread):
             self.msleep(120)   # ← short sleep keeps progress visible;
                                #   real work below replaces these sleeps
 
-        # ── Actual heavy work (imports + DB warm-up) ──────────────────────
-        # Importing here caches the modules so MainWindow builds faster on
-        # the main thread.  All DB calls that don't touch Qt widgets are
-        # safe here.
-        try:
-            self.progress_update.emit(52, "Connecting to database...")
-            from backend.db_blue_slip  import get_blue_slips
-            from backend.db_green_slip import get_green_slips
-            from backend.db_pink_slip  import get_pink_slips
-            from backend.db_students   import get_student
-
-            # Fire a lightweight query to open/cache the DB connection
-            get_blue_slips(None)
-            get_green_slips(None)
-            get_pink_slips(None)
-        except Exception:
-            pass   # DB errors are handled gracefully in the pages themselves
-
-        try:
-            self.progress_update.emit(70, "Loading UI modules...")
-            import ui.main_window          # pre-import so __init__ is fast
-            import ui.pages.trackers       # heaviest page — pre-import it
-        except Exception:
-            pass
-
         self.progress_update.emit(88, "Almost ready...")
         self.msleep(80)
         self.ready.emit()

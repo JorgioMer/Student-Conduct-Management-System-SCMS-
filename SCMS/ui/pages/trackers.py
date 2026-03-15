@@ -19,11 +19,19 @@ from ui.components import (
     StatTile, add_shadow, InfoDialog
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
+from ui.data_events import data_events
 
 
 class TrackersPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._combined_tiles = {}
+        self._combined_table = None
+        self._combined_layout = None
+        self._combined_table_index = 2
+        self._monthly_tiles = {}
+        self._monthly_chart = None
+        data_events.slips_changed.connect(self._on_slips_changed)
         self._build()
 
     def _build(self):
@@ -97,6 +105,7 @@ class TrackersPage(BasePage):
 
         tiles_row = QHBoxLayout()
         tiles_row.setSpacing(14)
+        self._combined_tiles = {}
         for label, val, colour in [
             ("Green Slips",      str(green_count),      GREEN_SLIP),
             ("Pink Slips",       str(pink_count),       PINK_SLIP),
@@ -104,7 +113,9 @@ class TrackersPage(BasePage):
             ("Total Records",    str(total_records),    NAVY),
             ("Students Tracked", str(students_tracked), GOLD),
         ]:
-            tiles_row.addWidget(StatTile(label, val, colour))
+            tile = StatTile(label, val, colour)
+            tiles_row.addWidget(tile)
+            self._combined_tiles[label] = tile
         lay.addLayout(tiles_row)
 
         filter_row = QHBoxLayout()
@@ -143,13 +154,37 @@ class TrackersPage(BasePage):
 
         headers = ["#", "Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Filed", "Details", "Status"]
-        sample      = []
+        sample = self._build_combined_sample()
+        self._combined_table = build_record_table(headers, sample)
+        self._apply_combined_colors(self._combined_table)
+        self._combined_table.setMinimumHeight(320)
+        lay.addWidget(self._combined_table)
+        self._combined_layout = lay
+        self._combined_table_index = 2
+
+        action_row = QHBoxLayout()
+        action_row.addStretch()
+        for label, style in [("   View", btn_outline()), ("   Export", btn_gold())]:
+            b = QPushButton(label)
+            b.setStyleSheet(style)
+            b.setFixedHeight(38)
+            action_row.addWidget(b)
+        lay.addLayout(action_row)
+        lay.addStretch()
+        return w
+
+    def _build_combined_sample(self):
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+
+        sample = []
         all_records = []
         try:
             for record in (get_blue_slips(None)  or []): all_records.append(("blue",  record))
             for record in (get_green_slips(None) or []): all_records.append(("green", record))
             for record in (get_pink_slips(None)  or []): all_records.append(("pink",  record))
-        except:
+        except Exception:
             pass
 
         for i, (slip_type, record) in enumerate(all_records[:8], 1):
@@ -178,14 +213,16 @@ class TrackersPage(BasePage):
 
                 sample.append((str(i), stud_num, stud_name, year, course,
                                slip_label, date, details, status))
-            except:
+            except Exception:
                 pass
 
         if not sample:
             sample = [("1", "No records", "Add records to see them here",
                        "-", "-", "-", "-", "-", "-")]
 
-        table = build_record_table(headers, sample)
+        return sample
+
+    def _apply_combined_colors(self, table):
         SLIP_COLORS = {
             "🟢 Green (Disp.)":  (GREEN_SLIP, "#E8F5E9"),
             "🟢 Green (Excuse)": (GREEN_SLIP, "#E8F5E9"),
@@ -198,19 +235,46 @@ class TrackersPage(BasePage):
                 fg, _ = SLIP_COLORS[slip_val]
                 table.item(r, 5).setForeground(QColor(fg))
 
-        table.setMinimumHeight(320)
-        lay.addWidget(table)
+    def _refresh_combined_records(self):
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
 
-        action_row = QHBoxLayout()
-        action_row.addStretch()
-        for label, style in [("   View", btn_outline()), ("   Export", btn_gold())]:
-            b = QPushButton(label)
-            b.setStyleSheet(style)
-            b.setFixedHeight(38)
-            action_row.addWidget(b)
-        lay.addLayout(action_row)
-        lay.addStretch()
-        return w
+        green_slips = get_green_slips(None) or []
+        pink_slips  = get_pink_slips(None)  or []
+        blue_slips  = get_blue_slips(None)  or []
+
+        green_count   = len(green_slips)
+        pink_count    = len(pink_slips)
+        blue_count    = len(blue_slips)
+        total_records = green_count + pink_count + blue_count
+
+        all_students = set()
+        for r in green_slips + pink_slips + blue_slips:
+            if len(r) > 1:
+                all_students.add(r[1])
+        students_tracked = len(all_students)
+
+        if self._combined_tiles:
+            self._combined_tiles["Green Slips"].set_value(green_count)
+            self._combined_tiles["Pink Slips"].set_value(pink_count)
+            self._combined_tiles["Blue Slips"].set_value(blue_count)
+            self._combined_tiles["Total Records"].set_value(total_records)
+            self._combined_tiles["Students Tracked"].set_value(students_tracked)
+
+        if self._combined_table and self._combined_layout:
+            headers = ["#", "Student No.", "Student Name", "Year", "Course",
+                       "Slip Type", "Date Filed", "Details", "Status"]
+            for i in range(self._combined_layout.count()):
+                item = self._combined_layout.itemAt(i)
+                if item and item.widget() is self._combined_table:
+                    self._combined_layout.removeWidget(self._combined_table)
+                    self._combined_table.deleteLater()
+                    break
+            self._combined_table = build_record_table(headers, self._build_combined_sample())
+            self._apply_combined_colors(self._combined_table)
+            self._combined_table.setMinimumHeight(320)
+            self._combined_layout.insertWidget(self._combined_table_index, self._combined_table)
 
     # ── Student Lookup tab ────────────────────────────────────────────────────
     def _build_student_tab(self) -> QWidget:
@@ -489,16 +553,18 @@ class TrackersPage(BasePage):
             ("Blue Slips",  str(len(blue_slips)),  BLUE_SLIP),
             ("Total",       str(len(green_slips) + len(pink_slips) + len(blue_slips)), NAVY),
         ]:
-            tiles_row.addWidget(StatTile(label, val, colour))
+            tile = StatTile(label, val, colour)
+            tiles_row.addWidget(tile)
+            self._monthly_tiles[label] = tile
         lay.addLayout(tiles_row)
 
         from ui.chart_widgets import CombinedAllSlipsChart
 
-        combined_chart = CombinedAllSlipsChart(w)
-        combined_chart.setMinimumHeight(380)
-        lay.addWidget(combined_chart)
+        self._monthly_chart = CombinedAllSlipsChart(w)
+        self._monthly_chart.setMinimumHeight(380)
+        lay.addWidget(self._monthly_chart)
 
-        self._refresh_monthly_chart(combined_chart)
+        self._refresh_monthly_summary()
 
         lay.addStretch()
         return w
@@ -514,6 +580,32 @@ class TrackersPage(BasePage):
         pink_slips  = get_pink_slips(None)  or []
 
         chart_widget.update_data(len(green_slips), len(pink_slips), len(blue_slips))
+
+    def _refresh_monthly_summary(self):
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+
+        green_slips = get_green_slips(None) or []
+        pink_slips  = get_pink_slips(None)  or []
+        blue_slips  = get_blue_slips(None)  or []
+
+        if self._monthly_tiles:
+            self._monthly_tiles["Green Slips"].set_value(len(green_slips))
+            self._monthly_tiles["Pink Slips"].set_value(len(pink_slips))
+            self._monthly_tiles["Blue Slips"].set_value(len(blue_slips))
+            self._monthly_tiles["Total"].set_value(len(green_slips) + len(pink_slips) + len(blue_slips))
+
+        if self._monthly_chart:
+            self._monthly_chart.update_data(len(green_slips), len(pink_slips), len(blue_slips))
+
+    def _on_slips_changed(self):
+        """Refresh combined and monthly summaries when slips change."""
+        try:
+            self._refresh_combined_records()
+            self._refresh_monthly_summary()
+        except Exception:
+            pass
 
 
 # Helper import

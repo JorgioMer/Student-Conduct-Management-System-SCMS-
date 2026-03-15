@@ -129,19 +129,29 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setStyleSheet(f"background: {OFF_WHITE};")
 
-        # Pages (order matches nav buttons)
-        self.page_dashboard   = DashboardPage(role=self.role)
-        self.page_green       = GreenSlipPage()
-        self.page_pink        = PinkSlipPage()
-        self.page_blue        = BlueSlipPage()
-        self.page_trackers    = TrackersPage()
-        self.page_reports     = ReportsPage()
-        self.page_settings    = SettingsPage()
+        # Pages (order matches nav buttons) — lazy-load heavy pages
+        self.page_dashboard = DashboardPage(role=self.role)
+        self.page_green = None
+        self.page_pink = None
+        self.page_blue = None
+        self.page_trackers = None
+        self.page_reports = None
+        self.page_settings = None
 
-        for p in [self.page_dashboard, self.page_green, self.page_pink,
-                  self.page_blue, self.page_trackers,
-                  self.page_reports, self.page_settings]:
-            self.stack.addWidget(p)
+        self._pages = {0: self.page_dashboard}
+        self._page_factories = {
+            1: lambda: GreenSlipPage(),
+            2: lambda: PinkSlipPage(),
+            3: lambda: BlueSlipPage(),
+            4: lambda: TrackersPage(),
+            5: lambda: ReportsPage(),
+            6: lambda: SettingsPage(),
+        }
+
+        self.stack.addWidget(self.page_dashboard)
+        # placeholders to preserve indices
+        for _ in range(6):
+            self.stack.addWidget(QWidget())
 
         body_lay.addWidget(self.stack, 1)
 
@@ -208,7 +218,7 @@ class MainWindow(QMainWindow):
 
         for icon, label, idx in nav_items:
             btn = NavButton(icon, label)
-            btn.clicked.connect(lambda _, i=idx: self.stack.setCurrentIndex(i))
+            btn.clicked.connect(lambda _, i=idx: self._show_page(i))
             self.btn_group.addButton(btn, idx)
             lay.addWidget(btn)
 
@@ -230,7 +240,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(settings_label)
 
         settings_btn = NavButton(_sp_icon(QStyle.SP_FileDialogInfoView), "Settings")
-        settings_btn.clicked.connect(lambda: self.stack.setCurrentIndex(6))
+        settings_btn.clicked.connect(lambda: self._show_page(6))
         self.btn_group.addButton(settings_btn, 6)
         lay.addWidget(settings_btn)
 
@@ -266,6 +276,38 @@ class MainWindow(QMainWindow):
 
     # ── Navigate from dashboard quick-action cards ────────────────────────────
     def _navigate_from_dashboard(self, idx: int):
+        self._show_page(idx)
+
+    def _ensure_page(self, idx: int):
+        if idx in self._pages:
+            return
+        factory = self._page_factories.get(idx)
+        if not factory:
+            return
+        page = factory()
+        self._pages[idx] = page
+        # keep attribute handles
+        if idx == 1:
+            self.page_green = page
+        elif idx == 2:
+            self.page_pink = page
+        elif idx == 3:
+            self.page_blue = page
+        elif idx == 4:
+            self.page_trackers = page
+        elif idx == 5:
+            self.page_reports = page
+        elif idx == 6:
+            self.page_settings = page
+
+        old = self.stack.widget(idx)
+        self.stack.removeWidget(old)
+        if old:
+            old.deleteLater()
+        self.stack.insertWidget(idx, page)
+
+    def _show_page(self, idx: int):
+        self._ensure_page(idx)
         self.stack.setCurrentIndex(idx)
         btn = self.btn_group.button(idx)
         if btn:
