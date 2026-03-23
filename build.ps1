@@ -39,6 +39,52 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Executable location:" -ForegroundColor Cyan
     Write-Host "  dist/SCMS/SCMS.exe" -ForegroundColor Green
     Write-Host ""
+
+    # Ensure database template is present in the dist package
+    $distDir = "$scriptDir\\dist\\SCMS"
+    $dbSource = "$scriptDir\\SCMS\\backend\\database\\SMCSDatabase.accdb"
+    $dbDestDir = "$distDir\\backend\\database"
+    $dbDest = "$dbDestDir\\SMCSDatabase.accdb"
+
+    if (Test-Path $dbSource) {
+        New-Item -ItemType Directory -Force -Path $dbDestDir | Out-Null
+        Copy-Item -Force $dbSource $dbDest
+        Write-Host "✓ Database template added to dist package" -ForegroundColor Green
+    } else {
+        Write-Host "⚠ Database template not found at $dbSource" -ForegroundColor Yellow
+    }
+
+    # Create RAR package for easy transfer
+    $rarCmd = Get-Command rar -ErrorAction SilentlyContinue
+    if (-not $rarCmd) {
+        $possibleRar = @(
+            "C:\\Program Files\\WinRAR\\rar.exe",
+            "C:\\Program Files (x86)\\WinRAR\\rar.exe"
+        )
+        foreach ($candidate in $possibleRar) {
+            if (Test-Path $candidate) {
+                $rarCmd = $candidate
+                break
+            }
+        }
+    } else {
+        $rarCmd = $rarCmd.Source
+    }
+
+    if ($rarCmd) {
+        $rarOut = "$scriptDir\\dist\\SCMS.rar"
+        if (Test-Path $rarOut) {
+            Remove-Item -Force $rarOut
+        }
+        & $rarCmd a -r $rarOut $distDir | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✓ RAR package created: dist/SCMS.rar" -ForegroundColor Green
+        } else {
+            Write-Host "⚠ RAR package creation failed (exit code $LASTEXITCODE)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "⚠ WinRAR/rar.exe not found. Install WinRAR or add rar.exe to PATH to create the RAR package." -ForegroundColor Yellow
+    }
     
     # Offer to clean up build folder
     Write-Host "Cleaning up build artifacts..." -ForegroundColor Yellow
