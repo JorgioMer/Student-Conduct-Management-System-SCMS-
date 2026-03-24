@@ -8,9 +8,9 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import (
     Qt, QPropertyAnimation, QEasingCurve, QRect,
-    pyqtSignal, QTimer, QThread, pyqtSlot
+    pyqtSignal, QTimer, QThread, pyqtSlot, QSize
 )
-from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QLinearGradient
+from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QLinearGradient, QIcon, QPainterPath, QPen
 
 from ui.styles import (
     NAVY, NAVY_DARK, GOLD, WHITE, OFF_WHITE,
@@ -25,6 +25,68 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_accounts import ensure_default_accounts, validate_login
+
+# ── Eye icon helpers ───────────────────────────────────────────────────────────
+def _draw_eye_icon(visible: bool, size: int = 22, color: str = "#888888") -> QIcon:
+    """
+    Draws a clean vector eye icon using QPainter.
+    visible=True  → open eye
+    visible=False → eye with a diagonal slash (hidden)
+    """
+    px = QPixmap(size, size)
+    px.fill(Qt.transparent)
+
+    painter = QPainter(px)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    pen = QPen(QColor(color))
+    pen.setWidthF(1.8)
+    pen.setCapStyle(Qt.RoundCap)
+    pen.setJoinStyle(Qt.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.NoBrush)
+
+    cx, cy = size / 2, size / 2
+    ew = size * 0.80   # eye width
+    eh = size * 0.38   # eye height
+
+    # ── outer eye shape (almond / lens) ──────────────────────────────────────
+    path = QPainterPath()
+    path.moveTo(cx - ew / 2, cy)
+    path.cubicTo(
+        cx - ew / 4, cy - eh,
+        cx + ew / 4, cy - eh,
+        cx + ew / 2, cy
+    )
+    path.cubicTo(
+        cx + ew / 4, cy + eh,
+        cx - ew / 4, cy + eh,
+        cx - ew / 2, cy
+    )
+    painter.drawPath(path)
+
+    # ── pupil ─────────────────────────────────────────────────────────────────
+    r = size * 0.12
+    painter.setBrush(QColor(color))
+    painter.drawEllipse(int(cx - r), int(cy - r), int(r * 2), int(r * 2))
+    painter.setBrush(Qt.NoBrush)
+
+    if not visible:
+        # ── diagonal slash for "hidden" state ─────────────────────────────────
+        slash_pen = QPen(QColor(color))
+        slash_pen.setWidthF(1.8)
+        slash_pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(slash_pen)
+        offset = size * 0.18
+        painter.drawLine(
+            int(cx - ew / 2 + offset), int(cy + eh + 2),
+            int(cx + ew / 2 - offset), int(cy - eh - 2)
+        )
+
+    painter.end()
+    return QIcon(px)
+
+
 
 
 # ── Background worker: builds MainWindow off the UI thread ────────────────────
@@ -238,13 +300,27 @@ class LoginWindow(QWidget):
         left_lay.setContentsMargins(50, 60, 50, 40)
         left_lay.setSpacing(0)
 
-        crest = QLabel("")
-        crest.setFont(QFont("Segoe UI", 72))
-        crest.setAlignment(Qt.AlignCenter)
-        crest.setStyleSheet(f"color: {GOLD}; background: transparent;")
+        # ── CJC Logo ──────────────────────────────────────────────────────
+        logo_lbl = QLabel()
+        logo_lbl.setAlignment(Qt.AlignCenter)
+        logo_lbl.setStyleSheet("background: transparent;")
+
+        _logo_path = os.path.join(
+            os.path.dirname(__file__), '..', 'assets', 'cjc logo.png'
+        )
+        _pixmap = QPixmap(_logo_path)
+        if not _pixmap.isNull():
+            logo_lbl.setPixmap(
+                _pixmap.scaled(150, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
+        else:
+            # Fallback: show a placeholder text if image not found
+            logo_lbl.setText("🏫")
+            logo_lbl.setFont(QFont("Segoe UI", 48))
+            logo_lbl.setStyleSheet(f"color: {GOLD}; background: transparent;")
 
         school_lbl = QLabel("CJC")
-        school_lbl.setFont(QFont("Segoe UI", 32, QFont.Bold))
+        school_lbl.setFont(QFont("Segoe UI", 40, QFont.Bold))
         school_lbl.setAlignment(Qt.AlignCenter)
         school_lbl.setStyleSheet(
             f"color: {WHITE}; background: transparent; letter-spacing: 6px;"
@@ -257,22 +333,22 @@ class LoginWindow(QWidget):
         )
 
         office_lbl = QLabel("Office of the Prefect")
-        office_lbl.setFont(QFont("Segoe UI", 15, QFont.Bold))
+        office_lbl.setFont(QFont("Segoe UI", 18, QFont.Bold))
         office_lbl.setAlignment(Qt.AlignCenter)
         office_lbl.setStyleSheet(
             f"color: {GOLD}; background: transparent; letter-spacing: 1px;"
         )
 
         sys_lbl = QLabel("Student Conduct\nManagement System")
-        sys_lbl.setFont(QFont("Segoe UI", 13))
+        sys_lbl.setFont(QFont("Segoe UI", 16))
         sys_lbl.setAlignment(Qt.AlignCenter)
         sys_lbl.setStyleSheet(
             f"color: rgba(255,255,255,0.70); background: transparent; line-height: 1.5;"
         )
 
         left_lay.addStretch(2)
-        left_lay.addWidget(crest)
-        left_lay.addSpacing(6)
+        left_lay.addWidget(logo_lbl)          # ← CJC logo image
+        left_lay.addSpacing(10)               # ← gap between logo and "CJC" text
         left_lay.addWidget(school_lbl)
         left_lay.addWidget(divider_gold)
         left_lay.addWidget(office_lbl)
@@ -348,15 +424,58 @@ class LoginWindow(QWidget):
             f"color: {TEXT_DARK}; background: transparent; margin-bottom: 4px;"
         )
 
+        # ── Password field + eye toggle ───────────────────────────────────
+        pass_row = QFrame()
+        pass_row.setStyleSheet(f"""
+            QFrame {{
+                background: {WHITE};
+                border: 1px solid {LIGHT_GRAY};
+                border-radius: 6px;
+            }}
+        """)
+        pass_row.setFixedHeight(44)
+        pass_row_lay = QHBoxLayout(pass_row)
+        pass_row_lay.setContentsMargins(10, 0, 6, 0)
+        pass_row_lay.setSpacing(0)
+
         self.password_edit = QLineEdit()
         self.password_edit.setPlaceholderText("Enter your password")
         self.password_edit.setEchoMode(QLineEdit.Password)
-        self.password_edit.setFixedHeight(44)
         self.password_edit.setFont(QFont("Segoe UI", 12))
         self.password_edit.returnPressed.connect(self._on_login)
+        self.password_edit.setStyleSheet("""
+            QLineEdit {
+                border: none;
+                background: transparent;
+                padding: 0px;
+            }
+        """)
+
+        self.eye_btn = QPushButton()
+        self.eye_btn.setFixedSize(32, 32)
+        self.eye_btn.setCursor(Qt.PointingHandCursor)
+        self.eye_btn.setCheckable(True)
+        self.eye_btn.setToolTip("Show password")
+        self.eye_btn.setIcon(_draw_eye_icon(visible=False, size=20, color="#aaaaaa"))
+        self.eye_btn.setIconSize(QSize(20, 20))
+        self.eye_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background: rgba(0,0,0,0.05);
+                border-radius: 4px;
+            }
+        """)
+        self.eye_btn.toggled.connect(self._toggle_password_visibility)
+
+        pass_row_lay.addWidget(self.password_edit, 1)
+        pass_row_lay.addWidget(self.eye_btn)
 
         card_lay.addWidget(pass_lbl)
-        card_lay.addWidget(self.password_edit)
+        card_lay.addWidget(pass_row)
         card_lay.addSpacing(6)
 
         self.error_lbl = QLabel("")
@@ -485,6 +604,17 @@ class LoginWindow(QWidget):
 
     def _hide_error(self):
         self.error_lbl.setVisible(False)
+
+    def _toggle_password_visibility(self, checked: bool):
+        """Show or hide the password text when the eye button is toggled."""
+        if checked:
+            self.password_edit.setEchoMode(QLineEdit.Normal)
+            self.eye_btn.setIcon(_draw_eye_icon(visible=True,  size=20, color="#1a2d5a"))
+            self.eye_btn.setToolTip("Hide password")
+        else:
+            self.password_edit.setEchoMode(QLineEdit.Password)
+            self.eye_btn.setIcon(_draw_eye_icon(visible=False, size=20, color="#aaaaaa"))
+            self.eye_btn.setToolTip("Show password")
 
     def _launch_dashboard(self, full_name: str, role: str):
         """Show loading screen; background thread does the heavy lifting."""
