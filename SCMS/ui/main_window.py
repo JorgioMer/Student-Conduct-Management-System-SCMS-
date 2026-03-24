@@ -262,7 +262,7 @@ class MainWindow(QMainWindow):
         role_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
         role_lbl.setStyleSheet(f"color: {GOLD}; background: transparent;")
 
-        ver_lbl = QLabel("SCMS v1.0 — UI Prototype")
+        ver_lbl = QLabel("SCMS v1.0")
         ver_lbl.setFont(QFont("Segoe UI", 9))
         ver_lbl.setStyleSheet("color: rgba(255,255,255,0.35); background: transparent;")
 

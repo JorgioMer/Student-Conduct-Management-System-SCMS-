@@ -547,7 +547,7 @@ class TrackersPage(BasePage):
         s_lay.addWidget(lbl)
 
         self.stud_search_edit = QLineEdit()
-        self.stud_search_edit.setPlaceholderText("Type student number or name to search...")
+        self.stud_search_edit.setPlaceholderText("Type student number to search...")
         self.stud_search_edit.setFixedHeight(40)
 
         search_btn = QPushButton("   Search ")
