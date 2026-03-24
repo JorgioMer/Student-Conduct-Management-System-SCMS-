@@ -477,14 +477,69 @@ class BlueSlipPage(BasePage):
         self.blue_escalate_chk.setChecked(False)
 
     def _check_history(self):
+        stud_num  = self.blue_no.text().strip()
+        stud_name = self.blue_name.text().strip()
+
+        if not stud_num and not stud_name:
+            InfoDialog(
+                "Missing Information",
+                "Please enter at least a Student Number or Student Name before checking violation history.",
+                success=False, parent=self
+            ).exec_()
+            return
+
+        from backend.db_blue_slip import get_blue_slips
+        try:
+            all_records = get_blue_slips(None) or []
+        except Exception:
+            all_records = []
+
+        # Filter records matching this student
+        matches = []
+        for record in all_records:
+            rec_name = str(record[0]).strip().lower() if len(record) > 0 else ""
+            rec_num  = str(record[4]).strip().lower() if len(record) > 4 else ""
+            if (stud_num  and stud_num.lower()  == rec_num) or \
+            (stud_name and stud_name.lower() in rec_name):
+                matches.append(record)
+
+        current_vtype = self.blue_vtype.currentText()
+
+        if not matches:
+            InfoDialog(
+                "Violation History Check",
+                f"Student: {stud_name or stud_num}\n\n"
+                "No prior violations found for this student.\n"
+                "This would be their first recorded offense.",
+                success=True, parent=self
+            ).exec_()
+            return
+
+        # Build history summary
+        lines = [f"Student: {stud_name or stud_num}\n"]
+        lines.append(f"Total violations on record: {len(matches)}\n")
+        lines.append("Prior violations:")
+
+        same_type_count = 0
+        for r in matches:
+            vtype  = str(r[5])       if len(r) > 5  else "N/A"
+            date   = str(r[6])[:10]  if len(r) > 6  else "N/A"
+            status = str(r[10])      if len(r) > 10 else "N/A"
+            lines.append(f"  • {date}  —  {vtype}  ({status})")
+            if current_vtype and current_vtype in vtype:
+                same_type_count += 1
+
+        if same_type_count > 0:
+            lines.append(
+                f"\n⚠  This student has {same_type_count} prior violation(s) "
+                f"of the same type ({current_vtype}).\n"
+                "Consider flagging this record as ESCALATED."
+            )
+
         InfoDialog(
             "Violation History Check",
-            "Student: (enter student number first)\n\n"
-            "Prior violations found:\n"
-            "  Nov 1, 2024 — Disrespect to Authority (Resolved)\n\n "
-            "   This student has 1 prior violation of a similar type.\n "
-            "Consider escalating the action if this is a repeat offense.",
-            success=True, parent=self
+            "\n".join(lines),
+            success=(same_type_count == 0), parent=self
         ).exec_()
 
     def _save_blue(self):

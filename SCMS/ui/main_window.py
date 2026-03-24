@@ -84,10 +84,11 @@ def _slip_icon(color: str, size: int = 18) -> QIcon:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, full_name: str = "Admin", role: str = "Admin"):
+    def __init__(self, full_name: str = "Admin", role: str = "Admin", username: str = "admin"):
         super().__init__()
         self.full_name = full_name
         self.role = role
+        self.username = username
         self.setWindowTitle("Office of the Prefect — Student Conduct Management System")
         self.setMinimumSize(1200, 720)
         self.resize(1350, 800)
@@ -145,7 +146,11 @@ class MainWindow(QMainWindow):
             3: lambda: BlueSlipPage(),
             4: lambda: TrackersPage(),
             5: lambda: ReportsPage(),
-            6: lambda: SettingsPage(),
+            6: lambda: SettingsPage(current_user={   # ← pass current_user here
+                "username":  self.username,
+                "full_name": self.full_name,
+                "role":      self.role,
+            }),
         }
 
         self.stack.addWidget(self.page_dashboard)

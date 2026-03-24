@@ -35,11 +35,13 @@ from backend.db_accounts import (
 
 
 class SettingsPage(BasePage):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, current_user: dict = None):
         super().__init__(parent)
         self.settings_combos = {}
         self.settings_checkboxes = {}
         self.users_table = None
+        # current_user: {"username": ..., "full_name": ..., "role": ..., "last_login": ...}
+        self.current_user = current_user or {}
         self._ensure_accounts_ready()
         self._build()
 
@@ -176,11 +178,33 @@ class SettingsPage(BasePage):
         i_lay.setContentsMargins(20, 14, 20, 14)
         i_lay.setSpacing(8)
 
+        from backend.db_accounts import get_account_by_username
+# Pull live data for the logged-in user
+        uname = self.current_user.get("username", "admin")
+        try:
+            account_row = get_account_by_username(uname)
+            # get_account_by_username returns (username, full_name, role, status, last_login)
+            if account_row:
+                uname_val      = account_row[0]
+                fullname_val   = account_row[1]
+                role_val       = account_row[2]
+                raw_login      = account_row[4]
+                if raw_login and hasattr(raw_login, "strftime"):
+                    login_val = raw_login.strftime("%B %d, %Y — %I:%M %p")
+                elif raw_login:
+                    login_val = str(raw_login)
+                else:
+                    login_val = "No login recorded"
+            else:
+                uname_val, fullname_val, role_val, login_val = uname, "—", "—", "—"
+        except Exception:
+            uname_val, fullname_val, role_val, login_val = uname, "—", "—", "—"
+
         for label, value in [
-            ("Username:",   "admin"),
-            ("Full Name:",  "Administrator"),
-            ("Role:",       "Admin"),
-            ("Last Login:", "November 20, 2024 — 8:30 AM"),
+        ("Username:",   uname_val),
+        ("Full Name:",  fullname_val),
+        ("Role:",       role_val),
+        ("Last Login:", login_val),
         ]:
             row_w = QWidget()
             row_w.setStyleSheet("background: transparent; border: none;")

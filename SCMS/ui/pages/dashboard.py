@@ -264,8 +264,16 @@ class DashboardPage(QWidget):
                     border-radius: 10px;
                 }}
             """)
-            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-            table.setFixedHeight(max(180, 30 * (num_rows + 1)))
+            header = table.horizontalHeader()
+            header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Student No.
+            header.setSectionResizeMode(1, QHeaderView.Stretch)           # Student Name — takes remaining space
+            header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Slip Type
+            header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Date Filed
+            header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Status
+
+            table.setWordWrap(False)
+            table.setFixedHeight(max(200, 36 * (num_rows + 1)))
+            table.verticalHeader().setDefaultSectionSize(36)
 
             # Build table from actual records (most recent 6)
             for r, (slip_type, record) in enumerate(all_records[:6]):
