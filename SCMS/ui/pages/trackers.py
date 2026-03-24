@@ -118,39 +118,282 @@ class TrackersPage(BasePage):
             self._combined_tiles[label] = tile
         lay.addLayout(tiles_row)
 
-        filter_row = QHBoxLayout()
-        filter_row.setSpacing(10)
+        # ── Filter Row ─────────────────────────────────────────────────────
+        filter_frame = QFrame()
+        filter_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {WHITE};
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 10px;
+            }}
+        """)
+        add_shadow(filter_frame, blur=8, y=2, color=(0, 0, 0, 14))
+        filter_outer = QHBoxLayout(filter_frame)
+        filter_outer.setContentsMargins(12, 8, 12, 8)
+        filter_outer.setSpacing(10)
 
+        # ── Search box ──
         search = QLineEdit()
-        search.setPlaceholderText("   Search by student name or number... ")
+        search.setPlaceholderText("   Search by student name or number...")
         search.setFixedHeight(38)
+        search.setStyleSheet(f"""
+            QLineEdit {{
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 8px;
+                padding: 0 12px;
+                font-size: 13px;
+                color: {TEXT_DARK};
+                background: {OFF_WHITE};
+            }}
+            QLineEdit:focus {{
+                border-color: {NAVY};
+                background: {WHITE};
+            }}
+        """)
+        filter_outer.addWidget(search, 2)
 
-        slip_filter = QComboBox()
-        slip_filter.addItems(["All Slip Types", "Green Slip", "Pink Slip", "Blue Slip"])
-        slip_filter.setFixedHeight(38)
-        slip_filter.setFixedWidth(160)
+        # ── Separator ──
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setFixedWidth(1)
+        sep.setStyleSheet(f"background: {LIGHT_GRAY}; border: none;")
+        filter_outer.addWidget(sep)
 
-        month_filter = QComboBox()
-        month_filter.addItems(["This Month (Nov 2024)", "October 2024", "September 2024",
-                               "All Months", "Custom Range"])
-        month_filter.setFixedHeight(38)
-        month_filter.setFixedWidth(210)
+        # ── Helper: ComboBox paired with a small square NAVY indicator button ──
+        def make_filter_pair(items, width=150):
+            pair = QFrame()
+            pair.setStyleSheet("QFrame { border: none; background: transparent; }")
+            p_lay = QHBoxLayout(pair)
+            p_lay.setContentsMargins(0, 0, 0, 0)
+            p_lay.setSpacing(0)
 
-        year_filter = QComboBox()
-        year_filter.addItems(["All Years", "1st", "2nd", "3rd", "4th", "5th"])
-        year_filter.setFixedHeight(38)
-        year_filter.setFixedWidth(130)
+            combo = QComboBox()
+            combo.addItems(items)
+            combo.setFixedHeight(38)
+            combo.setFixedWidth(width)
+            combo.setStyleSheet(f"""
+                QComboBox {{
+                    border: 1.5px solid {LIGHT_GRAY};
+                    border-right: none;
+                    border-top-left-radius: 8px;
+                    border-bottom-left-radius: 8px;
+                    border-top-right-radius: 0px;
+                    border-bottom-right-radius: 0px;
+                    padding: 0 10px;
+                    font-size: 12px;
+                    color: {TEXT_DARK};
+                    background: {OFF_WHITE};
+                }}
+                QComboBox:hover {{
+                    border-color: {NAVY};
+                    border-right: none;
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                    width: 0px;
+                }}
+                QComboBox::down-arrow {{
+                    width: 0; height: 0;
+                }}
+                QComboBox QAbstractItemView {{
+                    border: 1.5px solid {NAVY};
+                    border-radius: 6px;
+                    background: {WHITE};
+                    selection-background-color: {NAVY};
+                    selection-color: {GOLD};
+                    padding: 4px;
+                    font-size: 12px;
+                }}
+            """)
 
-        filter_btn = QPushButton("   Apply Filter ")
-        filter_btn.setStyleSheet(btn_gold())
+            # Small square indicator button — acts as the dropdown arrow
+            ind_btn = QPushButton("■")
+            ind_btn.setFixedSize(30, 38)
+            ind_btn.setCursor(Qt.PointingHandCursor)
+            ind_btn.setToolTip("Click to expand")
+            ind_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {NAVY};
+                    color: {GOLD};
+                    border: 1.5px solid {NAVY};
+                    border-top-right-radius: 8px;
+                    border-bottom-right-radius: 8px;
+                    border-top-left-radius: 0px;
+                    border-bottom-left-radius: 0px;
+                    font-size: 9px;
+                    font-weight: bold;
+                    padding: 0;
+                }}
+                QPushButton:hover {{
+                    background: {GOLD};
+                    color: {NAVY};
+                    border-color: {GOLD};
+                }}
+                QPushButton:pressed {{
+                    background: {GOLD};
+                    color: {NAVY};
+                }}
+            """)
+            ind_btn.clicked.connect(combo.showPopup)
+
+            p_lay.addWidget(combo)
+            p_lay.addWidget(ind_btn)
+            return pair, combo
+
+        slip_pair, slip_filter = make_filter_pair(
+            ["All Slip Types", "Green Slip", "Pink Slip", "Blue Slip"],
+            width=145
+        )
+        month_pair, month_filter = make_filter_pair(
+            ["This Month", "All Months", "Custom Range"],
+            width=185
+        )
+
+        year_pair, year_filter = make_filter_pair(
+            ["All Years", "1st", "2nd", "3rd", "4th", "5th"],
+            width=110
+        )
+
+        filter_outer.addWidget(slip_pair)
+        filter_outer.addWidget(month_pair)
+        filter_outer.addWidget(year_pair)
+
+        # ── Custom Range Row (hidden by default) ──
+        custom_range_frame = QFrame()
+        custom_range_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {OFF_WHITE};
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 8px;
+            }}
+        """)
+        custom_range_frame.setVisible(False)
+        custom_lay = QHBoxLayout(custom_range_frame)
+        custom_lay.setContentsMargins(12, 8, 12, 8)
+        custom_lay.setSpacing(10)
+
+        from_lbl = QLabel("From:")
+        from_lbl.setStyleSheet(f"color: {NAVY}; font-weight: bold; border: none; background: transparent;")
+        custom_lay.addWidget(from_lbl)
+
+        from_month = QComboBox()
+        from_month.addItems([
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ])
+        from_month.setFixedHeight(34)
+        from_month.setFixedWidth(130)
+        from_month.setStyleSheet(f"""
+            QComboBox {{
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 6px;
+                padding: 0 8px;
+                font-size: 12px;
+                color: {TEXT_DARK};
+                background: {WHITE};
+            }}
+            QComboBox:hover {{ border-color: {NAVY}; }}
+            QComboBox::drop-down {{ border: none; width: 20px; }}
+            QComboBox QAbstractItemView {{
+                border: 1.5px solid {NAVY};
+                background: {WHITE};
+                selection-background-color: {NAVY};
+                selection-color: {GOLD};
+            }}
+        """)
+        custom_lay.addWidget(from_month)
+
+        from_year = QComboBox()
+        from_year.addItems(["2022", "2023", "2024", "2025"])
+        from_year.setCurrentText("2024")
+        from_year.setFixedHeight(34)
+        from_year.setFixedWidth(80)
+        from_year.setStyleSheet(from_month.styleSheet())
+        custom_lay.addWidget(from_year)
+
+        to_lbl = QLabel("To:")
+        to_lbl.setStyleSheet(f"color: {NAVY}; font-weight: bold; border: none; background: transparent;")
+        custom_lay.addWidget(to_lbl)
+
+        to_month = QComboBox()
+        to_month.addItems([
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ])
+        to_month.setCurrentIndex(10)  # November default
+        to_month.setFixedHeight(34)
+        to_month.setFixedWidth(130)
+        to_month.setStyleSheet(from_month.styleSheet())
+        custom_lay.addWidget(to_month)
+
+        to_year = QComboBox()
+        to_year.addItems(["2022", "2023", "2024", "2025"])
+        to_year.setCurrentText("2024")
+        to_year.setFixedHeight(34)
+        to_year.setFixedWidth(80)
+        to_year.setStyleSheet(from_month.styleSheet())
+        custom_lay.addWidget(to_year)
+
+        custom_lay.addStretch()
+
+        apply_range_btn = QPushButton("Apply Range")
+        apply_range_btn.setFixedHeight(34)
+        apply_range_btn.setCursor(Qt.PointingHandCursor)
+        apply_range_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {NAVY};
+                color: {GOLD};
+                border: none;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 0 14px;
+            }}
+            QPushButton:hover {{
+                background: {GOLD};
+                color: {NAVY};
+            }}
+        """)
+        custom_lay.addWidget(apply_range_btn)
+
+        # ── Show/hide custom range when "Custom Range" is selected ──
+        def on_month_filter_changed(index):
+            is_custom = month_filter.currentText() == "Custom Range"
+            custom_range_frame.setVisible(is_custom)
+
+        month_filter.currentIndexChanged.connect(on_month_filter_changed)
+
+        lay.addWidget(filter_frame)
+        lay.addWidget(custom_range_frame)   # sits just below the filter bar
+
+        # ── Refresh / Apply button ──
+        filter_btn = QPushButton(" Apply Filter")
         filter_btn.setFixedHeight(38)
-
-        filter_row.addWidget(search, 1)
-        filter_row.addWidget(slip_filter)
-        filter_row.addWidget(month_filter)
-        filter_row.addWidget(year_filter)
-        filter_row.addWidget(filter_btn)
-        lay.addLayout(filter_row)
+        filter_btn.setFixedWidth(130)
+        filter_btn.setCursor(Qt.PointingHandCursor)
+        filter_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {NAVY};
+                color: {GOLD};
+                border: none;
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 0 14px;
+                letter-spacing: 0.3px;
+            }}
+            QPushButton:hover {{
+                background: {GOLD};
+                color: {NAVY};
+            }}
+            QPushButton:pressed {{
+                background: {GOLD};
+                color: {NAVY};
+                border: 1.5px solid {NAVY};
+            }}
+        """)
+        filter_outer.addWidget(filter_btn)
+        lay.addWidget(filter_frame)
 
         headers = ["#", "Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Filed", "Details", "Status"]
