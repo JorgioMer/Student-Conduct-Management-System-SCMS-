@@ -30,6 +30,8 @@ from backend.db_accounts import (
     ensure_default_accounts,
     get_accounts,
     add_account,
+    update_account,
+    delete_account,
     get_account_by_username,
 )
 
@@ -156,9 +158,6 @@ class SettingsPage(BasePage):
         save_pw = QPushButton("Update Password")
         save_pw.setStyleSheet(btn_primary())
         save_pw.setFixedHeight(40)
-        save_pw = QPushButton("Update Password")
-        save_pw.setStyleSheet(btn_primary())
-        save_pw.setFixedHeight(40)
         save_pw.clicked.connect(lambda: self._change_password(curr_pw, new_pw, conf_pw))
         btn_row.addWidget(save_pw)
         lay.addLayout(btn_row)
@@ -230,6 +229,46 @@ class SettingsPage(BasePage):
         lay.addStretch()
         return w
 
+    def _change_password(self, curr_pw_field, new_pw_field, conf_pw_field):
+        from backend.db_accounts import get_account_by_username
+
+        curr = curr_pw_field.text().strip()
+        new  = new_pw_field.text().strip()
+        conf = conf_pw_field.text().strip()
+
+        if not curr or not new or not conf:
+            InfoDialog("Missing Fields", "Please fill in all password fields.",
+                   success=False, parent=self).exec_()
+            return
+        if new != conf:
+            InfoDialog("Mismatch", "New password and confirmation do not match.",
+                   success=False, parent=self).exec_()
+            return
+        if len(new) < 8:
+            InfoDialog("Too Short", "New password must be at least 8 characters.",
+                   success=False, parent=self).exec_()
+            return
+
+        uname = self.current_user.get("username", "admin")
+        try:
+            account_row = get_account_by_username(uname)
+            if account_row and str(account_row[2]) != curr:   # [2] = accPass
+                InfoDialog("Incorrect Password", "Current password is incorrect.",
+                       success=False, parent=self).exec_()
+                return
+
+            from backend.db_accounts import update_account_password
+            update_account_password(uname, new)
+
+            curr_pw_field.clear()
+            new_pw_field.clear()
+            conf_pw_field.clear()
+            InfoDialog("Password Updated",
+                   "Your password has been updated successfully.",
+                   parent=self).exec_()
+        except Exception as e:
+            InfoDialog("Error", f"Failed to update password: {str(e)}",
+                   success=False, parent=self).exec_()
     # ── Users tab ─────────────────────────────────────────────────────────────
     def _build_users_tab(self) -> QWidget:
         w = QWidget()
@@ -241,41 +280,35 @@ class SettingsPage(BasePage):
         lay.addWidget(SectionTitle("User Management"))
         lay.addWidget(SubTitle("Manage system users and their access roles"))
 
+        is_admin = self.current_user.get("role", "").lower() == "admin"
+
         top_row = QHBoxLayout()
-        search = QLineEdit()
-        search.setPlaceholderText("  Search users...")
-        search.setFixedHeight(38)
+        self._user_search = QLineEdit()
+        self._user_search.setPlaceholderText("  Search users...")
+        self._user_search.setFixedHeight(38)
+        self._user_search.textChanged.connect(self._apply_user_search)
+        top_row.addWidget(self._user_search, 1)
 
-        add_btn = QPushButton("  Add New User")
-        add_btn.setStyleSheet(btn_primary())
-        add_btn.setFixedHeight(38)
-        add_btn.clicked.connect(self._show_add_user)
+        if is_admin:
+            add_btn = QPushButton("  Add New User")
+            add_btn.setStyleSheet(btn_primary())
+            add_btn.setFixedHeight(38)
+            add_btn.clicked.connect(self._show_add_user)
+            top_row.addWidget(add_btn)
 
-        top_row.addWidget(search, 1)
-        top_row.addWidget(add_btn)
         lay.addLayout(top_row)
 
-        table = QTableWidget(0, 7)
-        table.setHorizontalHeaderLabels(
-            ["Username", "Full Name", "Role", "Status", "Last Login", "Edit", "Delete"]
-        )
+    # Show/hide Edit & Delete columns based on role
+        col_count = 7 if is_admin else 5
+        headers = ["Username", "Full Name", "Role", "Status", "Last Login"]
+        if is_admin:
+            headers += ["Edit", "Delete"]
+
+        table = QTableWidget(0, col_count)
+        table.setHorizontalHeaderLabels(headers)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectRows)
         table.verticalHeader().setVisible(False)
-        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
-        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
-        table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
-        table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
-        table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
-        table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
-        table.setColumnWidth(0, 100)
-        table.setColumnWidth(2, 75)
-        table.setColumnWidth(3, 75)
-        table.setColumnWidth(4, 115)
-        table.setColumnWidth(5, 120)
-        table.setColumnWidth(6, 120)
-        table.horizontalHeader().setStretchLastSection(False)
         table.setAlternatingRowColors(True)
         table.setStyleSheet(f"""
             QTableWidget {{
@@ -287,10 +320,36 @@ class SettingsPage(BasePage):
             }}
         """)
 
+        hdr = table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(1, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        if is_admin:
+            hdr.setSectionResizeMode(5, QHeaderView.Fixed)
+            hdr.setSectionResizeMode(6, QHeaderView.Fixed)
+            table.setColumnWidth(5, 90)
+            table.setColumnWidth(6, 90)
+
         table.setFixedHeight(300)
         self.users_table = table
+        self._is_admin = is_admin
         self._refresh_users_table()
         lay.addWidget(self.users_table)
+
+        if not is_admin:
+            notice = QLabel("⚠  Only Admins can add, edit, or delete user accounts.")
+            notice.setFont(QFont("Segoe UI", 11))
+            notice.setStyleSheet(f"""
+                color: #856404;
+                background: #FFF3CD;
+                border: 1px solid #FFEEBA;
+                border-radius: 6px;
+                padding: 8px 14px;
+            """)
+            lay.addWidget(notice)
+
         lay.addStretch()
         return w
 
@@ -299,17 +358,32 @@ class SettingsPage(BasePage):
             return
 
         try:
-            rows = get_accounts()
+            self._all_user_rows = get_accounts()
         except Exception:
-            rows = []
+            self._all_user_rows = []
 
+        self._render_users_table(self._all_user_rows)
+
+    def _apply_user_search(self):
+        text = self._user_search.text().strip().lower()
+        if not text:
+            self._render_users_table(self._all_user_rows)
+            return
+        filtered = [
+            r for r in self._all_user_rows
+            if text in str(r[0]).lower() or text in str(r[1]).lower() or text in str(r[2]).lower()
+        ]
+        self._render_users_table(filtered)
+
+    def _render_users_table(self, rows):
         def _fmt_login(value):
             if not value:
-                return "-"
+                return "—"
             if hasattr(value, "strftime"):
                 return value.strftime("%b %d, %Y %I:%M %p")
             return str(value)
 
+        is_admin = getattr(self, "_is_admin", False)
         table = self.users_table
         table.setRowCount(len(rows))
 
@@ -317,42 +391,71 @@ class SettingsPage(BasePage):
             for c, val in enumerate([uname, name, role, status, _fmt_login(last_login)]):
                 item = QTableWidgetItem(str(val))
                 item.setTextAlignment(Qt.AlignCenter)
+            # Colour-code status
+                if c == 3:
+                    if str(val).lower() == "active":
+                        item.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor("#155724"))
+                        item.setBackground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor("#D4EDDA"))
+                    else:
+                        item.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor("#721C24"))
+                        item.setBackground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor("#F8D7DA"))
                 table.setItem(r, c, item)
 
-            edit_btn = QPushButton("Edit")
-            edit_btn.setFixedSize(90, 38)
-            edit_btn.setStyleSheet(btn_primary())
+            if is_admin:
+                current_uname = self.current_user.get("username", "")
 
-            del_btn = QPushButton("Delete")
-            del_btn.setFixedSize(90, 38)
-            del_btn.setStyleSheet(btn_danger())
+                edit_btn = QPushButton("Edit")
+                edit_btn.setFixedSize(75, 32)
+                edit_btn.setStyleSheet(btn_primary())
+                edit_btn.clicked.connect(lambda _, u=uname, n=name, ro=role, s=status:
+                                        self._show_edit_user(u, n, ro, s))
 
-            for col_idx, btn in [(5, edit_btn), (6, del_btn)]:
-                cell_w = QWidget()
-                cell_w.setFixedHeight(44)
-                cell_w.setStyleSheet("background: transparent;")
-                cell_lay = QHBoxLayout(cell_w)
-                cell_lay.setContentsMargins(10, 0, 10, 0)
-                cell_lay.setSpacing(0)
-                cell_lay.setAlignment(Qt.AlignCenter)
-                cell_lay.addWidget(btn)
-                table.setCellWidget(r, col_idx, cell_w)
+                del_btn = QPushButton("Delete")
+                del_btn.setFixedSize(75, 32)
+                del_btn.setStyleSheet(btn_danger())
+            # Prevent admin from deleting their own account
+                if uname == current_uname:
+                    del_btn.setEnabled(False)
+                    del_btn.setToolTip("You cannot delete your own account")
+                else:
+                    del_btn.clicked.connect(lambda _, u=uname: self._delete_user(u))
 
-            table.setRowHeight(r, 50)
+                for col_idx, btn in [(5, edit_btn), (6, del_btn)]:
+                    cell_w = QWidget()
+                    cell_w.setStyleSheet("background: transparent;")
+                    cell_lay = QHBoxLayout(cell_w)
+                    cell_lay.setContentsMargins(6, 4, 6, 4)
+                    cell_lay.setAlignment(Qt.AlignCenter)
+                    cell_lay.addWidget(btn)
+                    table.setCellWidget(r, col_idx, cell_w)
 
+            table.setRowHeight(r, 46)
     def _show_add_user(self):
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QGridLayout
+        self._show_user_dialog()
+
+    def _show_edit_user(self, username, full_name, role, status):
+        self._show_user_dialog(
+            edit_mode=True,
+            username=username,
+            full_name=full_name,
+            role=role,
+            status=status,
+        )
+
+    def _show_user_dialog(self, edit_mode=False, username="",
+                        full_name="", role="Staff", status="Active"):
+        from PyQt5.QtWidgets import QDialog
         dlg = QDialog(self)
-        dlg.setWindowTitle("Add New User")
+        dlg.setWindowTitle("Edit User" if edit_mode else "Add New User")
         dlg.setModal(True)
-        dlg.setFixedWidth(420)
+        dlg.setFixedWidth(440)
         dlg.setStyleSheet(f"background: {WHITE};")
 
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(12)
 
-        title = QLabel("Add New System User")
+        title = QLabel("Edit User Account" if edit_mode else "Add New System User")
         title.setFont(QFont("Segoe UI", 14, QFont.Bold))
         title.setStyleSheet(f"color: {NAVY}; border: none;")
         lay.addWidget(title)
@@ -362,36 +465,50 @@ class SettingsPage(BasePage):
         g.setSpacing(10)
         g.setColumnStretch(1, 1)
 
-        name_input = None
-        user_input = None
-        pass_input = None
-        role_cb = None
+    # Full Name
+        g.addWidget(FieldLabel("Full Name", required=True), 0, 0)
+        name_input = QLineEdit(full_name)
+        name_input.setPlaceholderText("Enter full name")
+        name_input.setFixedHeight(38)
+        g.addWidget(name_input, 0, 1)
 
-        for row, (label, placeholder) in enumerate([
-            ("Full Name", "Enter full name"),
-            ("Username",  "Enter username"),
-            ("Password",  "Enter password"),
-            ("Role",      None),
-        ]):
-            lbl_w = FieldLabel(label, required=True)
-            g.addWidget(lbl_w, row, 0)
-            if placeholder:
-                inp = QLineEdit()
-                inp.setPlaceholderText(placeholder)
-                inp.setFixedHeight(38)
-                if label == "Password":
-                    inp.setEchoMode(QLineEdit.Password)
-                    pass_input = inp
-                elif label == "Username":
-                    user_input = inp
-                else:
-                    name_input = inp
-                g.addWidget(inp, row, 1)
-            else:
-                role_cb = QComboBox()
-                role_cb.addItems(["Staff", "Admin"])
-                role_cb.setFixedHeight(38)
-                g.addWidget(role_cb, row, 1)
+    # Username (read-only when editing)
+        g.addWidget(FieldLabel("Username", required=True), 1, 0)
+        user_input = QLineEdit(username)
+        user_input.setPlaceholderText("Enter username")
+        user_input.setFixedHeight(38)
+        if edit_mode:
+            user_input.setEnabled(False)
+            user_input.setStyleSheet(f"background: {OFF_WHITE}; color: {MID_GRAY};")
+        g.addWidget(user_input, 1, 1)
+
+    # Password (optional when editing)
+        pw_label = "New Password" if edit_mode else "Password"
+        pw_hint  = "Leave blank to keep current" if edit_mode else "Enter password"
+        g.addWidget(FieldLabel(pw_label, required=not edit_mode), 2, 0)
+        pass_input = QLineEdit()
+        pass_input.setPlaceholderText(pw_hint)
+        pass_input.setEchoMode(QLineEdit.Password)
+        pass_input.setFixedHeight(38)
+        g.addWidget(pass_input, 2, 1)
+
+    # Role
+        g.addWidget(FieldLabel("Role", required=True), 3, 0)
+        role_cb = QComboBox()
+        role_cb.addItems(["Staff", "Admin"])
+        role_cb.setFixedHeight(38)
+        role_cb.setCurrentText(role if role in ["Staff", "Admin"] else "Staff")
+        g.addWidget(role_cb, 3, 1)
+
+    # Status (only shown when editing)
+        status_cb = None
+        if edit_mode:
+            g.addWidget(FieldLabel("Status", required=True), 4, 0)
+            status_cb = QComboBox()
+            status_cb.addItems(["Active", "Inactive"])
+            status_cb.setFixedHeight(38)
+            status_cb.setCurrentText(status if status in ["Active", "Inactive"] else "Active")
+            g.addWidget(status_cb, 4, 1)
 
         lay.addLayout(g)
 
@@ -401,47 +518,100 @@ class SettingsPage(BasePage):
         cancel.setFixedHeight(38)
         cancel.clicked.connect(dlg.reject)
 
-        save = QPushButton("Save User")
+        save_lbl = "Save Changes" if edit_mode else "Save User"
+        save = QPushButton(save_lbl)
         save.setStyleSheet(btn_primary())
         save.setFixedHeight(38)
-        save.clicked.connect(lambda: self._save_new_user(
-            dlg, name_input, user_input, pass_input, role_cb
-        ))
+
+        if edit_mode:
+            save.clicked.connect(lambda: self._save_edit_user(
+                dlg, username, name_input, pass_input, role_cb, status_cb
+            ))
+        else:
+            save.clicked.connect(lambda: self._save_new_user(
+                dlg, name_input, user_input, pass_input, role_cb
+            ))
+
         btn_row.addWidget(cancel)
         btn_row.addWidget(save)
         lay.addLayout(btn_row)
         dlg.exec_()
 
     def _save_new_user(self, dlg, name_input, user_input, pass_input, role_cb):
-        full_name = (name_input.text() if name_input else "").strip()
-        username = (user_input.text() if user_input else "").strip().lower()
-        password = (pass_input.text() if pass_input else "").strip()
-        role = role_cb.currentText() if role_cb else "Staff"
+        full_name = name_input.text().strip()
+        username  = user_input.text().strip().lower()
+        password  = pass_input.text().strip()
+        role      = role_cb.currentText()
 
         if not full_name or not username or not password:
-            InfoDialog("Input Required",
-                      "Please fill in all required fields.",
-                      success=False, parent=self).exec_()
+            InfoDialog("Input Required", "Please fill in all required fields.",
+                    success=False, parent=self).exec_()
             return
-
+        if len(password) < 6:
+            InfoDialog("Weak Password", "Password must be at least 6 characters.",
+                    success=False, parent=self).exec_()
+            return
         try:
             if get_account_by_username(username):
-                InfoDialog("Duplicate User",
-                          f"Username '{username}' already exists.",
-                          success=False, parent=self).exec_()
+                InfoDialog("Duplicate User", f"Username '{username}' already exists.",
+                        success=False, parent=self).exec_()
                 return
             add_account(username, full_name, password, role, status="Active")
         except Exception as e:
-            InfoDialog("Error",
-                      f"Failed to add user: {str(e)}",
-                      success=False, parent=self).exec_()
+            InfoDialog("Error", f"Failed to add user: {str(e)}",
+                    success=False, parent=self).exec_()
             return
 
         dlg.accept()
         self._refresh_users_table()
-        InfoDialog("User Added",
-                  "New user has been added successfully.",
-                  parent=self).exec_()
+        InfoDialog("User Added", "New user has been added successfully.",
+                parent=self).exec_()
+
+    def _save_edit_user(self, dlg, username, name_input, pass_input, role_cb, status_cb):
+        full_name  = name_input.text().strip()
+        new_pass   = pass_input.text().strip()
+        role       = role_cb.currentText()
+        status     = status_cb.currentText() if status_cb else "Active"
+
+        if not full_name:
+            InfoDialog("Input Required", "Full name cannot be empty.",
+                    success=False, parent=self).exec_()
+            return
+        try:
+            update_account(username, full_name, role, status)
+            if new_pass:
+                if len(new_pass) < 6:
+                    InfoDialog("Weak Password", "Password must be at least 6 characters.",
+                            success=False, parent=self).exec_()
+                    return
+                from backend.db_accounts import update_account_password
+                update_account_password(username, new_pass)
+        except Exception as e:
+            InfoDialog("Error", f"Failed to update user: {str(e)}",
+                    success=False, parent=self).exec_()
+            return
+
+        dlg.accept()
+        self._refresh_users_table()
+        InfoDialog("User Updated", "User account has been updated successfully.",
+                parent=self).exec_()
+
+    def _delete_user(self, username):
+        dlg = ConfirmDialog(
+            "Confirm Delete",
+            f"Are you sure you want to delete the account '{username}'?\n"
+            "This action cannot be undone.",
+            parent=self
+        )
+        if dlg.exec_():
+            try:
+                delete_account(username)
+                self._refresh_users_table()
+                InfoDialog("Deleted", f"Account '{username}' has been deleted.",
+                        parent=self).exec_()
+            except Exception as e:
+                InfoDialog("Error", f"Failed to delete account: {str(e)}",
+                        success=False, parent=self).exec_()
 
     # ── System Settings tab ───────────────────────────────────────────────────
     def _build_system_tab(self) -> QWidget:

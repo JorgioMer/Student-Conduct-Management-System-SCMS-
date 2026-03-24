@@ -110,3 +110,42 @@ def ensure_default_accounts():
         )
         conn.commit()
     conn.close()
+
+def update_account_password(username, new_password):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE Accounts
+        SET accPass = ?
+        WHERE accUserName = ?
+        """,
+        (new_password, username),
+    )
+    conn.commit()
+    conn.close()
+
+def update_account(username, full_name, role, status):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE Accounts
+        SET accFullName = ?, accRole = ?, accStatus = ?
+        WHERE accUserName = ?
+        """,
+        (full_name, role, status, username),
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_account(username):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM Accounts WHERE accUserName = ?",
+        (username,),
+    )
+    conn.commit()
+    conn.close()
