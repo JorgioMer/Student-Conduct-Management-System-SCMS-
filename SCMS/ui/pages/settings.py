@@ -156,10 +156,10 @@ class SettingsPage(BasePage):
         save_pw = QPushButton("Update Password")
         save_pw.setStyleSheet(btn_primary())
         save_pw.setFixedHeight(40)
-        save_pw.clicked.connect(lambda: InfoDialog(
-            "Password Updated",
-            "Your password has been updated successfully.",
-            parent=self).exec_())
+        save_pw = QPushButton("Update Password")
+        save_pw.setStyleSheet(btn_primary())
+        save_pw.setFixedHeight(40)
+        save_pw.clicked.connect(lambda: self._change_password(curr_pw, new_pw, conf_pw))
         btn_row.addWidget(save_pw)
         lay.addLayout(btn_row)
 
@@ -187,8 +187,8 @@ class SettingsPage(BasePage):
             if account_row:
                 uname_val      = account_row[0]
                 fullname_val   = account_row[1]
-                role_val       = account_row[2]
-                raw_login      = account_row[4]
+                role_val       = account_row[3]
+                raw_login      = account_row[5]
                 if raw_login and hasattr(raw_login, "strftime"):
                     login_val = raw_login.strftime("%B %d, %Y — %I:%M %p")
                 elif raw_login:

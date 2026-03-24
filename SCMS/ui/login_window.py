@@ -204,8 +204,9 @@ class LoadingScreen(QDialog):
         lay.addStretch()
 
     # ── Public API ─────────────────────────────────────────────────────────
-    def load_application(self, full_name: str, role: str):
-        """Kick off background loading and show the dialog."""
+    # In LoadingScreen.load_application:
+    def load_application(self, full_name: str, role: str, username: str):
+        self._username = username          # ← store it
         self._thread = AppLoaderThread(full_name, role, parent=self)
         self._thread.progress_update.connect(self._on_progress)
         self._thread.ready.connect(lambda: self._on_preload_done(full_name, role))
@@ -227,7 +228,7 @@ class LoadingScreen(QDialog):
 
         # Create MainWindow here — main thread only
         from ui.main_window import MainWindow
-        self.main_win = MainWindow(full_name=full_name, role=role)
+        self.main_win = MainWindow(full_name=full_name, role=role,username=self._username)
 
         self._on_progress(100, "Ready!")
 
@@ -618,8 +619,9 @@ class LoginWindow(QWidget):
 
     def _launch_dashboard(self, full_name: str, role: str):
         """Show loading screen; background thread does the heavy lifting."""
+        username = self.username_edit.text().strip().lower()
         loading = LoadingScreen(parent=self)
-        loading.load_application(full_name, role)
+        loading.load_application(full_name, role, username)
 
         if loading.exec_() == QDialog.Accepted:
             self.loading_screen = loading      # prevent GC
