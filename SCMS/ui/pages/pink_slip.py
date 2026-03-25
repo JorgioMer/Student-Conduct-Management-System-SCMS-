@@ -21,6 +21,7 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
+from ui.pages.trackers import _apply_table_selection_style
 
 import sys
 import os
@@ -543,6 +544,7 @@ class PinkSlipPage(BasePage):
                 self.pink_tracker_table.deleteLater()
                 break
         self.pink_tracker_table = build_record_table(headers, data)
+        _apply_table_selection_style(self.pink_tracker_table, PINK_SLIP)
         self.pink_tracker_table.setMinimumHeight(260)
         self.pink_tracker_layout.insertWidget(self._pink_table_index,
                                               self.pink_tracker_table)
@@ -661,6 +663,7 @@ class PinkSlipPage(BasePage):
                    "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
         sample = self._load_pink_tracker_data()
         self.pink_tracker_table = build_record_table(headers, sample)
+        _apply_table_selection_style(self.pink_tracker_table, PINK_SLIP)
         self.pink_tracker_table.setMinimumHeight(260)
         lay.addWidget(self.pink_tracker_table)
 
@@ -669,17 +672,51 @@ class PinkSlipPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
+ 
         view_btn = QPushButton("   View ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
+        view_btn.setCursor(Qt.PointingHandCursor)
+        view_btn.clicked.connect(self._view_pink_record)   # ← wired
+ 
         del_btn = QPushButton("   Delete ")
         del_btn.setStyleSheet(btn_danger())
         del_btn.setFixedHeight(38)
+ 
         action_row.addWidget(view_btn)
         action_row.addWidget(del_btn)
         lay.addLayout(action_row)
         lay.addStretch()
         return w
+ 
+    # ── NEW: View handler for Pink Slip Tracker ───────────────────────────────
+    def _view_pink_record(self):
+        """Open detail dialog for the selected row in the Pink Slip tracker."""
+        if self.pink_tracker_table is None:
+            return
+ 
+        selected = self.pink_tracker_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a student by clicking the Name or ID Number in the table.",
+                success=False, parent=self
+            ).exec_()
+            return
+ 
+        row = self.pink_tracker_table.currentRow()
+        headers = [
+            self.pink_tracker_table.horizontalHeaderItem(c).text()
+            for c in range(self.pink_tracker_table.columnCount())
+        ]
+        fields = []
+        for col, header in enumerate(headers):
+            item = self.pink_tracker_table.item(row, col)
+            fields.append((header, item.text() if item else "—"))
+ 
+        from ui.pages.trackers import RecordDetailDialog
+        dlg = RecordDetailDialog(fields, slip_type="pink", parent=self)
+        dlg.exec_()
 
     # =========================================================================
     # Summary tab

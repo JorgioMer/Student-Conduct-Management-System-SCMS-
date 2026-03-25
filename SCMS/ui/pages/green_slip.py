@@ -21,6 +21,7 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
+from ui.pages.trackers import _apply_table_selection_style
 
 import sys
 import os
@@ -809,6 +810,7 @@ class GreenSlipPage(BasePage):
                 self.green_tracker_table.deleteLater()
                 break
         self.green_tracker_table = build_record_table(headers, data)
+        _apply_table_selection_style(self.green_tracker_table, GREEN_SLIP)
         self.green_tracker_table.setMinimumHeight(280)
         self.green_tracker_layout.insertWidget(self._green_table_index,
                                                self.green_tracker_table)
@@ -944,6 +946,7 @@ class GreenSlipPage(BasePage):
                    "Expiry / Date", "Status"]
         sample = self._load_green_tracker_data()
         self.green_tracker_table = build_record_table(headers, sample)
+        _apply_table_selection_style(self.green_tracker_table, GREEN_SLIP)
         self.green_tracker_table.setMinimumHeight(280)
         lay.addWidget(self.green_tracker_table)
 
@@ -952,17 +955,51 @@ class GreenSlipPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
+ 
         view_btn = QPushButton("   View Details ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
+        view_btn.setCursor(Qt.PointingHandCursor)
+        view_btn.clicked.connect(self._view_green_record)   # ← wired
+ 
         delete_btn = QPushButton("   Delete ")
         delete_btn.setStyleSheet(btn_danger())
         delete_btn.setFixedHeight(38)
+ 
         action_row.addWidget(view_btn)
         action_row.addWidget(delete_btn)
         lay.addLayout(action_row)
         lay.addStretch()
         return w
+ 
+    # ── NEW: View handler for Green Slip Tracker ──────────────────────────────
+    def _view_green_record(self):
+        """Open detail dialog for the selected row in the Green Slip tracker."""
+        if self.green_tracker_table is None:
+            return
+ 
+        selected = self.green_tracker_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a student by clicking the Name or ID Number in the table.",
+                success=False, parent=self
+            ).exec_()
+            return
+ 
+        row = self.green_tracker_table.currentRow()
+        headers = [
+            self.green_tracker_table.horizontalHeaderItem(c).text()
+            for c in range(self.green_tracker_table.columnCount())
+        ]
+        fields = []
+        for col, header in enumerate(headers):
+            item = self.green_tracker_table.item(row, col)
+            fields.append((header, item.text() if item else "—"))
+ 
+        from ui.pages.trackers import RecordDetailDialog
+        dlg = RecordDetailDialog(fields, slip_type="green", parent=self)
+        dlg.exec_()
 
     # =========================================================================
     # Summary tab

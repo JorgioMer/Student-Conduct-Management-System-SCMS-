@@ -4,7 +4,8 @@
 from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
     QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QTabWidget, QWidget, QFrame, QGridLayout
+    QHeaderView, QTabWidget, QWidget, QFrame, QGridLayout,
+    QDialog, QScrollArea, QSizePolicy
 )
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QFont, QColor
@@ -22,6 +23,241 @@ from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
 
 
+def _apply_table_selection_style(table: QTableWidget, accent_color: str):
+    """Apply row highlight + hover effect consistent with system theme."""
+    table.setStyleSheet(table.styleSheet() + f"""
+        QTableWidget::item:selected {{
+            background: {accent_color};
+            color: {WHITE};
+        }}
+        QTableWidget::item:selected:active {{
+            background: {accent_color};
+            color: {WHITE};
+        }}
+        QTableWidget::item:hover {{
+            background: {accent_color}44;
+            color: {TEXT_DARK};
+        }}
+    """)
+    table.setSelectionBehavior(QTableWidget.SelectRows)
+    table.setSelectionMode(QTableWidget.SingleSelection)
+
+
+# =============================================================================
+#  Shared Record Detail Dialog
+# =============================================================================
+class RecordDetailDialog(QDialog):
+    """
+    Generic detail dialog for any slip record.
+    Pass a list of (label, value) pairs and a slip_type colour key.
+    Optionally pass slip_summary={slip_key: count} to show a summary strip.
+    """
+    SLIP_META = {
+        "green":  {"colour": GREEN_SLIP, "bg": "#E8F5E9", "emoji": "🟢", "title": "Green Slip Record"},
+        "pink":   {"colour": PINK_SLIP,  "bg": "#FCE4EC", "emoji": "🔴", "title": "Pink Slip Record"},
+        "blue":   {"colour": BLUE_SLIP,  "bg": "#E3F2FD", "emoji": "🔵", "title": "Blue Slip Record"},
+        "mixed":  {"colour": NAVY,       "bg": "#F0F4FF", "emoji": "📋", "title": "Slip Record Details"},
+    }
+
+    def __init__(self, fields: list, slip_type: str = "mixed",
+                 slip_summary: dict = None, parent=None):
+        super().__init__(parent)
+        meta = self.SLIP_META.get(slip_type, self.SLIP_META["mixed"])
+        self.setWindowTitle(meta["title"])
+        self.setMinimumWidth(520)
+        self.setMaximumWidth(640)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setStyleSheet(f"QDialog {{ background: {WHITE}; }}")
+        self._slip_summary = slip_summary
+        self._build(fields, meta)
+
+    def _build(self, fields, meta):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # ── Coloured header banner ────────────────────────────────────────────
+        header = QFrame()
+        header.setFixedHeight(72)
+        header.setStyleSheet(f"""
+            QFrame {{
+                background: {meta['colour']};
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+            }}
+        """)
+        h_lay = QHBoxLayout(header)
+        h_lay.setContentsMargins(20, 0, 20, 0)
+
+        emoji_lbl = QLabel(meta["emoji"])
+        emoji_lbl.setFont(QFont("Segoe UI Emoji", 22))
+        emoji_lbl.setStyleSheet("color: white; background: transparent; border: none;")
+
+        title_lbl = QLabel(meta["title"])
+        title_lbl.setFont(QFont("Segoe UI", 15, QFont.Bold))
+        title_lbl.setStyleSheet("color: white; background: transparent; border: none;")
+
+        h_lay.addWidget(emoji_lbl)
+        h_lay.addSpacing(10)
+        h_lay.addWidget(title_lbl)
+        h_lay.addStretch()
+        outer.addWidget(header)
+
+        # ── Slip Summary strip ────────────────────────────────────────────────
+        if self._slip_summary:
+            summary_frame = QFrame()
+            summary_frame.setStyleSheet(f"""
+                QFrame {{
+                    background: #F8F9FA;
+                    border-bottom: 1px solid {LIGHT_GRAY};
+                }}
+            """)
+            s_lay = QHBoxLayout(summary_frame)
+            s_lay.setContentsMargins(24, 10, 24, 10)
+            s_lay.setSpacing(24)
+
+            summary_title = QLabel("Slip Summary:")
+            summary_title.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            summary_title.setStyleSheet(
+                f"color: {NAVY}; background: transparent; border: none;")
+            s_lay.addWidget(summary_title)
+
+            INDICATOR_MAP = {
+                "green": (GREEN_SLIP, "Green Slip"),
+                "pink":  (PINK_SLIP,  "Pink Slip"),
+                "blue":  (BLUE_SLIP,  "Blue Slip"),
+            }
+            for slip_key, count in self._slip_summary.items():
+                color, label_text = INDICATOR_MAP.get(
+                    slip_key, (NAVY, slip_key.title() + " Slip"))
+                item_lbl = QLabel()
+                item_lbl.setFont(QFont("Segoe UI", 11))
+                item_lbl.setTextFormat(Qt.RichText)
+                item_lbl.setText(
+                    f"<span style='color:{color}; font-size:15px;'>●</span> "
+                    f"<span style='color:{TEXT_DARK};'>{label_text}:</span> "
+                    f"<b style='color:{NAVY};'>{count}</b>"
+                )
+                item_lbl.setStyleSheet("background: transparent; border: none;")
+                s_lay.addWidget(item_lbl)
+
+            s_lay.addStretch()
+            outer.addWidget(summary_frame)
+
+        # ── Scrollable body ───────────────────────────────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+        body = QWidget()
+        body.setStyleSheet(f"background: {WHITE};")
+        grid = QGridLayout(body)
+        grid.setContentsMargins(24, 20, 24, 16)
+        grid.setSpacing(10)
+        grid.setColumnStretch(1, 1)
+
+        for row_idx, (label, value) in enumerate(fields):
+            lbl = QLabel(label)
+            lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            lbl.setStyleSheet(f"""
+                color: {NAVY};
+                background: transparent;
+                border: none;
+                padding: 2px 0;
+            """)
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl.setFixedWidth(160)
+
+            val = QLabel(str(value) if value else "—")
+            val.setFont(QFont("Segoe UI", 11))
+            val.setWordWrap(True)
+            val.setStyleSheet(f"""
+                color: {TEXT_DARK};
+                background: {OFF_WHITE};
+                border: 1px solid {LIGHT_GRAY};
+                border-radius: 6px;
+                padding: 5px 10px;
+            """)
+            val.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+            grid.addWidget(lbl, row_idx, 0, alignment=Qt.AlignRight | Qt.AlignTop)
+            grid.addWidget(val, row_idx, 1)
+
+        scroll.setWidget(body)
+        outer.addWidget(scroll)
+
+        # ── Footer close button ───────────────────────────────────────────────
+        footer = QFrame()
+        footer.setStyleSheet(f"""
+            QFrame {{
+                background: {OFF_WHITE};
+                border-top: 1px solid {LIGHT_GRAY};
+                border-bottom-left-radius: 8px;
+                border-bottom-right-radius: 8px;
+            }}
+        """)
+        f_lay = QHBoxLayout(footer)
+        f_lay.setContentsMargins(20, 10, 20, 10)
+        f_lay.addStretch()
+
+        close_btn = QPushButton("  Close ")
+        close_btn.setFixedHeight(36)
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {NAVY};
+                color: {GOLD};
+                border: none;
+                border-radius: 7px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 0 20px;
+            }}
+            QPushButton:hover {{
+                background: {GOLD};
+                color: {NAVY};
+            }}
+        """)
+        close_btn.clicked.connect(self.accept)
+        f_lay.addWidget(close_btn)
+        outer.addWidget(footer)
+
+
+# =============================================================================
+#  Helper: show warning or open dialog for a table + slip_type
+# =============================================================================
+def _view_selected_row(table: QTableWidget, slip_type: str, parent=None,
+                       slip_summary: dict = None):
+    """
+    Read the currently selected row from *table*, build a field list,
+    and open RecordDetailDialog.  Shows InfoDialog if nothing is selected.
+    """
+    selected = table.selectedItems()
+    if not selected:
+        InfoDialog(
+            "No Record Selected",
+            "Please select a student by clicking the Name or ID Number in the table.",
+            success=False, parent=parent
+        ).exec_()
+        return
+
+    row = table.currentRow()
+    headers = [table.horizontalHeaderItem(c).text()
+               for c in range(table.columnCount())]
+    fields = []
+    for col, header in enumerate(headers):
+        item = table.item(row, col)
+        fields.append((header, item.text() if item else "—"))
+
+    dlg = RecordDetailDialog(fields, slip_type=slip_type,
+                             slip_summary=slip_summary, parent=parent)
+    dlg.exec_()
+
+
+# =============================================================================
+#  TrackersPage
+# =============================================================================
 class TrackersPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -132,7 +368,6 @@ class TrackersPage(BasePage):
         filter_outer.setContentsMargins(12, 8, 12, 8)
         filter_outer.setSpacing(10)
 
-        # ── Search box ──
         search = QLineEdit()
         search.setPlaceholderText("   Search by student name or number...")
         search.setFixedHeight(38)
@@ -152,14 +387,12 @@ class TrackersPage(BasePage):
         """)
         filter_outer.addWidget(search, 2)
 
-        # ── Separator ──
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
         sep.setFixedWidth(1)
         sep.setStyleSheet(f"background: {LIGHT_GRAY}; border: none;")
         filter_outer.addWidget(sep)
 
-        # ── Helper: ComboBox paired with a small square NAVY indicator button ──
         def make_filter_pair(items, width=150):
             pair = QFrame()
             pair.setStyleSheet("QFrame { border: none; background: transparent; }")
@@ -188,13 +421,8 @@ class TrackersPage(BasePage):
                     border-color: {NAVY};
                     border-right: none;
                 }}
-                QComboBox::drop-down {{
-                    border: none;
-                    width: 0px;
-                }}
-                QComboBox::down-arrow {{
-                    width: 0; height: 0;
-                }}
+                QComboBox::drop-down {{ border: none; width: 0px; }}
+                QComboBox::down-arrow {{ width: 0; height: 0; }}
                 QComboBox QAbstractItemView {{
                     border: 1.5px solid {NAVY};
                     border-radius: 6px;
@@ -206,7 +434,6 @@ class TrackersPage(BasePage):
                 }}
             """)
 
-            # Small square indicator button — acts as the dropdown arrow
             ind_btn = QPushButton("■")
             ind_btn.setFixedSize(30, 38)
             ind_btn.setCursor(Qt.PointingHandCursor)
@@ -229,10 +456,6 @@ class TrackersPage(BasePage):
                     color: {NAVY};
                     border-color: {GOLD};
                 }}
-                QPushButton:pressed {{
-                    background: {GOLD};
-                    color: {NAVY};
-                }}
             """)
             ind_btn.clicked.connect(combo.showPopup)
 
@@ -240,25 +463,18 @@ class TrackersPage(BasePage):
             p_lay.addWidget(ind_btn)
             return pair, combo
 
-        slip_pair, slip_filter = make_filter_pair(
-            ["All Slip Types", "Green Slip", "Pink Slip", "Blue Slip"],
-            width=145
-        )
+        slip_pair, slip_filter   = make_filter_pair(
+            ["All Slip Types", "Green Slip", "Pink Slip", "Blue Slip"], width=145)
         month_pair, month_filter = make_filter_pair(
-            ["This Month", "All Months", "Custom Range"],
-            width=185
-        )
-
-        year_pair, year_filter = make_filter_pair(
-            ["All Years", "1st", "2nd", "3rd", "4th", "5th"],
-            width=110
-        )
+            ["This Month", "All Months", "Custom Range"], width=185)
+        year_pair, year_filter   = make_filter_pair(
+            ["All Years", "1st", "2nd", "3rd", "4th", "5th"], width=110)
 
         filter_outer.addWidget(slip_pair)
         filter_outer.addWidget(month_pair)
         filter_outer.addWidget(year_pair)
 
-        # ── Custom Range Row (hidden by default) ──
+        # ── Custom Range Row ──────────────────────────────────────────────────
         custom_range_frame = QFrame()
         custom_range_frame.setStyleSheet(f"""
             QFrame {{
@@ -276,14 +492,7 @@ class TrackersPage(BasePage):
         from_lbl.setStyleSheet(f"color: {NAVY}; font-weight: bold; border: none; background: transparent;")
         custom_lay.addWidget(from_lbl)
 
-        from_month = QComboBox()
-        from_month.addItems([
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-        ])
-        from_month.setFixedHeight(34)
-        from_month.setFixedWidth(130)
-        from_month.setStyleSheet(f"""
+        month_combo_style = f"""
             QComboBox {{
                 border: 1.5px solid {LIGHT_GRAY};
                 border-radius: 6px;
@@ -300,15 +509,22 @@ class TrackersPage(BasePage):
                 selection-background-color: {NAVY};
                 selection-color: {GOLD};
             }}
-        """)
+        """
+
+        from_month = QComboBox()
+        from_month.addItems([
+            "January","February","March","April","May","June",
+            "July","August","September","October","November","December"
+        ])
+        from_month.setFixedHeight(34); from_month.setFixedWidth(130)
+        from_month.setStyleSheet(month_combo_style)
         custom_lay.addWidget(from_month)
 
         from_year = QComboBox()
-        from_year.addItems(["2022", "2023", "2024", "2025"])
+        from_year.addItems(["2022","2023","2024","2025"])
         from_year.setCurrentText("2024")
-        from_year.setFixedHeight(34)
-        from_year.setFixedWidth(80)
-        from_year.setStyleSheet(from_month.styleSheet())
+        from_year.setFixedHeight(34); from_year.setFixedWidth(80)
+        from_year.setStyleSheet(month_combo_style)
         custom_lay.addWidget(from_year)
 
         to_lbl = QLabel("To:")
@@ -317,21 +533,19 @@ class TrackersPage(BasePage):
 
         to_month = QComboBox()
         to_month.addItems([
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
+            "January","February","March","April","May","June",
+            "July","August","September","October","November","December"
         ])
-        to_month.setCurrentIndex(10)  # November default
-        to_month.setFixedHeight(34)
-        to_month.setFixedWidth(130)
-        to_month.setStyleSheet(from_month.styleSheet())
+        to_month.setCurrentIndex(10)
+        to_month.setFixedHeight(34); to_month.setFixedWidth(130)
+        to_month.setStyleSheet(month_combo_style)
         custom_lay.addWidget(to_month)
 
         to_year = QComboBox()
-        to_year.addItems(["2022", "2023", "2024", "2025"])
+        to_year.addItems(["2022","2023","2024","2025"])
         to_year.setCurrentText("2024")
-        to_year.setFixedHeight(34)
-        to_year.setFixedWidth(80)
-        to_year.setStyleSheet(from_month.styleSheet())
+        to_year.setFixedHeight(34); to_year.setFixedWidth(80)
+        to_year.setStyleSheet(month_combo_style)
         custom_lay.addWidget(to_year)
 
         custom_lay.addStretch()
@@ -341,54 +555,36 @@ class TrackersPage(BasePage):
         apply_range_btn.setCursor(Qt.PointingHandCursor)
         apply_range_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {NAVY};
-                color: {GOLD};
-                border: none;
-                border-radius: 6px;
-                font-size: 12px;
-                font-weight: bold;
-                padding: 0 14px;
+                background: {NAVY}; color: {GOLD};
+                border: none; border-radius: 6px;
+                font-size: 12px; font-weight: bold; padding: 0 14px;
             }}
-            QPushButton:hover {{
-                background: {GOLD};
-                color: {NAVY};
-            }}
+            QPushButton:hover {{ background: {GOLD}; color: {NAVY}; }}
         """)
         custom_lay.addWidget(apply_range_btn)
 
-        # ── Show/hide custom range when "Custom Range" is selected ──
         def on_month_filter_changed(index):
-            is_custom = month_filter.currentText() == "Custom Range"
-            custom_range_frame.setVisible(is_custom)
-
+            custom_range_frame.setVisible(month_filter.currentText() == "Custom Range")
         month_filter.currentIndexChanged.connect(on_month_filter_changed)
 
         lay.addWidget(filter_frame)
-        lay.addWidget(custom_range_frame)   # sits just below the filter bar
+        lay.addWidget(custom_range_frame)
 
-        # ── Refresh / Apply button ──
+        # ── Apply Filter button ───────────────────────────────────────────────
         filter_btn = QPushButton(" Apply Filter")
         filter_btn.setFixedHeight(38)
         filter_btn.setFixedWidth(130)
         filter_btn.setCursor(Qt.PointingHandCursor)
         filter_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {NAVY};
-                color: {GOLD};
-                border: none;
-                border-radius: 8px;
-                font-size: 12px;
-                font-weight: bold;
-                padding: 0 14px;
-                letter-spacing: 0.3px;
+                background: {NAVY}; color: {GOLD};
+                border: none; border-radius: 8px;
+                font-size: 12px; font-weight: bold;
+                padding: 0 14px; letter-spacing: 0.3px;
             }}
-            QPushButton:hover {{
-                background: {GOLD};
-                color: {NAVY};
-            }}
+            QPushButton:hover {{ background: {GOLD}; color: {NAVY}; }}
             QPushButton:pressed {{
-                background: {GOLD};
-                color: {NAVY};
+                background: {GOLD}; color: {NAVY};
                 border: 1.5px solid {NAVY};
             }}
         """)
@@ -399,22 +595,91 @@ class TrackersPage(BasePage):
                    "Slip Type", "Date Filed", "Details", "Status"]
         sample = self._build_combined_sample()
         self._combined_table = build_record_table(headers, sample)
+        _apply_table_selection_style(self._combined_table, NAVY)
         self._apply_combined_colors(self._combined_table)
         self._combined_table.setMinimumHeight(320)
         lay.addWidget(self._combined_table)
         self._combined_layout = lay
         self._combined_table_index = 2
 
+        # ── Action Row — View button now wired ────────────────────────────────
         action_row = QHBoxLayout()
         action_row.addStretch()
-        for label, style in [("   View", btn_outline()), ("   Export", btn_gold())]:
-            b = QPushButton(label)
-            b.setStyleSheet(style)
-            b.setFixedHeight(38)
-            action_row.addWidget(b)
+
+        view_btn = QPushButton("   View")
+        view_btn.setStyleSheet(btn_outline())
+        view_btn.setFixedHeight(38)
+        view_btn.setCursor(Qt.PointingHandCursor)
+        view_btn.clicked.connect(self._view_combined_record)
+
+        export_btn = QPushButton("   Export")
+        export_btn.setStyleSheet(btn_gold())
+        export_btn.setFixedHeight(38)
+        export_btn.setCursor(Qt.PointingHandCursor)
+
+        action_row.addWidget(view_btn)
+        action_row.addWidget(export_btn)
         lay.addLayout(action_row)
         lay.addStretch()
         return w
+
+    # ── View handler: All Records tab ─────────────────────────────────────────
+    def _view_combined_record(self):
+        """Determine slip type from the Slip Type column, build summary, open detail dialog."""
+        if self._combined_table is None:
+            return
+
+        selected = self._combined_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a student by clicking the Name or ID Number in the table.",
+                success=False, parent=self
+            ).exec_()
+            return
+
+        row = self._combined_table.currentRow()
+        slip_cell = self._combined_table.item(row, 5)
+        slip_text = slip_cell.text() if slip_cell else ""
+
+        if "Green" in slip_text:
+            slip_type = "green"
+        elif "Pink" in slip_text:
+            slip_type = "pink"
+        elif "Blue" in slip_text:
+            slip_type = "blue"
+        else:
+            slip_type = "mixed"
+
+        stud_num_cell = self._combined_table.item(row, 1)
+        stud_num = stud_num_cell.text() if stud_num_cell else ""
+        slip_summary = self._get_student_slip_summary(stud_num)
+
+        _view_selected_row(self._combined_table, slip_type, parent=self,
+                           slip_summary=slip_summary)
+
+    def _get_student_slip_summary(self, stud_num: str) -> dict:
+        """Return {slip_key: count} for a given student number."""
+        from backend.db_blue_slip import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        summary = {}
+        try:
+            green = [r for r in (get_green_slips(None) or [])
+                     if len(r) > 4 and str(r[4]).strip() == stud_num.strip()]
+            if green:
+                summary["green"] = len(green)
+            pink = [r for r in (get_pink_slips(None) or [])
+                    if len(r) > 4 and str(r[4]).strip() == stud_num.strip()]
+            if pink:
+                summary["pink"] = len(pink)
+            blue = [r for r in (get_blue_slips(None) or [])
+                    if len(r) > 4 and str(r[4]).strip() == stud_num.strip()]
+            if blue:
+                summary["blue"] = len(blue)
+        except Exception:
+            pass
+        return summary if summary else None
 
     def _build_combined_sample(self):
         from backend.db_blue_slip import get_blue_slips
@@ -462,7 +727,6 @@ class TrackersPage(BasePage):
         if not sample:
             sample = [("1", "No records", "Add records to see them here",
                        "-", "-", "-", "-", "-", "-")]
-
         return sample
 
     def _apply_combined_colors(self, table):
@@ -515,6 +779,7 @@ class TrackersPage(BasePage):
                     self._combined_table.deleteLater()
                     break
             self._combined_table = build_record_table(headers, self._build_combined_sample())
+            _apply_table_selection_style(self._combined_table, NAVY)
             self._apply_combined_colors(self._combined_table)
             self._combined_table.setMinimumHeight(320)
             self._combined_layout.insertWidget(self._combined_table_index, self._combined_table)
@@ -606,36 +871,26 @@ class TrackersPage(BasePage):
         lay.addStretch()
         return w
 
-    # ─────────────────────────────────────────────────────────────────────────
     def _clear_profile_layout(self):
-        """Remove all items from profile_layout after the title/divider (index 0 & 1),
-        but NEVER delete self.profile_empty — just detach it from the layout."""
         while self.profile_layout.count() > 2:
             item = self.profile_layout.takeAt(2)
-
             widget = item.widget()
             if widget is not None:
-                # Protect the placeholder — hide & detach instead of deleting
                 if widget is self.profile_empty:
                     widget.setParent(None)
                 else:
                     widget.deleteLater()
                 continue
-
             nested = item.layout()
             if nested is not None:
-                # Recursively clear the nested layout's widgets
                 while nested.count():
                     child = nested.takeAt(0)
                     if child.widget():
                         child.widget().deleteLater()
 
     def _clear_history_layout(self):
-        """Remove all items from history_table_container,
-        but NEVER delete self.slip_history_empty — just detach it."""
         while self.history_table_container.count() > 0:
             item = self.history_table_container.takeAt(0)
-
             widget = item.widget()
             if widget is not None:
                 if widget is self.slip_history_empty:
@@ -643,9 +898,7 @@ class TrackersPage(BasePage):
                 else:
                     widget.deleteLater()
 
-    # ─────────────────────────────────────────────────────────────────────────
     def _search_student(self):
-        """Search for a student and display their profile and slip history."""
         from backend.db_students import get_student
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
@@ -663,10 +916,8 @@ class TrackersPage(BasePage):
                        success=False, parent=self).exec_()
             return
 
-        # Clear previous profile (protects self.profile_empty)
         self._clear_profile_layout()
 
-        # Display student profile
         stud_num    = student_info[0] if len(student_info) > 0 else "N/A"
         stud_name   = student_info[1] if len(student_info) > 1 else "N/A"
         stud_course = student_info[2] if len(student_info) > 2 else "N/A"
@@ -694,7 +945,6 @@ class TrackersPage(BasePage):
 
         self.profile_layout.addLayout(profile_grid)
 
-        # Build slip history
         history_records = []
         try:
             for record in get_blue_slips(stud_num) or []:
@@ -725,7 +975,6 @@ class TrackersPage(BasePage):
         except:
             pass
 
-        # Clear previous history (protects self.slip_history_empty)
         self._clear_history_layout()
 
         if not history_records:
@@ -740,14 +989,9 @@ class TrackersPage(BasePage):
             self.history_table_container.addWidget(history_table)
 
     def _clear_student_search(self):
-        """Clear the student search and reset display."""
         self.stud_search_edit.clear()
-
-        # Clear profile content, then restore placeholder
         self._clear_profile_layout()
         self.profile_layout.addWidget(self.profile_empty)
-
-        # Clear history content, then restore placeholder
         self._clear_history_layout()
         self.history_table_container.addWidget(self.slip_history_empty)
 
@@ -802,26 +1046,21 @@ class TrackersPage(BasePage):
         lay.addLayout(tiles_row)
 
         from ui.chart_widgets import CombinedAllSlipsChart
-
         self._monthly_chart = CombinedAllSlipsChart(w)
         self._monthly_chart.setMinimumHeight(380)
         lay.addWidget(self._monthly_chart)
 
         self._refresh_monthly_summary()
-
         lay.addStretch()
         return w
 
     def _refresh_monthly_chart(self, chart_widget):
-        """Refresh the monthly summary chart with current database data."""
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip import get_pink_slips
-
         blue_slips  = get_blue_slips(None)  or []
         green_slips = get_green_slips(None) or []
         pink_slips  = get_pink_slips(None)  or []
-
         chart_widget.update_data(len(green_slips), len(pink_slips), len(blue_slips))
 
     def _refresh_monthly_summary(self):
@@ -843,7 +1082,6 @@ class TrackersPage(BasePage):
             self._monthly_chart.update_data(len(green_slips), len(pink_slips), len(blue_slips))
 
     def _on_slips_changed(self):
-        """Refresh combined and monthly summaries when slips change."""
         try:
             self._refresh_combined_records()
             self._refresh_monthly_summary()
@@ -851,5 +1089,4 @@ class TrackersPage(BasePage):
             pass
 
 
-# Helper import
 from ui.components import Divider

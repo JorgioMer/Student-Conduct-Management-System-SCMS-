@@ -21,6 +21,7 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
+from ui.pages.trackers import _apply_table_selection_style
 
 import sys
 import os
@@ -203,7 +204,7 @@ class BlueSlipPage(BasePage):
         self._all_blue_records = []
         self._blue_table_index = 3
         self.blue_stat_tiles = {}
-        self.blue_chart = None          # always initialise to None
+        self.blue_chart = None
         self._summary_built = False
         self._tabs = None
         data_events.slips_changed.connect(self._on_slips_changed)
@@ -494,7 +495,6 @@ class BlueSlipPage(BasePage):
         except Exception:
             all_records = []
 
-        # Filter records matching this student
         matches = []
         for record in all_records:
             rec_name = str(record[0]).strip().lower() if len(record) > 0 else ""
@@ -515,7 +515,6 @@ class BlueSlipPage(BasePage):
             ).exec_()
             return
 
-        # Build history summary
         lines = [f"Student: {stud_name or stud_num}\n"]
         lines.append(f"Total violations on record: {len(matches)}\n")
         lines.append("Prior violations:")
@@ -673,6 +672,7 @@ class BlueSlipPage(BasePage):
                 self.blue_tracker_table.deleteLater()
                 break
         self.blue_tracker_table = build_record_table(headers, data)
+        _apply_table_selection_style(self.blue_tracker_table, BLUE_SLIP)
         self.blue_tracker_table.setMinimumHeight(260)
         for r in range(self.blue_tracker_table.rowCount()):
             cell = self.blue_tracker_table.item(r, 7)
@@ -818,6 +818,7 @@ class BlueSlipPage(BasePage):
                    "Severity", "Date", "Action Taken", "Status"]
         sample = self._load_blue_tracker_data()
         self.blue_tracker_table = build_record_table(headers, sample)
+        _apply_table_selection_style(self.blue_tracker_table, BLUE_SLIP)
         for r in range(self.blue_tracker_table.rowCount()):
             cell = self.blue_tracker_table.item(r, 7)
             if cell and cell.text() in self.STATUS_COLORS:
@@ -830,23 +831,59 @@ class BlueSlipPage(BasePage):
         self.blue_tracker_layout = lay
         self._blue_table_index = 3
 
+        # ── Action Row ────────────────────────────────────────────────────────
         action_row = QHBoxLayout()
         action_row.addStretch()
-        view_btn   = QPushButton("  View Details ")
+
+        view_btn = QPushButton("  View Details ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
+        view_btn.setCursor(Qt.PointingHandCursor)
+        view_btn.clicked.connect(self._view_blue_record)
+
         update_btn = QPushButton("  Update Status")
         update_btn.setStyleSheet(btn_blue())
         update_btn.setFixedHeight(38)
-        del_btn    = QPushButton("   Delete ")
+
+        del_btn = QPushButton("   Delete ")
         del_btn.setStyleSheet(btn_danger())
         del_btn.setFixedHeight(38)
+
         action_row.addWidget(view_btn)
         action_row.addWidget(update_btn)
         action_row.addWidget(del_btn)
         lay.addLayout(action_row)
         lay.addStretch()
         return w
+
+    # ── View handler for Blue Slip Tracker ───────────────────────────────────
+    def _view_blue_record(self):
+        """Open detail dialog for the selected row in the Blue Slip tracker."""
+        if self.blue_tracker_table is None:
+            return
+
+        selected = self.blue_tracker_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a student by clicking the Name or ID Number in the table.",
+                success=False, parent=self
+            ).exec_()
+            return
+
+        row = self.blue_tracker_table.currentRow()
+        headers = [
+            self.blue_tracker_table.horizontalHeaderItem(c).text()
+            for c in range(self.blue_tracker_table.columnCount())
+        ]
+        fields = []
+        for col, header in enumerate(headers):
+            item = self.blue_tracker_table.item(row, col)
+            fields.append((header, item.text() if item else "—"))
+
+        from ui.pages.trackers import RecordDetailDialog
+        dlg = RecordDetailDialog(fields, slip_type="blue", parent=self)
+        dlg.exec_()
 
     # =========================================================================
     # Violation Progress tab
@@ -999,7 +1036,6 @@ class BlueSlipPage(BasePage):
         return w
 
     def _on_tab_changed(self, idx: int):
-        # Summary tab is index 3
         if idx == 3 and not self._summary_built:
             self._summary_built = True
             summary = self._build_summary_tab()
@@ -1038,13 +1074,11 @@ class BlueSlipPage(BasePage):
         self.blue_chart.setMinimumHeight(380)
         lay.addWidget(self.blue_chart)
 
-        # Populate with real data immediately
         self._refresh_blue_summary()
         lay.addStretch()
         return w
 
     def _init_blue_stat_tiles(self, tiles_row: QHBoxLayout):
-        """Create the four stat tiles with zero values — _refresh fills them."""
         for label, colour in [
             ("Total Violations (Sem)", BLUE_SLIP),
             ("Pending / Open",         "#F57F17"),
@@ -1056,14 +1090,9 @@ class BlueSlipPage(BasePage):
             self.blue_stat_tiles[label] = tile
 
     def _refresh_blue_summary(self):
-        """
-        Recompute all stats from DB and push them to tiles + chart.
-        Safe to call even before summary tab is built (guards handle it).
-        """
         from backend.db_blue_slip import get_blue_slips
         blue_records = get_blue_slips(None) or []
 
-        # ── Compute all metrics ───────────────────────────────────────────────
         total           = len(blue_records)
         pending_count   = sum(1 for r in blue_records
                               if len(r) > 10 and "Open / Pending" in str(r[10]))
@@ -1078,27 +1107,24 @@ class BlueSlipPage(BasePage):
                 vtype = str(r[5])
                 violation_types[vtype] = violation_types.get(vtype, 0) + 1
 
-        # ── Update stat tiles (only if summary tab has been built) ────────────
         if self.blue_stat_tiles:
             self.blue_stat_tiles["Total Violations (Sem)"].set_value(total)
             self.blue_stat_tiles["Pending / Open"].set_value(pending_count)
             self.blue_stat_tiles["Escalated Cases"].set_value(escalated_count)
             self.blue_stat_tiles["Resolved"].set_value(resolved_count)
 
-        # ── Update chart (only if summary tab has been built) ─────────────────
         if self.blue_chart is not None:
             self.blue_chart.update_data(
                 violation_types,
                 pending_count,
                 escalated_count,
                 resolved_count,
-                )
+            )
 
     # =========================================================================
     # Event handlers
     # =========================================================================
     def _on_slips_changed(self):
-        """Fired whenever any slip is saved — refresh tracker + summary."""
         try:
             self._refresh_blue_tracker()
         except Exception:
