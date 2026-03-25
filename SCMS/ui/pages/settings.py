@@ -42,7 +42,6 @@ class SettingsPage(BasePage):
         self.settings_combos = {}
         self.settings_checkboxes = {}
         self.users_table = None
-        # current_user: {"username": ..., "full_name": ..., "role": ..., "last_login": ...}
         self.current_user = current_user or {}
         self._ensure_accounts_ready()
         self._build()
@@ -178,11 +177,9 @@ class SettingsPage(BasePage):
         i_lay.setSpacing(8)
 
         from backend.db_accounts import get_account_by_username
-# Pull live data for the logged-in user
         uname = self.current_user.get("username", "admin")
         try:
             account_row = get_account_by_username(uname)
-            # get_account_by_username returns (username, full_name, role, status, last_login)
             if account_row:
                 uname_val      = account_row[0]
                 fullname_val   = account_row[1]
@@ -252,7 +249,7 @@ class SettingsPage(BasePage):
         uname = self.current_user.get("username", "admin")
         try:
             account_row = get_account_by_username(uname)
-            if account_row and str(account_row[2]) != curr:   # [2] = accPass
+            if account_row and str(account_row[2]) != curr:
                 InfoDialog("Incorrect Password", "Current password is incorrect.",
                        success=False, parent=self).exec_()
                 return
@@ -269,6 +266,7 @@ class SettingsPage(BasePage):
         except Exception as e:
             InfoDialog("Error", f"Failed to update password: {str(e)}",
                    success=False, parent=self).exec_()
+
     # ── Users tab ─────────────────────────────────────────────────────────────
     def _build_users_tab(self) -> QWidget:
         w = QWidget()
@@ -298,7 +296,6 @@ class SettingsPage(BasePage):
 
         lay.addLayout(top_row)
 
-    # Show/hide Edit & Delete columns based on role
         col_count = 7 if is_admin else 5
         headers = ["Username", "Full Name", "Role", "Status", "Last Login"]
         if is_admin:
@@ -356,12 +353,10 @@ class SettingsPage(BasePage):
     def _refresh_users_table(self):
         if not self.users_table:
             return
-
         try:
             self._all_user_rows = get_accounts()
         except Exception:
             self._all_user_rows = []
-
         self._render_users_table(self._all_user_rows)
 
     def _apply_user_search(self):
@@ -391,7 +386,6 @@ class SettingsPage(BasePage):
             for c, val in enumerate([uname, name, role, status, _fmt_login(last_login)]):
                 item = QTableWidgetItem(str(val))
                 item.setTextAlignment(Qt.AlignCenter)
-            # Colour-code status
                 if c == 3:
                     if str(val).lower() == "active":
                         item.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor("#155724"))
@@ -413,7 +407,6 @@ class SettingsPage(BasePage):
                 del_btn = QPushButton("Delete")
                 del_btn.setFixedSize(75, 32)
                 del_btn.setStyleSheet(btn_danger())
-            # Prevent admin from deleting their own account
                 if uname == current_uname:
                     del_btn.setEnabled(False)
                     del_btn.setToolTip("You cannot delete your own account")
@@ -430,6 +423,7 @@ class SettingsPage(BasePage):
                     table.setCellWidget(r, col_idx, cell_w)
 
             table.setRowHeight(r, 46)
+
     def _show_add_user(self):
         self._show_user_dialog()
 
@@ -465,14 +459,12 @@ class SettingsPage(BasePage):
         g.setSpacing(10)
         g.setColumnStretch(1, 1)
 
-    # Full Name
         g.addWidget(FieldLabel("Full Name", required=True), 0, 0)
         name_input = QLineEdit(full_name)
         name_input.setPlaceholderText("Enter full name")
         name_input.setFixedHeight(38)
         g.addWidget(name_input, 0, 1)
 
-    # Username (read-only when editing)
         g.addWidget(FieldLabel("Username", required=True), 1, 0)
         user_input = QLineEdit(username)
         user_input.setPlaceholderText("Enter username")
@@ -482,7 +474,6 @@ class SettingsPage(BasePage):
             user_input.setStyleSheet(f"background: {OFF_WHITE}; color: {MID_GRAY};")
         g.addWidget(user_input, 1, 1)
 
-    # Password (optional when editing)
         pw_label = "New Password" if edit_mode else "Password"
         pw_hint  = "Leave blank to keep current" if edit_mode else "Enter password"
         g.addWidget(FieldLabel(pw_label, required=not edit_mode), 2, 0)
@@ -492,7 +483,6 @@ class SettingsPage(BasePage):
         pass_input.setFixedHeight(38)
         g.addWidget(pass_input, 2, 1)
 
-    # Role
         g.addWidget(FieldLabel("Role", required=True), 3, 0)
         role_cb = QComboBox()
         role_cb.addItems(["Staff", "Admin"])
@@ -500,7 +490,6 @@ class SettingsPage(BasePage):
         role_cb.setCurrentText(role if role in ["Staff", "Admin"] else "Staff")
         g.addWidget(role_cb, 3, 1)
 
-    # Status (only shown when editing)
         status_cb = None
         if edit_mode:
             g.addWidget(FieldLabel("Status", required=True), 4, 0)
@@ -849,7 +838,6 @@ class SettingsPage(BasePage):
         w = QWidget()
         w.setStyleSheet(f"background: {WHITE};")
 
-        # Wrap everything in a scroll area so content is always reachable
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -861,6 +849,53 @@ class SettingsPage(BasePage):
         lay.setContentsMargins(40, 30, 40, 30)
         lay.setSpacing(16)
         lay.setAlignment(Qt.AlignTop)
+
+        # ── Developer photos — displayed FIRST at the top ─────────────────────
+        developers = [
+            {
+                "name":     "Daisy Mae Lascuña",
+                "email":    "daisylascuna@g.cjc.edu.ph",
+                "facebook": "facebook.com/daisy.crujedo",
+                "photo":    "dev1.jpg",
+            },
+            {
+                "name":     "Merandreas Jorgio",
+                "email":    "jorgiomer@g.cjc.edu.ph",
+                "facebook": "facebook.com/merandreas.andre",
+                "photo":    "dev2.jpg",
+            },
+            {
+                "name":     "Juliana Bless Eltagonde",
+                "email":    "eltagondejuliana@g.cjc.edu.ph",
+                "facebook": "facebook.com/juliana.eltagonde.2025",
+                "photo":    "dev3.jpg",
+            },
+        ]
+
+        dev_section_title = QLabel("Meet the Developers")
+        dev_section_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        dev_section_title.setAlignment(Qt.AlignCenter)
+        dev_section_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        lay.addWidget(dev_section_title)
+
+        dev_subtitle = QLabel("Software Engineering Project — CJC")
+        dev_subtitle.setFont(QFont("Segoe UI", 11))
+        dev_subtitle.setAlignment(Qt.AlignCenter)
+        dev_subtitle.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
+        lay.addWidget(dev_subtitle)
+
+        # Row of three developer cards (photos prominent at top of each card)
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(20)
+        cards_row.setContentsMargins(0, 8, 0, 8)
+
+        for dev in developers:
+            card = self._build_dev_card(dev)
+            cards_row.addWidget(card)
+
+        lay.addLayout(cards_row)
+
+        lay.addWidget(Divider())
 
         # ── SCMS badge ────────────────────────────────────────────────────────
         crest = QLabel("SCMS")
@@ -905,59 +940,10 @@ class SettingsPage(BasePage):
         info_text.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
         lay.addWidget(info_text)
 
-        # ── Developer Section ─────────────────────────────────────────────────
-        lay.addWidget(Divider())
-
-        dev_section_title = QLabel("Meet the Developers")
-        dev_section_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        dev_section_title.setAlignment(Qt.AlignCenter)
-        dev_section_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
-        lay.addWidget(dev_section_title)
-
-        dev_subtitle = QLabel("Software Engineering Project — CJC")
-        dev_subtitle.setFont(QFont("Segoe UI", 11))
-        dev_subtitle.setAlignment(Qt.AlignCenter)
-        dev_subtitle.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
-        lay.addWidget(dev_subtitle)
-
-        # Developer data
-        developers = [
-            {
-                "name":     "Daisy Mae Lascuña",
-                "email":    "daisylascuna@g.cjc.edu.ph",
-                "facebook": "facebook.com/daisy.crujedo",
-                "photo":    "dev1.jpg",
-            },
-            {
-                
-                "name":     "Merandreas Jorgio",
-                "email":    "jorgiomer@g.cjc.edu.ph",
-                "facebook": "facebook.com/merandreas.andre",
-                "photo":    "dev2.jpg",
-            },
-            {
-                "name":     "Juliana Bless Eltagonde",
-                "email":    "eltagondejuliana@g.cjc.edu.ph",
-                "facebook": "facebook.com/juliana.eltagonde.2025",
-                "photo":    "dev3.jpg",
-            },
-        ]
-
-        # Row of three developer cards
-        cards_row = QHBoxLayout()
-        cards_row.setSpacing(20)
-        cards_row.setContentsMargins(0, 8, 0, 8)
-
-        for dev in developers:
-            card = self._build_dev_card(dev)
-            cards_row.addWidget(card)
-
-        lay.addLayout(cards_row)
         lay.addStretch()
 
         scroll.setWidget(content)
 
-        # Outer layout for the tab widget
         outer = QVBoxLayout(w)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
@@ -968,9 +954,10 @@ class SettingsPage(BasePage):
         """
         Creates a single developer card with:
           - Circular profile picture (loaded from SCMS/assets/<photo>)
+            at a slightly larger size (120px instead of 100px)
           - Full name
           - Email
-          - Facebook link (displayed as plain label)
+          - Facebook link
         """
         card = QFrame()
         card.setStyleSheet(f"""
@@ -993,28 +980,25 @@ class SettingsPage(BasePage):
         card_lay.setSpacing(10)
         card_lay.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
 
-        # ── Profile picture ───────────────────────────────────────────────────
-        pic_size = 100
+        # ── Profile picture — slightly larger at 120px ────────────────────────
+        pic_size = 120   # increased from 100 for more visual prominence
         photo_label = QLabel()
         photo_label.setFixedSize(pic_size, pic_size)
         photo_label.setAlignment(Qt.AlignCenter)
         photo_label.setStyleSheet("background: transparent; border: none;")
 
-        # Build the asset path relative to this file's location
         assets_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'assets')
         photo_path = os.path.join(assets_dir, dev["photo"])
 
         pixmap = QPixmap(photo_path)
 
         if pixmap.isNull():
-            # Fallback: draw initials inside a coloured circle
             pixmap = self._make_initials_avatar(dev["name"], pic_size)
         else:
             pixmap = self._make_circular_pixmap(pixmap, pic_size)
 
         photo_label.setPixmap(pixmap)
 
-        # Centre the photo label
         pic_row = QHBoxLayout()
         pic_row.addStretch()
         pic_row.addWidget(photo_label)
@@ -1091,7 +1075,6 @@ class SettingsPage(BasePage):
             Qt.KeepAspectRatioByExpanding,
             Qt.SmoothTransformation
         )
-        # Crop to square from centre
         x = (scaled.width()  - size) // 2
         y = (scaled.height() - size) // 2
         scaled = scaled.copy(x, y, size, size)
@@ -1117,13 +1100,11 @@ class SettingsPage(BasePage):
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # Draw filled circle using NAVY colour
         from PyQt5.QtGui import QColor, QBrush
         painter.setBrush(QBrush(QColor(NAVY)))
         painter.setPen(Qt.NoPen)
         painter.drawEllipse(0, 0, size, size)
 
-        # Draw initials
         parts = name.strip().split()
         initials = "".join(p[0].upper() for p in parts[:2])
         painter.setPen(QColor(WHITE))

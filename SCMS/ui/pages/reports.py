@@ -96,7 +96,7 @@ class ReportsPage(BasePage):
         period_row.addWidget(self.period_cb)
         period_row.addStretch()
 
-        print_btn = QPushButton("🖨  Print Preview")
+        print_btn = QPushButton(" Print Preview ")
         print_btn.setStyleSheet(btn_outline())
         print_btn.setFixedHeight(38)
         period_row.addWidget(print_btn)
