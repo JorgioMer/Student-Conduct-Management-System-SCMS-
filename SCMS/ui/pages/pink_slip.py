@@ -28,6 +28,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_pink_slip import add_pink_slip, get_pink_slips
 from backend.config import get_current_semester
+from backend.db_accounts import get_officer_names          # ← NEW
 
 class CalendarDateEdit(QDateEdit):
     def __init__(self, *args, **kwargs):
@@ -193,6 +194,20 @@ def _search_style(accent):
             border: 1.5px solid {accent};
         }}
     """
+
+
+def _build_officer_combo(accent: str) -> QComboBox:
+    """
+    Build a QComboBox pre-populated with active officer names from the
+    Accounts table.  Falls back gracefully if the DB is unavailable.
+    """
+    combo = QComboBox()
+    combo.setFixedHeight(38)
+    combo.setStyleSheet(_combo_style(accent))
+    combo.addItem("— Select Officer —")          # placeholder / index 0
+    for name in get_officer_names():
+        combo.addItem(name)
+    return combo
 
 
 class PinkSlipPage(BasePage):
@@ -375,10 +390,9 @@ class PinkSlipPage(BasePage):
         self.pink_action.setStyleSheet(_combo_style(PINK_SLIP))
         form_lay.addWidget(self.pink_action, 4, 1)
 
+        # ── Officer in Charge — QComboBox populated from Accounts ─────────────
         form_lay.addWidget(lbl("Officer in Charge", True), 4, 2)
-        self.pink_officer = QLineEdit()
-        self.pink_officer.setPlaceholderText("Name of prefect / officer")
-        self.pink_officer.setFixedHeight(38)
+        self.pink_officer = _build_officer_combo(PINK_SLIP)  # ← CHANGED (was QLineEdit)
         form_lay.addWidget(self.pink_officer, 4, 3)
 
         lay.addWidget(form_group)
@@ -417,7 +431,7 @@ class PinkSlipPage(BasePage):
         self.pink_course.clear()
         self.pink_violation.setCurrentIndex(0)
         self.pink_action.setCurrentIndex(0)
-        self.pink_officer.clear()
+        self.pink_officer.setCurrentIndex(0)       # ← CHANGED (was .clear())
         self.pink_remarks.clear()
         self.pink_date.setDate(QDate.currentDate())
         current_sem = get_current_semester()
@@ -435,6 +449,15 @@ class PinkSlipPage(BasePage):
                        "Please fill in all required fields.",
                        success=False, parent=self).exec_()
             return
+
+        # ── Validate officer selection ────────────────────────────────────────
+        officer = self.pink_officer.currentText()
+        if officer == "— Select Officer —":
+            InfoDialog("Missing Fields",
+                       "Please select an Officer in Charge.",
+                       success=False, parent=self).exec_()
+            return
+
         dlg = ConfirmDialog("Confirm Save",
                             "Save this Pink Slip record?\nPlease confirm the student has not already\nreceived a Pink Slip this semester.",
                             parent=self)
@@ -447,9 +470,9 @@ class PinkSlipPage(BasePage):
                 date_issued  = self.pink_date.date().toPyDate()
                 violation    = self.pink_violation.currentText()
                 action_taken = self.pink_action.currentText()
-                officer      = self.pink_officer.text().strip()
                 sem          = self.pink_sem.currentText()
                 remarks      = self.pink_remarks.toPlainText().strip()
+                # officer already read above
                 add_pink_slip(stud_num, date_issued, violation, action_taken, officer,
                               sem=sem, remarks=remarks, stud_name=stud_name,
                               stud_course=stud_course, stud_year=stud_year)
@@ -672,29 +695,26 @@ class PinkSlipPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
- 
+
         view_btn = QPushButton("   View ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
         view_btn.setCursor(Qt.PointingHandCursor)
-        view_btn.clicked.connect(self._view_pink_record)   # ← wired
- 
+        view_btn.clicked.connect(self._view_pink_record)
+
         del_btn = QPushButton("   Delete ")
         del_btn.setStyleSheet(btn_danger())
         del_btn.setFixedHeight(38)
- 
+
         action_row.addWidget(view_btn)
         action_row.addWidget(del_btn)
         lay.addLayout(action_row)
         lay.addStretch()
         return w
- 
-    # ── NEW: View handler for Pink Slip Tracker ───────────────────────────────
+
     def _view_pink_record(self):
-        """Open detail dialog for the selected row in the Pink Slip tracker."""
         if self.pink_tracker_table is None:
             return
- 
         selected = self.pink_tracker_table.selectedItems()
         if not selected:
             InfoDialog(
@@ -703,7 +723,6 @@ class PinkSlipPage(BasePage):
                 success=False, parent=self
             ).exec_()
             return
- 
         row = self.pink_tracker_table.currentRow()
         headers = [
             self.pink_tracker_table.horizontalHeaderItem(c).text()
@@ -713,7 +732,6 @@ class PinkSlipPage(BasePage):
         for col, header in enumerate(headers):
             item = self.pink_tracker_table.item(row, col)
             fields.append((header, item.text() if item else "—"))
- 
         from ui.pages.trackers import RecordDetailDialog
         dlg = RecordDetailDialog(fields, slip_type="pink", parent=self)
         dlg.exec_()
@@ -733,7 +751,6 @@ class PinkSlipPage(BasePage):
         return w
 
     def _on_tab_changed(self, idx: int):
-        # Summary tab is index 2
         if idx == 2 and not self._summary_built:
             self._summary_built = True
             summary = self._build_summary_tab()
@@ -772,13 +789,11 @@ class PinkSlipPage(BasePage):
         self.pink_chart.setMinimumHeight(380)
         lay.addWidget(self.pink_chart)
 
-        # Populate with real data immediately
         self._refresh_pink_summary()
         lay.addStretch()
         return w
 
     def _init_pink_stat_tiles(self, tiles_row: QHBoxLayout):
-        """Create stat tiles with zero values — _refresh_pink_summary fills them."""
         for label, colour in [
             ("Total Pink Slips (Sem)", PINK_SLIP),
             ("Students Issued",        "#C2185B"),
@@ -791,14 +806,9 @@ class PinkSlipPage(BasePage):
             self.pink_stat_tiles[label] = tile
 
     def _refresh_pink_summary(self):
-        """
-        Recompute all stats from DB and push them to tiles + chart.
-        Safe to call even before summary tab is built (guards handle it).
-        """
         from backend.db_pink_slip import get_pink_slips
         pink_records = get_pink_slips(None) or []
 
-        # ── Compute all metrics ───────────────────────────────────────────────
         total                = len(pink_records)
         unique_students_pink = len(set(r[0] for r in pink_records if len(r) > 0))
 
@@ -819,14 +829,12 @@ class PinkSlipPage(BasePage):
                 year = str(r[2])
                 year_distribution[year] = year_distribution.get(year, 0) + 1
 
-        # ── Update stat tiles (only if summary tab has been built) ────────────
         if self.pink_stat_tiles:
             self.pink_stat_tiles["Total Pink Slips (Sem)"].set_value(total)
             self.pink_stat_tiles["Students Issued"].set_value(unique_students_pink)
             self.pink_stat_tiles["Most Common Violation"].set_value(most_common)
             self.pink_stat_tiles["Pending Action"].set_value("0")
 
-        # ── Update chart (only if summary tab has been built) ─────────────────
         if self.pink_chart is not None:
             self.pink_chart.update_data(violation_counts, year_distribution)
 
@@ -834,7 +842,6 @@ class PinkSlipPage(BasePage):
     # Event handlers
     # =========================================================================
     def _on_slips_changed(self):
-        """Fired whenever any slip is saved — refresh tracker + summary."""
         try:
             self._refresh_pink_tracker()
         except Exception:

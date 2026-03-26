@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_green_slip import add_green_slip, get_green_slips
 from backend.db_students import add_student, get_student
 from backend.config import get_current_semester
+from backend.db_accounts import get_officer_names          # ← NEW
 
 import base64
 from PyQt5.QtWidgets import QDateEdit
@@ -251,6 +252,20 @@ def _search_style(accent):
     """
 
 
+def _build_officer_combo(accent: str) -> QComboBox:
+    """
+    Build a QComboBox pre-populated with active officer names from the
+    Accounts table.  Falls back gracefully if the DB is unavailable.
+    """
+    combo = QComboBox()
+    combo.setFixedHeight(38)
+    combo.setStyleSheet(_combo_style(accent))
+    combo.addItem("— Select Officer —")          # placeholder / index 0
+    for name in get_officer_names():
+        combo.addItem(name)
+    return combo
+
+
 class GreenSlipPage(BasePage):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -422,10 +437,9 @@ class GreenSlipPage(BasePage):
         self.disp_reason.setFixedHeight(70)
         form_lay.addWidget(self.disp_reason, 3, 1, 1, 3)
 
+        # ── Authorized By — QComboBox populated from Accounts ────────────────
         form_lay.addWidget(lbl("Authorized By", True), 4, 0)
-        self.disp_auth = QLineEdit()
-        self.disp_auth.setPlaceholderText("Name of authorizing officer")
-        self.disp_auth.setFixedHeight(38)
+        self.disp_auth = _build_officer_combo(GREEN_SLIP)   # ← CHANGED (was QLineEdit)
         form_lay.addWidget(self.disp_auth, 4, 1)
 
         form_lay.addWidget(lbl("Status"), 4, 2)
@@ -476,7 +490,7 @@ class GreenSlipPage(BasePage):
         self.disp_course.clear()
         self.disp_days.setValue(1)
         self.disp_reason.clear()
-        self.disp_auth.clear()
+        self.disp_auth.setCurrentIndex(0)          # ← CHANGED (was .clear())
 
     def _save_dispensation(self):
         if not self.disp_stud_no.text().strip() or not self.disp_stud_name.text().strip():
@@ -484,6 +498,15 @@ class GreenSlipPage(BasePage):
                        "Please fill in the required fields\n(Student Number and Name).",
                        success=False, parent=self).exec_()
             return
+
+        # ── Validate officer selection ────────────────────────────────────────
+        auth_by = self.disp_auth.currentText()
+        if auth_by == "— Select Officer —":
+            InfoDialog("Missing Fields",
+                       "Please select an Authorized By officer.",
+                       success=False, parent=self).exec_()
+            return
+
         dlg = ConfirmDialog("Confirm Save",
                             "Save this Dispensation Green Slip record?", parent=self)
         if dlg.exec_():
@@ -500,7 +523,7 @@ class GreenSlipPage(BasePage):
                 purpose     = self.disp_reason.toPlainText().strip()
                 semester    = self.disp_semester.currentText()
                 remarks = absence_type = dates_absence = supp_doc = ""
-                auth_by     = self.disp_auth.text().strip()
+                # auth_by already read above
                 add_green_slip(stud_num, slip_type, date_avail, days, status,
                                expiry, purpose, remarks, absence_type,
                                dates_absence, supp_doc, auth_by,
@@ -524,7 +547,7 @@ class GreenSlipPage(BasePage):
         self.exc_course.clear()
         self.exc_abs_date.clear()
         self.exc_remarks.clear()
-        self.exc_auth.clear()
+        self.exc_auth.setCurrentIndex(0)           # ← CHANGED (was .clear())
         self.exc_type.setCurrentIndex(0)
         self.exc_doc.setCurrentIndex(0)
 
@@ -534,6 +557,15 @@ class GreenSlipPage(BasePage):
                        "Please fill in the required fields\n(Student Number and Name).",
                        success=False, parent=self).exec_()
             return
+
+        # ── Validate officer selection ────────────────────────────────────────
+        auth_by = self.exc_auth.currentText()
+        if auth_by == "— Select Officer —":
+            InfoDialog("Missing Fields",
+                       "Please select an Authorized By officer.",
+                       success=False, parent=self).exec_()
+            return
+
         dlg = ConfirmDialog("Confirm Save",
                             "Save this Excuse Green Slip record?", parent=self)
         if dlg.exec_():
@@ -552,8 +584,8 @@ class GreenSlipPage(BasePage):
                 absence_type  = self.exc_type.currentText()
                 dates_absence = self.exc_abs_date.text().strip()
                 supp_doc      = self.exc_doc.currentText()
-                auth_by       = self.exc_auth.text().strip()
                 semester      = self.exc_semester.currentText()
+                # auth_by already read above
                 add_green_slip(stud_num, slip_type, date_avail, days, status,
                                expiry, purpose, remarks, absence_type,
                                dates_absence, supp_doc, auth_by,
@@ -670,10 +702,9 @@ class GreenSlipPage(BasePage):
         self.exc_remarks.setFixedHeight(70)
         form_lay.addWidget(self.exc_remarks, 3, 1, 1, 3)
 
+        # ── Authorized By — QComboBox populated from Accounts ────────────────
         form_lay.addWidget(lbl("Authorized By", True), 4, 0)
-        self.exc_auth = QLineEdit()
-        self.exc_auth.setPlaceholderText("Name of authorizing officer")
-        self.exc_auth.setFixedHeight(38)
+        self.exc_auth = _build_officer_combo(GREEN_SLIP)    # ← CHANGED (was QLineEdit)
         form_lay.addWidget(self.exc_auth, 4, 1)
 
         form_lay.addWidget(lbl("Supporting Document"), 4, 2)
@@ -955,29 +986,26 @@ class GreenSlipPage(BasePage):
 
         action_row = QHBoxLayout()
         action_row.addStretch()
- 
+
         view_btn = QPushButton("   View Details ")
         view_btn.setStyleSheet(btn_outline())
         view_btn.setFixedHeight(38)
         view_btn.setCursor(Qt.PointingHandCursor)
-        view_btn.clicked.connect(self._view_green_record)   # ← wired
- 
+        view_btn.clicked.connect(self._view_green_record)
+
         delete_btn = QPushButton("   Delete ")
         delete_btn.setStyleSheet(btn_danger())
         delete_btn.setFixedHeight(38)
- 
+
         action_row.addWidget(view_btn)
         action_row.addWidget(delete_btn)
         lay.addLayout(action_row)
         lay.addStretch()
         return w
- 
-    # ── NEW: View handler for Green Slip Tracker ──────────────────────────────
+
     def _view_green_record(self):
-        """Open detail dialog for the selected row in the Green Slip tracker."""
         if self.green_tracker_table is None:
             return
- 
         selected = self.green_tracker_table.selectedItems()
         if not selected:
             InfoDialog(
@@ -986,7 +1014,6 @@ class GreenSlipPage(BasePage):
                 success=False, parent=self
             ).exec_()
             return
- 
         row = self.green_tracker_table.currentRow()
         headers = [
             self.green_tracker_table.horizontalHeaderItem(c).text()
@@ -996,7 +1023,6 @@ class GreenSlipPage(BasePage):
         for col, header in enumerate(headers):
             item = self.green_tracker_table.item(row, col)
             fields.append((header, item.text() if item else "—"))
- 
         from ui.pages.trackers import RecordDetailDialog
         dlg = RecordDetailDialog(fields, slip_type="green", parent=self)
         dlg.exec_()
@@ -1016,7 +1042,6 @@ class GreenSlipPage(BasePage):
         return w
 
     def _on_tab_changed(self, idx: int):
-        # Summary tab is index 3
         if idx == 3 and not self._summary_built:
             self._summary_built = True
             summary = self._build_summary_tab()
@@ -1056,13 +1081,11 @@ class GreenSlipPage(BasePage):
         self.green_chart.setMinimumHeight(380)
         lay.addWidget(self.green_chart)
 
-        # Populate with real data immediately
         self._refresh_green_summary()
         lay.addStretch()
         return w
 
     def _init_green_stat_tiles(self, tiles_row: QHBoxLayout):
-        """Create stat tiles with zero values — _refresh_green_summary fills them."""
         for label, colour in [
             ("Total Green Slips",      GREEN_SLIP),
             ("Dispensation Slips",     "#388E3C"),
@@ -1075,14 +1098,9 @@ class GreenSlipPage(BasePage):
             self.green_stat_tiles[label] = tile
 
     def _refresh_green_summary(self):
-        """
-        Recompute all stats from DB and push them to tiles + chart.
-        Safe to call even before summary tab is built (guards handle it).
-        """
         from backend.db_green_slip import get_green_slips
         green_records = get_green_slips(None) or []
 
-        # ── Compute all metrics ───────────────────────────────────────────────
         total              = len(green_records)
         dispensation_count = sum(1 for r in green_records
                                  if len(r) > 5 and r[5] == True)
@@ -1099,7 +1117,6 @@ class GreenSlipPage(BasePage):
                 stud_counts[r[0]] = stud_counts.get(r[0], 0) + 1
         multi = sum(1 for c in stud_counts.values() if c > 2)
 
-        # ── Update stat tiles (only if summary tab has been built) ────────────
         if self.green_stat_tiles:
             self.green_stat_tiles["Total Green Slips"].set_value(total)
             self.green_stat_tiles["Dispensation Slips"].set_value(dispensation_count)
@@ -1107,7 +1124,6 @@ class GreenSlipPage(BasePage):
             self.green_stat_tiles["Currently Active"].set_value(active_count)
             self.green_stat_tiles["Students with >2 Slips"].set_value(multi)
 
-        # ── Update chart (only if summary tab has been built) ─────────────────
         if self.green_chart is not None:
             self.green_chart.update_data(
                 dispensation_count, excuse_count,
@@ -1118,7 +1134,6 @@ class GreenSlipPage(BasePage):
     # Event handlers
     # =========================================================================
     def _on_slips_changed(self):
-        """Fired whenever any slip is saved — refresh tracker + summary."""
         try:
             self._refresh_green_tracker()
         except Exception:

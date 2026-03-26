@@ -149,3 +149,25 @@ def delete_account(username):
     )
     conn.commit()
     conn.close()
+
+
+def get_officer_names() -> list:
+    """
+    Return a list of full names (accFullName) from the Accounts table
+    where the account is Active.  Used to populate officer dropdowns
+    on all slip forms.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT accFullName FROM Accounts "
+            "WHERE accStatus = 'Active' "
+            "ORDER BY accFullName"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [r[0] for r in rows if r[0]]
+    except Exception as e:
+        print(f"[db_accounts] get_officer_names error: {e}")
+        return []
