@@ -29,6 +29,26 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_blue_slip import add_blue_slip, get_blue_slips
 from backend.config import get_current_semester
 
+# ── Column index constants ────────────────────────────────────────────────────
+# Query: SELECT s.studName, s.studCourse, s.studYrLvl, b.*
+# b.* expands to: ID, studNumber, violationType_blue, dateOfViolation_blue,
+#                 confiscatedBy_blue, severityLvl_blue, actionTaken_blue,
+#                 status_blue, violationDesc_blue, witnesses_blue
+_COL_STUD_NAME      = 0
+_COL_STUD_COURSE    = 1
+_COL_STUD_YEAR      = 2
+_COL_SLIP_ID        = 3
+_COL_STUD_NUM       = 4
+_COL_VTYPE          = 5
+_COL_DATE           = 6
+_COL_CONFISCATED_BY = 7
+_COL_SEVERITY       = 8
+_COL_ACTION         = 9
+_COL_STATUS         = 10
+_COL_DESC           = 11
+_COL_WITNESSES      = 12
+
+
 class CalendarDateEdit(QDateEdit):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -321,7 +341,7 @@ class BlueSlipPage(BasePage):
         form_lay.addWidget(lbl("Year & Course"), 1, 0)
         grade_row = QHBoxLayout()
         self.blue_year = QComboBox()
-        self.blue_year.addItems(["1st","2nd","3rd","4th"])
+        self.blue_year.addItems(["1st", "2nd", "3rd", "4th"])
         self.blue_year.setFixedHeight(38)
         self.blue_year.setStyleSheet(_combo_style(BLUE_SLIP))
         self.blue_course = QLineEdit()
@@ -484,12 +504,12 @@ class BlueSlipPage(BasePage):
         if not stud_num and not stud_name:
             InfoDialog(
                 "Missing Information",
-                "Please enter at least a Student Number or Student Name before checking violation history.",
+                "Please enter at least a Student Number or Student Name "
+                "before checking violation history.",
                 success=False, parent=self
             ).exec_()
             return
 
-        from backend.db_blue_slip import get_blue_slips
         try:
             all_records = get_blue_slips(None) or []
         except Exception:
@@ -497,10 +517,10 @@ class BlueSlipPage(BasePage):
 
         matches = []
         for record in all_records:
-            rec_name = str(record[0]).strip().lower() if len(record) > 0 else ""
-            rec_num  = str(record[4]).strip().lower() if len(record) > 4 else ""
+            rec_name = str(record[_COL_STUD_NAME]).strip().lower() if len(record) > _COL_STUD_NAME else ""
+            rec_num  = str(record[_COL_STUD_NUM]).strip().lower()  if len(record) > _COL_STUD_NUM  else ""
             if (stud_num  and stud_num.lower()  == rec_num) or \
-            (stud_name and stud_name.lower() in rec_name):
+               (stud_name and stud_name.lower() in rec_name):
                 matches.append(record)
 
         current_vtype = self.blue_vtype.currentText()
@@ -515,15 +535,17 @@ class BlueSlipPage(BasePage):
             ).exec_()
             return
 
-        lines = [f"Student: {stud_name or stud_num}\n"]
-        lines.append(f"Total violations on record: {len(matches)}\n")
-        lines.append("Prior violations:")
+        lines = [
+            f"Student: {stud_name or stud_num}\n",
+            f"Total violations on record: {len(matches)}\n",
+            "Prior violations:"
+        ]
 
         same_type_count = 0
         for r in matches:
-            vtype  = str(r[5])       if len(r) > 5  else "N/A"
-            date   = str(r[6])[:10]  if len(r) > 6  else "N/A"
-            status = str(r[10])      if len(r) > 10 else "N/A"
+            vtype  = str(r[_COL_VTYPE])       if len(r) > _COL_VTYPE   else "N/A"
+            date   = str(r[_COL_DATE])[:10]   if len(r) > _COL_DATE    else "N/A"
+            status = str(r[_COL_STATUS])       if len(r) > _COL_STATUS  else "N/A"
             lines.append(f"  • {date}  —  {vtype}  ({status})")
             if current_vtype and current_vtype in vtype:
                 same_type_count += 1
@@ -578,29 +600,25 @@ class BlueSlipPage(BasePage):
     # Tracker tab
     # =========================================================================
     def _load_blue_tracker_data(self):
-        from backend.db_blue_slip import get_blue_slips
         sample = []
         try:
             for record in (get_blue_slips(None) or []):
                 try:
-                    stud_name      = record[0]  if len(record) > 0  else "N/A"
-                    stud_year      = record[2]  if len(record) > 2  else "N/A"
-                    stud_num       = record[4]  if len(record) > 4  else "N/A"
-                    violation_type = record[5]  if len(record) > 5  else "N/A"
-                    date_vio       = str(record[6]) if len(record) > 6  else "N/A"
-                    severity       = record[8]  if len(record) > 8  else "N/A"
-                    action         = record[9]  if len(record) > 9  else "N/A"
-                    status         = record[10] if len(record) > 10 else "Open / Pending"
                     sample.append((
-                        stud_num, stud_name, stud_year,
-                        violation_type, severity,
-                        date_vio[:10] if date_vio != "N/A" else "N/A",
-                        action, status
+                        str(record[_COL_STUD_NUM])  if len(record) > _COL_STUD_NUM  else "N/A",
+                        str(record[_COL_STUD_NAME]) if len(record) > _COL_STUD_NAME else "N/A",
+                        str(record[_COL_STUD_YEAR]) if len(record) > _COL_STUD_YEAR else "N/A",
+                        str(record[_COL_VTYPE])     if len(record) > _COL_VTYPE     else "N/A",
+                        str(record[_COL_SEVERITY])  if len(record) > _COL_SEVERITY  else "N/A",
+                        str(record[_COL_DATE])[:10] if len(record) > _COL_DATE      else "N/A",
+                        str(record[_COL_ACTION])    if len(record) > _COL_ACTION    else "N/A",
+                        str(record[_COL_STATUS])    if len(record) > _COL_STATUS    else "Open / Pending",
                     ))
                 except Exception:
                     pass
         except Exception:
             pass
+
         self._all_blue_records = sample
         return sample if sample else [
             ("No records", "Add records to see them here",
@@ -911,48 +929,82 @@ class BlueSlipPage(BasePage):
         s_lay.setContentsMargins(14, 10, 14, 10)
 
         s_lay.addWidget(QLabel("Student Number:"))
-        stud_search = QLineEdit()
-        stud_search.setPlaceholderText(
+        self._prog_stud_search = QLineEdit()
+        self._prog_stud_search.setPlaceholderText(
             "Enter student number to view their full violation history")
-        stud_search.setFixedHeight(38)
-        stud_search.setFixedWidth(380)
+        self._prog_stud_search.setFixedHeight(38)
+        self._prog_stud_search.setFixedWidth(380)
+        self._prog_stud_search.setStyleSheet(_search_style(BLUE_SLIP))
+        self._prog_stud_search.returnPressed.connect(self._load_student_history)
+
         search_go = QPushButton("   Load History ")
         search_go.setStyleSheet(btn_blue())
         search_go.setFixedHeight(38)
+        search_go.clicked.connect(self._load_student_history)
 
-        s_lay.addWidget(stud_search)
+        s_lay.addWidget(self._prog_stud_search)
         s_lay.addWidget(search_go)
         s_lay.addStretch()
         lay.addWidget(search_frame)
 
-        prog_frame = QFrame()
-        prog_frame.setStyleSheet(f"QFrame {{ background: {WHITE}; border: none; }}")
-        p_lay = QVBoxLayout(prog_frame)
-        p_lay.setContentsMargins(0, 0, 0, 0)
-        p_lay.setSpacing(8)
-
-        name_lbl = QLabel(
+        # ── Student name / status banner ──────────────────────────────────────
+        self._prog_name_lbl = QLabel(
             "Search for a student to view their violation escalation progress")
-        name_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        name_lbl.setStyleSheet(f"""
+        self._prog_name_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        self._prog_name_lbl.setStyleSheet(f"""
             color: {MID_GRAY};
             background: #F8F9FA;
             border: 1px solid {LIGHT_GRAY};
             border-radius: 8px;
             padding: 10px 14px;
         """)
-        p_lay.addWidget(name_lbl)
+        lay.addWidget(self._prog_name_lbl)
 
-        steps = [
-            ("1st Offense", "Verbal Warning",                     "", False, False),
-            ("2nd Offense", "Written Warning",                    "", False, False),
-            ("3rd Offense", "Parent Meeting + Community Service", "", False, False),
-            ("4th Offense", "Suspension",                         "", False, False),
-            ("5th Offense", "Endorsement / Probation",            "", False, False),
+        # ── Progress steps container ──────────────────────────────────────────
+        self._prog_steps_frame = QFrame()
+        self._prog_steps_frame.setStyleSheet(
+            f"QFrame {{ background: {WHITE}; border: none; }}")
+        self._prog_steps_layout = QVBoxLayout(self._prog_steps_frame)
+        self._prog_steps_layout.setContentsMargins(0, 0, 0, 0)
+        self._prog_steps_layout.setSpacing(8)
+
+        # Render the default empty ladder on first load
+        self._build_progress_steps([], current_offense=0)
+        lay.addWidget(self._prog_steps_frame)
+
+        lay.addStretch()
+        return w
+
+    def _build_progress_steps(self, student_violations: list, current_offense: int):
+        """
+        Rebuild the 5-step escalation ladder.
+        student_violations : list of (vtype, date_str) tuples, one per recorded offense.
+        current_offense    : total offenses capped at 5 — drives which step is highlighted.
+        """
+        # Clear any previously rendered steps
+        while self._prog_steps_layout.count():
+            child = self._prog_steps_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        escalation_steps = [
+            ("1st Offense", "Verbal Warning"),
+            ("2nd Offense", "Written Warning"),
+            ("3rd Offense", "Parent Meeting + Community Service"),
+            ("4th Offense", "Suspension"),
+            ("5th Offense", "Endorsement / Probation"),
         ]
 
-        for step_name, action, date, done, current in steps:
-            s_frame = QFrame()
+        for i, (step_name, action) in enumerate(escalation_steps):
+            offense_num = i + 1
+            done    = offense_num <  current_offense
+            current = offense_num == current_offense
+
+            # Use the actual violation date for this step slot if available
+            date = ""
+            if i < len(student_violations):
+                date = student_violations[i][1]
+
             if current:
                 bg, border_color, text_color = "#FFF3E0", RED_ERR, "#B71C1C"
             elif done:
@@ -960,6 +1012,7 @@ class BlueSlipPage(BasePage):
             else:
                 bg, border_color, text_color = "#FAFAFA", LIGHT_GRAY, MID_GRAY
 
+            s_frame = QFrame()
             s_frame.setStyleSheet(f"""
                 QFrame {{
                     background: {bg};
@@ -979,9 +1032,11 @@ class BlueSlipPage(BasePage):
             dot_lbl = QLabel()
             dot_lbl.setFixedSize(22, 22)
             if current:
-                dot_lbl.setStyleSheet(f"background: {RED_ERR}; border-radius: 11px; border: none;")
+                dot_lbl.setStyleSheet(
+                    f"background: {RED_ERR}; border-radius: 11px; border: none;")
             elif done:
-                dot_lbl.setStyleSheet(f"background: #43A047; border-radius: 11px; border: none;")
+                dot_lbl.setStyleSheet(
+                    f"background: #43A047; border-radius: 11px; border: none;")
             else:
                 dot_lbl.setStyleSheet(
                     f"background: {LIGHT_GRAY}; border-radius: 11px; border: none;")
@@ -1015,11 +1070,67 @@ class BlueSlipPage(BasePage):
                 f"color: {MID_GRAY}; background: transparent; border: none;")
             s_inner.addWidget(date_lbl)
 
-            p_lay.addWidget(s_frame)
+            self._prog_steps_layout.addWidget(s_frame)
 
-        lay.addWidget(prog_frame)
-        lay.addStretch()
-        return w
+    def _load_student_history(self):
+        """Load and display a student's violation escalation progress."""
+        stud_num = self._prog_stud_search.text().strip()
+        if not stud_num:
+            InfoDialog(
+                "Missing Input",
+                "Please enter a student number to load their violation history.",
+                success=False, parent=self
+            ).exec_()
+            return
+
+        try:
+            matches = get_blue_slips(stud_num) or []
+        except Exception as e:
+            InfoDialog("Error", f"Could not load records: {e}",
+                       success=False, parent=self).exec_()
+            return
+
+        if not matches:
+            self._prog_name_lbl.setText(
+                f"No violation records found for student number: {stud_num}")
+            self._prog_name_lbl.setStyleSheet(f"""
+                color: {RED_ERR};
+                background: #FFF3F3;
+                border: 1px solid {RED_ERR}40;
+                border-radius: 8px;
+                padding: 10px 14px;
+            """)
+            self._build_progress_steps([], current_offense=0)
+            return
+
+        # Sort ascending by date so the earliest offense = step 1
+        matches.sort(key=lambda r: str(r[_COL_DATE]) if len(r) > _COL_DATE else "")
+
+        stud_name       = str(matches[0][_COL_STUD_NAME]) if matches else stud_num
+        offense_count   = len(matches)
+        current_offense = min(offense_count, 5)
+
+        # Build (vtype, date) pairs for up to 5 step slots
+        violations_for_steps = []
+        for r in matches[:5]:
+            vtype    = str(r[_COL_VTYPE])[:28] if len(r) > _COL_VTYPE else "N/A"
+            date_str = str(r[_COL_DATE])[:10]  if len(r) > _COL_DATE  else ""
+            violations_for_steps.append((vtype, date_str))
+
+        extra = f" (+{offense_count - 5} more beyond step 5)" if offense_count > 5 else ""
+        self._prog_name_lbl.setText(
+            f"Student: {stud_name}  ({stud_num})  —  "
+            f"{offense_count} violation(s) on record{extra}"
+        )
+        self._prog_name_lbl.setStyleSheet(f"""
+            color: {'#B71C1C' if offense_count >= 3 else '#1B5E20'};
+            background: {'#FFF3E0' if offense_count >= 3 else '#F1F8E9'};
+            border: 1px solid {'#FFCCBC' if offense_count >= 3 else '#C8E6C9'};
+            border-radius: 8px;
+            padding: 10px 14px;
+        """)
+
+        self._build_progress_steps(violations_for_steps, current_offense)
 
     # =========================================================================
     # Summary tab
@@ -1090,21 +1201,20 @@ class BlueSlipPage(BasePage):
             self.blue_stat_tiles[label] = tile
 
     def _refresh_blue_summary(self):
-        from backend.db_blue_slip import get_blue_slips
         blue_records = get_blue_slips(None) or []
 
         total           = len(blue_records)
         pending_count   = sum(1 for r in blue_records
-                              if len(r) > 10 and "Open / Pending" in str(r[10]))
+                              if len(r) > _COL_STATUS and "Open / Pending" in str(r[_COL_STATUS]))
         escalated_count = sum(1 for r in blue_records
-                              if len(r) > 10 and "Escalated"      in str(r[10]))
+                              if len(r) > _COL_STATUS and "Escalated"      in str(r[_COL_STATUS]))
         resolved_count  = sum(1 for r in blue_records
-                              if len(r) > 10 and "Resolved"       in str(r[10]))
+                              if len(r) > _COL_STATUS and "Resolved"       in str(r[_COL_STATUS]))
 
         violation_types: dict = {}
         for r in blue_records:
-            if len(r) > 5:
-                vtype = str(r[5])
+            if len(r) > _COL_VTYPE:
+                vtype = str(r[_COL_VTYPE])
                 violation_types[vtype] = violation_types.get(vtype, 0) + 1
 
         if self.blue_stat_tiles:
@@ -1115,11 +1225,7 @@ class BlueSlipPage(BasePage):
 
         if self.blue_chart is not None:
             self.blue_chart.update_data(
-                violation_types,
-                pending_count,
-                escalated_count,
-                resolved_count,
-            )
+                violation_types, pending_count, escalated_count, resolved_count)
 
     # =========================================================================
     # Event handlers
