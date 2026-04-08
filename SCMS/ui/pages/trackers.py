@@ -1012,7 +1012,7 @@ class TrackersPage(BasePage):
         period_row.addWidget(lbl)
 
         period = QComboBox()
-        period.addItems(["November 2024", "October 2024", "September 2024", "August 2024"])
+        period.addItems(["December 2026","November 2026", "October 2026", "September 2026", "August 2026", "July 2026", "June 2026","May 2026","April 2026", "March 2026", "February 2026", "January 2026"])
         period.setFixedHeight(36)
         period.setFixedWidth(200)
         period_row.addWidget(period)

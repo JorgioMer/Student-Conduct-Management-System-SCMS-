@@ -613,7 +613,7 @@ class PinkSlipPage(BasePage):
             self._pink_sem_filter.setCurrentIndex(2)
         self._pink_sem_filter.currentIndexChanged.connect(self._apply_pink_filters)
 
-        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn = QPushButton("   Refresh ")
         refresh_btn.setStyleSheet(btn_pink())
         refresh_btn.setFixedHeight(38)
         refresh_btn.setFixedWidth(110)
@@ -775,7 +775,7 @@ class PinkSlipPage(BasePage):
 
         refresh_row = QHBoxLayout()
         refresh_row.addStretch()
-        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn = QPushButton("   Refresh Chart  ")
         refresh_btn.setStyleSheet(btn_pink())
         refresh_btn.setFixedHeight(36)
         refresh_btn.setFixedWidth(150)
