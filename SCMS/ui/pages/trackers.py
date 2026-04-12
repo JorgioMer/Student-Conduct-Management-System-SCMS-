@@ -21,6 +21,12 @@ from ui.components import (
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
+from ui.pdf_preview_dialog import PDFPreviewDialog
+from backend.pdf_export import generate_slip_report
+from backend.db_activity_log import log_export, log_report_generated, log_batch_operation
+import tempfile
+import os
+from datetime import datetime
 
 
 def _apply_table_selection_style(table: QTableWidget, accent_color: str):
@@ -259,8 +265,10 @@ def _view_selected_row(table: QTableWidget, slip_type: str, parent=None,
 #  TrackersPage
 # =============================================================================
 class TrackersPage(BasePage):
-    def __init__(self, parent=None):
+    def __init__(self, current_user=None, parent=None):
         super().__init__(parent)
+        self.current_user = current_user or {}
+        self.staff_id = self.current_user.get("username", "UNKNOWN")
         self._combined_tiles = {}
         self._combined_table = None
         self._combined_layout = None
@@ -616,6 +624,7 @@ class TrackersPage(BasePage):
         export_btn.setStyleSheet(btn_gold())
         export_btn.setFixedHeight(38)
         export_btn.setCursor(Qt.PointingHandCursor)
+        export_btn.clicked.connect(self._export_combined_records)
 
         action_row.addWidget(view_btn)
         action_row.addWidget(export_btn)
@@ -1021,6 +1030,7 @@ class TrackersPage(BasePage):
         export_btn = QPushButton("   Export Monthly Report ")
         export_btn.setStyleSheet(btn_gold())
         export_btn.setFixedHeight(36)
+        export_btn.clicked.connect(self._export_monthly_summary)
         period_row.addWidget(export_btn)
         lay.addLayout(period_row)
 
@@ -1087,6 +1097,140 @@ class TrackersPage(BasePage):
             self._refresh_monthly_summary()
         except Exception:
             pass
+
+    # ── PDF Export Methods ────────────────────────────────────────────────────
+    def _export_combined_records(self):
+        """Export combined records from all slip types as PDF."""
+        try:
+            from backend.db_blue_slip import get_blue_slips
+            from backend.db_green_slip import get_green_slips
+            from backend.db_pink_slip import get_pink_slips
+            
+            green_slips = get_green_slips(None) or []
+            pink_slips = get_pink_slips(None) or []
+            blue_slips = get_blue_slips(None) or []
+            
+            # Combine all records
+            all_records = green_slips + pink_slips + blue_slips
+            
+            if not all_records:
+                InfoDialog(
+                    "No Data",
+                    "No records available to export.",
+                    success=False,
+                    parent=self
+                ).exec_()
+                return
+            
+            # Generate PDF
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_pdf = os.path.join(tempfile.gettempdir(), f'SCMS_Combined_Records_{timestamp}.pdf')
+            generate_slip_report(temp_pdf, 'mixed', all_records, 
+                               "All Slip Types Combined - Monthly Overview")
+            
+            # Log the export action
+            log_export(self.staff_id, "Combined Records Report", len(all_records))
+            
+            # Show preview dialog
+            PDFPreviewDialog(temp_pdf, "All Records Export", parent=self).exec_()
+        except Exception as e:
+            InfoDialog(
+                "Export Error",
+                f"Failed to export records:\n{str(e)}",
+                success=False,
+                parent=self
+            ).exec_()
+
+    def _export_monthly_summary(self):
+        """Export monthly summary report as PDF."""
+        try:
+            from backend.db_blue_slip import get_blue_slips
+            from backend.db_green_slip import get_green_slips
+            from backend.db_pink_slip import get_pink_slips
+            from backend.db_students import get_student
+            
+            green_slips = get_green_slips(None) or []
+            pink_slips = get_pink_slips(None) or []
+            blue_slips = get_blue_slips(None) or []
+            
+            # Count slips per student for summary
+            student_counts = {}
+            for record in green_slips:
+                stud_num = record[4] if len(record) > 4 else None
+                if stud_num:
+                    if stud_num not in student_counts:
+                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
+                    student_counts[stud_num]["green"] += 1
+                    if not student_counts[stud_num]["info"]:
+                        student_counts[stud_num]["info"] = get_student(stud_num)
+            
+            for record in pink_slips:
+                stud_num = record[4] if len(record) > 4 else None
+                if stud_num:
+                    if stud_num not in student_counts:
+                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
+                    student_counts[stud_num]["pink"] += 1
+                    if not student_counts[stud_num]["info"]:
+                        student_counts[stud_num]["info"] = get_student(stud_num)
+            
+            for record in blue_slips:
+                stud_num = record[4] if len(record) > 4 else None
+                if stud_num:
+                    if stud_num not in student_counts:
+                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
+                    student_counts[stud_num]["blue"] += 1
+                    if not student_counts[stud_num]["info"]:
+                        student_counts[stud_num]["info"] = get_student(stud_num)
+            
+            # Build student data for export
+            sorted_students = sorted(
+                student_counts.items(),
+                key=lambda x: x[1]["green"] + x[1]["pink"] + x[1]["blue"],
+                reverse=True
+            )
+            
+            student_data = []
+            for rank, (stud_num, counts) in enumerate(sorted_students[:20], 1):
+                try:
+                    info = counts["info"]
+                    stud_name = info[1] if info and len(info) > 1 else "Unknown"
+                    year = info[3] if info and len(info) > 3 else "N/A"
+                    total = counts["green"] + counts["pink"] + counts["blue"]
+                    student_data.append((
+                        str(rank), stud_num, stud_name, year,
+                        str(counts["green"]), str(counts["pink"]),
+                        str(counts["blue"]), str(total)
+                    ))
+                except:
+                    pass
+            
+            if not student_data:
+                InfoDialog(
+                    "No Data",
+                    "No student records available to export.",
+                    success=False,
+                    parent=self
+                ).exec_()
+                return
+            
+            # Generate PDF
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            from backend.pdf_export import generate_student_conduct_summary
+            temp_pdf = os.path.join(tempfile.gettempdir(), f'SCMS_Monthly_Summary_{timestamp}.pdf')
+            generate_student_conduct_summary(temp_pdf, student_data)
+            
+            # Log the export action
+            log_report_generated(self.staff_id, "Monthly Summary Report")
+            
+            # Show preview dialog
+            PDFPreviewDialog(temp_pdf, "Monthly Summary Report", parent=self).exec_()
+        except Exception as e:
+            InfoDialog(
+                "Export Error",
+                f"Failed to export monthly summary:\n{str(e)}",
+                success=False,
+                parent=self
+            ).exec_()
 
 
 from ui.components import Divider

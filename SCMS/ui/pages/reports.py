@@ -25,11 +25,21 @@ from ui.components import (
     StatTile, add_shadow, InfoDialog
 )
 from ui.pages.base_page import BasePage, build_record_table
+from ui.pdf_preview_dialog import PDFPreviewDialog
+from backend.pdf_export import (
+    generate_overview_report, generate_slip_report,
+    generate_student_conduct_summary
+)
+from backend.db_activity_log import log_export, log_report_generated
+import tempfile
+import os
 
 
 class ReportsPage(BasePage):
-    def __init__(self, parent=None):
+    def __init__(self, current_user=None, parent=None):
         super().__init__(parent)
+        self.current_user = current_user or {}
+        self.staff_id = self.current_user.get("username", "UNKNOWN")
         self._build()
 
     def _build(self):
@@ -71,10 +81,7 @@ class ReportsPage(BasePage):
         export_all = QPushButton("   Export All Reports ")
         export_all.setStyleSheet(btn_gold())
         export_all.setFixedHeight(38)
-        export_all.clicked.connect(lambda: InfoDialog(
-            "Export",
-            "All reports have been prepared for export.\n(Backend export will be implemented in final system.)",
-            parent=self).exec_())
+        export_all.clicked.connect(self._export_overview_report)
         h_lay.addWidget(export_all)
         self.main_layout.addWidget(header)
 
@@ -99,6 +106,7 @@ class ReportsPage(BasePage):
         print_btn = QPushButton(" Print Preview ")
         print_btn.setStyleSheet(btn_outline())
         print_btn.setFixedHeight(38)
+        print_btn.clicked.connect(self._export_overview_report)
         period_row.addWidget(print_btn)
         self.main_layout.addLayout(period_row)
 
@@ -315,14 +323,25 @@ class ReportsPage(BasePage):
         top_row.addWidget(t_lbl)
         top_row.addStretch()
 
-        for label, style in [("   Export CSV", btn_outline()), ("   Print", btn_outline())]:
-            b = QPushButton(label)
-            b.setStyleSheet(style)
-            b.setFixedHeight(36)
-            b.clicked.connect(lambda _, lbl=label: InfoDialog(
-                lbl.strip(), f"{lbl.strip()} action will be implemented in the final system.",
-                parent=self).exec_())
-            top_row.addWidget(b)
+        # Export PDF button
+        export_pdf_btn = QPushButton("   Export PDF ")
+        export_pdf_btn.setStyleSheet(btn_outline())
+        export_pdf_btn.setFixedHeight(36)
+        export_pdf_btn.clicked.connect(
+            lambda _, st=slip_type, ttl=title, sbt=subtitle, rw=rows: 
+            self._export_slip_report(st, ttl, sbt, rw)
+        )
+        top_row.addWidget(export_pdf_btn)
+        
+        # Print button
+        print_btn = QPushButton("   Print ")
+        print_btn.setStyleSheet(btn_outline())
+        print_btn.setFixedHeight(36)
+        print_btn.clicked.connect(
+            lambda _, st=slip_type, ttl=title, sbt=subtitle, rw=rows: 
+            self._export_slip_report(st, ttl, sbt, rw)
+        )
+        top_row.addWidget(print_btn)
         lay.addLayout(top_row)
 
         sub = QLabel(subtitle)
@@ -552,3 +571,61 @@ class ReportsPage(BasePage):
         fig.tight_layout(pad=0.5)
         canvas = FigureCanvas(fig)
         return canvas
+
+    # ── PDF Export Methods ────────────────────────────────────────────────────
+    def _export_overview_report(self):
+        """Export monthly overview report as PDF."""
+        try:
+            from backend.db_blue_slip import get_blue_slips
+            from backend.db_green_slip import get_green_slips
+            from backend.db_pink_slip import get_pink_slips
+            
+            # Collect data
+            records_data = {
+                'green': get_green_slips(None) or [],
+                'pink': get_pink_slips(None) or [],
+                'blue': get_blue_slips(None) or [],
+            }
+            
+            total_records = len(records_data['green']) + len(records_data['pink']) + len(records_data['blue'])
+            
+            # Generate PDF in temp location
+            temp_pdf = os.path.join(tempfile.gettempdir(), 'SCMS_Overview_Report.pdf')
+            generate_overview_report(temp_pdf, records_data)
+            
+            # Log the export action
+            log_report_generated(self.staff_id, "Monthly Overview")
+            
+            # Show preview dialog
+            PDFPreviewDialog(temp_pdf, "Monthly Overview Report", parent=self).exec_()
+        except Exception as e:
+            InfoDialog(
+                "Export Error",
+                f"Failed to generate overview report:\n{str(e)}",
+                success=False,
+                parent=self
+            ).exec_()
+
+    def _export_slip_report(self, slip_type, title, subtitle, rows):
+        """Export individual slip type report as PDF."""
+        try:
+            # Convert rows to database record format
+            records = [tuple(row) for row in rows] if rows else []
+            
+            # Generate PDF in temp location
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_pdf = os.path.join(tempfile.gettempdir(), f'SCMS_{slip_type.upper()}_Report_{timestamp}.pdf')
+            generate_slip_report(temp_pdf, slip_type, records, subtitle)
+            
+            # Log the export action
+            log_report_generated(self.staff_id, f"{slip_type.title()} Slip Report")
+            
+            # Show preview dialog
+            PDFPreviewDialog(temp_pdf, title, parent=self).exec_()
+        except Exception as e:
+            InfoDialog(
+                "Export Error",
+                f"Failed to generate {slip_type} slip report:\n{str(e)}",
+                success=False,
+                parent=self
+            ).exec_()

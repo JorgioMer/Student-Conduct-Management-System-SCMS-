@@ -30,6 +30,7 @@ from ui.login_window import LoginWindow
 
 # Backend modules available for import
 from backend import db_connection, db_students, db_green_slip, db_blue_slip, db_pink_slip
+from backend.db_init_activity_log import create_activity_log_table
 
 
 def main():
@@ -58,6 +59,9 @@ def main():
 
     # Apply global stylesheet
     app.setStyleSheet(GLOBAL_STYLE)
+
+    # Initialize activity log table
+    create_activity_log_table()
 
     # Show login window
     login = LoginWindow()
