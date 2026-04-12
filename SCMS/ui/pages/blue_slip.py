@@ -761,7 +761,7 @@ class BlueSlipPage(BasePage):
         self._blue_severity_filter.setStyleSheet(_combo_style(BLUE_SLIP))
         self._blue_severity_filter.currentIndexChanged.connect(self._apply_blue_filters)
 
-        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn = QPushButton("  Refresh ")
         refresh_btn.setStyleSheet(btn_blue())
         refresh_btn.setFixedHeight(38)
         refresh_btn.setFixedWidth(110)
@@ -1171,7 +1171,7 @@ class BlueSlipPage(BasePage):
 
         refresh_row = QHBoxLayout()
         refresh_row.addStretch()
-        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn = QPushButton("  Refresh Chart  ")
         refresh_btn.setStyleSheet(btn_blue())
         refresh_btn.setFixedHeight(36)
         refresh_btn.setFixedWidth(150)

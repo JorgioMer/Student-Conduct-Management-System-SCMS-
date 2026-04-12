@@ -442,13 +442,6 @@ class GreenSlipPage(BasePage):
         self.disp_auth = _build_officer_combo(GREEN_SLIP)   # ← CHANGED (was QLineEdit)
         form_lay.addWidget(self.disp_auth, 4, 1)
 
-        form_lay.addWidget(lbl("Status"), 4, 2)
-        self.disp_status = QComboBox()
-        self.disp_status.addItems(["Active", "Expired", "Cancelled"])
-        self.disp_status.setFixedHeight(38)
-        self.disp_status.setStyleSheet(_combo_style(GREEN_SLIP))
-        form_lay.addWidget(self.disp_status, 4, 3)
-
         form_lay.addWidget(lbl("Semester", True), 5, 0)
         self.disp_semester = QComboBox()
         self.disp_semester.addItems(["1st", "2nd", "Summer"])
@@ -518,7 +511,7 @@ class GreenSlipPage(BasePage):
                 slip_type   = "Dispensation"
                 date_avail  = self.disp_date.date().toPyDate()
                 days        = self.disp_days.value()
-                status      = self.disp_status.currentText()
+                status      = "Active"
                 expiry      = self.disp_expiry.date().toPyDate()
                 purpose     = self.disp_reason.toPlainText().strip()
                 semester    = self.disp_semester.currentText()
@@ -901,7 +894,7 @@ class GreenSlipPage(BasePage):
         self._green_grade_filter.setStyleSheet(_combo_style(GREEN_SLIP))
         self._green_grade_filter.currentIndexChanged.connect(self._apply_green_filters)
 
-        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn = QPushButton("  Refresh ")
         refresh_btn.setStyleSheet(btn_green())
         refresh_btn.setFixedHeight(38)
         refresh_btn.setFixedWidth(110)
@@ -1067,7 +1060,7 @@ class GreenSlipPage(BasePage):
 
         refresh_row = QHBoxLayout()
         refresh_row.addStretch()
-        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn = QPushButton("   Refresh Chart  ")
         refresh_btn.setStyleSheet(btn_green())
         refresh_btn.setFixedHeight(36)
         refresh_btn.setFixedWidth(150)

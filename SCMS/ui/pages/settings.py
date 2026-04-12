@@ -326,8 +326,8 @@ class SettingsPage(BasePage):
         if is_admin:
             hdr.setSectionResizeMode(5, QHeaderView.Fixed)
             hdr.setSectionResizeMode(6, QHeaderView.Fixed)
-            table.setColumnWidth(5, 90)
-            table.setColumnWidth(6, 90)
+            table.setColumnWidth(5, 130)
+            table.setColumnWidth(6, 130)
 
         table.setFixedHeight(300)
         self.users_table = table
@@ -399,13 +399,13 @@ class SettingsPage(BasePage):
                 current_uname = self.current_user.get("username", "")
 
                 edit_btn = QPushButton("Edit")
-                edit_btn.setFixedSize(75, 32)
+                edit_btn.setFixedSize(120, 32)
                 edit_btn.setStyleSheet(btn_primary())
                 edit_btn.clicked.connect(lambda _, u=uname, n=name, ro=role, s=status:
                                         self._show_edit_user(u, n, ro, s))
 
                 del_btn = QPushButton("Delete")
-                del_btn.setFixedSize(75, 32)
+                del_btn.setFixedSize(120, 32)
                 del_btn.setStyleSheet(btn_danger())
                 if uname == current_uname:
                     del_btn.setEnabled(False)

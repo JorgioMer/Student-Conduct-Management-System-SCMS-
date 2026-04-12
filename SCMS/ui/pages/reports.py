@@ -92,11 +92,20 @@ class ReportsPage(BasePage):
         period_row.addWidget(period_lbl)
         self.period_cb = QComboBox()
         self.period_cb.addItems([
-            "November 2024",
-            "October 2024",
-            "September 2024",
-            "1st Semester S.Y. 2024–2025",
-            "S.Y. 2024–2025 (Full Year)",
+            "January 2026",
+            "February 2026",
+            "March 2026",
+            "April 2026",
+            "May 2026",
+            "June 2026",
+            "July 2026",
+            "August 2026",
+            "September 2026",
+            "October 2026",
+            "December 2026",
+            "1st Semester S.Y. 2025–2026",
+            "2ND Semester S.Y. 2025–2026",
+            "S.Y. 2025–2026 (Full Year)",
         ])
         self.period_cb.setFixedHeight(38)
         self.period_cb.setFixedWidth(280)
@@ -129,7 +138,7 @@ class ReportsPage(BasePage):
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(18)
 
-        lay.addWidget(SectionTitle("Monthly Overview — November 2024"))
+        lay.addWidget(SectionTitle("Monthly Overview — November 2026"))
 
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
