@@ -18,30 +18,33 @@ def create_activity_log_table():
         conn = get_connection()
         cursor = conn.cursor()
         
-        # Check if table exists
-        cursor.execute("""
-            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_NAME = N'ActivityLog'
-        """)
+        # Check if table exists by trying to query it
+        table_exists = False
+        try:
+            cursor.execute("SELECT COUNT(*) FROM ActivityLog")
+            table_exists = True
+        except pyodbc.ProgrammingError:
+            table_exists = False
         
-        if cursor.fetchone()[0] == 0:
-            # Create the table
+        if not table_exists:
+            # Create the table with square brackets for reserved keywords
+            # Note: Access doesn't support DEFAULT NOW(), so we handle timestamps in Python
             cursor.execute("""
                 CREATE TABLE ActivityLog (
-                    LogID AUTOINCREMENT PRIMARY KEY,
-                    Timestamp DATETIME DEFAULT NOW(),
+                    LogID COUNTER PRIMARY KEY,
+                    [Timestamp] DATETIME,
                     ActionType TEXT NOT NULL,
                     StaffID TEXT NOT NULL,
-                    Description MEMO,
+                    [Description] MEMO,
                     RecordID TEXT,
                     RecordType TEXT,
                     Details MEMO,
-                    Status TEXT DEFAULT 'SUCCESS'
+                    [Status] TEXT
                 )
             """)
             
             # Create indexes for faster queries
-            cursor.execute("CREATE INDEX idx_timestamp ON ActivityLog (Timestamp DESC)")
+            cursor.execute("CREATE INDEX idx_timestamp ON ActivityLog ([Timestamp] DESC)")
             cursor.execute("CREATE INDEX idx_staff_id ON ActivityLog (StaffID)")
             cursor.execute("CREATE INDEX idx_action_type ON ActivityLog (ActionType)")
             cursor.execute("CREATE INDEX idx_record_id ON ActivityLog (RecordID)")

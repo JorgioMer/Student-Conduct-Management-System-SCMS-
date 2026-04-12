@@ -66,7 +66,7 @@ class LogManager:
             # Insert into ActivityLog table
             query = """
                 INSERT INTO ActivityLog 
-                (Timestamp, ActionType, StaffID, Description, RecordID, RecordType, Details, Status)
+                ([Timestamp], ActionType, StaffID, [Description], RecordID, RecordType, Details, [Status])
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
             
@@ -109,10 +109,10 @@ class LogManager:
             
             query = """
                 SELECT TOP (?)
-                    LogID, Timestamp, ActionType, StaffID, Description,
-                    RecordID, RecordType, Details, Status
+                    LogID, [Timestamp], ActionType, StaffID, [Description],
+                    RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
-                ORDER BY Timestamp DESC
+                ORDER BY [Timestamp] DESC
                 OFFSET ? ROWS
             """
             
@@ -146,11 +146,11 @@ class LogManager:
             
             query = """
                 SELECT TOP (?)
-                    LogID, Timestamp, ActionType, StaffID, Description,
-                    RecordID, RecordType, Details, Status
+                    LogID, [Timestamp], ActionType, StaffID, [Description],
+                    RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
                 WHERE StaffID = ?
-                ORDER BY Timestamp DESC
+                ORDER BY [Timestamp] DESC
                 OFFSET ? ROWS
             """
             
@@ -184,11 +184,11 @@ class LogManager:
             
             query = """
                 SELECT TOP (?)
-                    LogID, Timestamp, ActionType, StaffID, Description,
-                    RecordID, RecordType, Details, Status
+                    LogID, [Timestamp], ActionType, StaffID, [Description],
+                    RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
                 WHERE ActionType = ?
-                ORDER BY Timestamp DESC
+                ORDER BY [Timestamp] DESC
                 OFFSET ? ROWS
             """
             
@@ -223,11 +223,11 @@ class LogManager:
             
             query = """
                 SELECT TOP (?)
-                    LogID, Timestamp, ActionType, StaffID, Description,
-                    RecordID, RecordType, Details, Status
+                    LogID, [Timestamp], ActionType, StaffID, [Description],
+                    RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
-                WHERE CAST(Timestamp AS DATE) BETWEEN ? AND ?
-                ORDER BY Timestamp DESC
+                WHERE CAST([Timestamp] AS DATE) BETWEEN ? AND ?
+                ORDER BY [Timestamp] DESC
                 OFFSET ? ROWS
             """
             
@@ -258,11 +258,11 @@ class LogManager:
             cursor = conn.cursor()
             
             query = """
-                SELECT LogID, Timestamp, ActionType, StaffID, Description,
-                       RecordID, RecordType, Details, Status
+                SELECT LogID, [Timestamp], ActionType, StaffID, [Description],
+                       RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
                 WHERE RecordID = ?
-                ORDER BY Timestamp DESC
+                ORDER BY [Timestamp] DESC
             """
             
             cursor.execute(query, (record_id,))
@@ -311,7 +311,7 @@ class LogManager:
             
             query = """
                 DELETE FROM ActivityLog
-                WHERE Timestamp < DATEADD(day, ?, GETDATE())
+                WHERE [Timestamp] < DATEADD(day, ?, GETDATE())
             """
             
             cursor.execute(query, (-days,))
