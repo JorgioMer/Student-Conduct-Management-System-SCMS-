@@ -17,7 +17,8 @@ from ui.styles import (
 )
 from ui.components import (
     SectionTitle, SubTitle, Divider,
-    FieldLabel, add_shadow, ConfirmDialog, InfoDialog, StatTile
+    FieldLabel, add_shadow, ConfirmDialog, InfoDialog, StatTile,
+    AutoCompleteLineEdit
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
@@ -344,9 +345,7 @@ class BlueSlipPage(BasePage):
         self.blue_year.addItems(["1st", "2nd", "3rd", "4th"])
         self.blue_year.setFixedHeight(38)
         self.blue_year.setStyleSheet(_combo_style(BLUE_SLIP))
-        self.blue_course = QLineEdit()
-        self.blue_course.setPlaceholderText("Course")
-        self.blue_course.setFixedHeight(38)
+        self.blue_course = AutoCompleteLineEdit()
         grade_row.addWidget(self.blue_year)
         grade_row.addWidget(self.blue_course)
         form_lay.addLayout(grade_row, 1, 1)

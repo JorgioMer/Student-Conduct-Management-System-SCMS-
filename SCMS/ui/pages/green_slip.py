@@ -17,7 +17,8 @@ from ui.styles import (
 )
 from ui.components import (
     SectionTitle, SubTitle, Divider,
-    FieldLabel, Card, add_shadow, ConfirmDialog, InfoDialog, StatTile
+    FieldLabel, Card, add_shadow, ConfirmDialog, InfoDialog, StatTile,
+    AutoCompleteLineEdit
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
@@ -394,9 +395,7 @@ class GreenSlipPage(BasePage):
         self.disp_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.disp_year.setFixedHeight(38)
         self.disp_year.setStyleSheet(_combo_style(GREEN_SLIP))
-        self.disp_course = QLineEdit()
-        self.disp_course.setPlaceholderText("Course")
-        self.disp_course.setFixedHeight(38)
+        self.disp_course = AutoCompleteLineEdit()
         grade_row.addWidget(self.disp_year)
         grade_row.addWidget(self.disp_course)
         form_lay.addLayout(grade_row, 1, 1)
@@ -658,9 +657,7 @@ class GreenSlipPage(BasePage):
         self.exc_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.exc_year.setFixedHeight(38)
         self.exc_year.setStyleSheet(_combo_style(GREEN_SLIP))
-        self.exc_course = QLineEdit()
-        self.exc_course.setPlaceholderText("Course")
-        self.exc_course.setFixedHeight(38)
+        self.exc_course = AutoCompleteLineEdit()
         grade_row.addWidget(self.exc_year)
         grade_row.addWidget(self.exc_course)
         form_lay.addLayout(grade_row, 1, 1)

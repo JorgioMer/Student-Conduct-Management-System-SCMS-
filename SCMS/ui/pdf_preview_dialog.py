@@ -25,6 +25,11 @@ from datetime import datetime
 from pathlib import Path
 import os
 
+# PyQt5 imports for PDF preview dialog
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+
 # ── Image paths ───────────────────────────────────────────────────────────────
 # Resolve relative to this file's directory so imports from anywhere work.
 _HERE = Path(__file__).parent
@@ -495,3 +500,152 @@ def generate_student_conduct_summary(output_path, student_data):
     ))
     doc.build(story)
     return output_path
+
+
+# ── PDF Preview Dialog ────────────────────────────────────────────────────────
+class PDFPreviewDialog(QDialog):
+    """
+    A simple dialog to show a PDF file with open and print options.
+    Opens the PDF in the default system PDF viewer.
+    """
+    def __init__(self, pdf_path, title="PDF Preview", parent=None):
+        super().__init__(parent)
+        self.pdf_path = pdf_path
+        self.setWindowTitle(title)
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(200)
+        self.setStyleSheet("QDialog { background: #F5F5F5; }")
+        self._build()
+
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(16)
+
+        # Title label
+        title_lbl = QLabel(f"PDF Generated Successfully")
+        title_lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        title_lbl.setStyleSheet("color: #1a3a52; background: transparent; border: none;")
+        layout.addWidget(title_lbl)
+
+        # File path label
+        path_lbl = QLabel(f"<b>File:</b> {self.pdf_path}")
+        path_lbl.setFont(QFont("Segoe UI", 11))
+        path_lbl.setWordWrap(True)
+        path_lbl.setStyleSheet("color: #333333; background: transparent; border: none;")
+        layout.addWidget(path_lbl)
+
+        # Info text
+        info_lbl = QLabel("You can open this file in your PDF viewer or print it directly.")
+        info_lbl.setFont(QFont("Segoe UI", 10))
+        info_lbl.setStyleSheet("color: #666666; background: transparent; border: none;")
+        layout.addWidget(info_lbl)
+
+        layout.addStretch()
+
+        # Button row
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        # Open button
+        open_btn = QPushButton("   Open PDF   ")
+        open_btn.setFont(QFont("Segoe UI", 11))
+        open_btn.setFixedHeight(38)
+        open_btn.setStyleSheet("""
+            QPushButton {
+                background: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #1976D2;
+            }
+        """)
+        open_btn.clicked.connect(self._open_pdf)
+        btn_layout.addWidget(open_btn)
+
+        # Print button
+        print_btn = QPushButton("   Print   ")
+        print_btn.setFont(QFont("Segoe UI", 11))
+        print_btn.setFixedHeight(38)
+        print_btn.setStyleSheet("""
+            QPushButton {
+                background: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #F57C00;
+            }
+        """)
+        print_btn.clicked.connect(self._print_pdf)
+        btn_layout.addWidget(print_btn)
+
+        # Close button
+        close_btn = QPushButton("   Close   ")
+        close_btn.setFont(QFont("Segoe UI", 11))
+        close_btn.setFixedHeight(38)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: #CCCCCC;
+                color: #333333;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #BBBBBB;
+            }
+        """)
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+
+        layout.addLayout(btn_layout)
+
+    def _open_pdf(self):
+        """Open PDF in default system viewer"""
+        import subprocess
+        import sys
+        import os
+        
+        if not os.path.exists(self.pdf_path):
+            from ui.components import InfoDialog
+            InfoDialog("Error", f"PDF file not found:\n{self.pdf_path}", success=False, parent=self).exec_()
+            return
+        
+        try:
+            if sys.platform == "win32":
+                os.startfile(self.pdf_path)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", self.pdf_path])
+            else:
+                subprocess.Popen(["xdg-open", self.pdf_path])
+        except Exception as e:
+            from ui.components import InfoDialog
+            InfoDialog("Error", f"Failed to open PDF:\n{str(e)}", success=False, parent=self).exec_()
+
+    def _print_pdf(self):
+        """Send PDF to default printer"""
+        import subprocess
+        import sys
+        import os
+        
+        if not os.path.exists(self.pdf_path):
+            from ui.components import InfoDialog
+            InfoDialog("Error", f"PDF file not found:\n{self.pdf_path}", success=False, parent=self).exec_()
+            return
+        
+        try:
+            if sys.platform == "win32":
+                os.startfile(self.pdf_path, "print")
+            elif sys.platform == "darwin":
+                subprocess.Popen(["lp", self.pdf_path])
+            else:
+                subprocess.Popen(["lp", self.pdf_path])
+        except Exception as e:
+            from ui.components import InfoDialog
+            InfoDialog("Error", f"Failed to print PDF:\n{str(e)}", success=False, parent=self).exec_()

@@ -1,0 +1,3 @@
+Log ID,Timestamp,Action Type,Staff ID,Description,Record ID,Record Type,Status
+2,2026-04-19 16:37:30,REPORT_GENERATED,admin,Generated Monthly Overview report,,,SUCCESS
+1,2026-04-19 16:37:02,REPORT_GENERATED,admin,Generated Monthly Overview report,,,SUCCESS

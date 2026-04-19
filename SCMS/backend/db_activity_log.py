@@ -107,17 +107,20 @@ class LogManager:
             conn = get_connection()
             cursor = conn.cursor()
             
+            # MS Access compatible query without OFFSET/FETCH
             query = """
-                SELECT TOP (?)
+                SELECT 
                     LogID, [Timestamp], ActionType, StaffID, [Description],
                     RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
                 ORDER BY [Timestamp] DESC
-                OFFSET ? ROWS
             """
             
-            cursor.execute(query, (limit, offset))
-            logs = cursor.fetchall()
+            cursor.execute(query)
+            all_logs = cursor.fetchall()
+            
+            # Manual pagination
+            logs = all_logs[offset:offset + limit]
             
             cursor.close()
             conn.close()
@@ -145,17 +148,19 @@ class LogManager:
             cursor = conn.cursor()
             
             query = """
-                SELECT TOP (?)
+                SELECT 
                     LogID, [Timestamp], ActionType, StaffID, [Description],
                     RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
                 WHERE StaffID = ?
                 ORDER BY [Timestamp] DESC
-                OFFSET ? ROWS
             """
             
-            cursor.execute(query, (limit, staff_id, offset))
-            logs = cursor.fetchall()
+            cursor.execute(query, (staff_id,))
+            all_logs = cursor.fetchall()
+            
+            # Manual pagination
+            logs = all_logs[offset:offset + limit]
             
             cursor.close()
             conn.close()
@@ -183,17 +188,19 @@ class LogManager:
             cursor = conn.cursor()
             
             query = """
-                SELECT TOP (?)
+                SELECT 
                     LogID, [Timestamp], ActionType, StaffID, [Description],
                     RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
                 WHERE ActionType = ?
                 ORDER BY [Timestamp] DESC
-                OFFSET ? ROWS
             """
             
-            cursor.execute(query, (limit, action_type, offset))
-            logs = cursor.fetchall()
+            cursor.execute(query, (action_type,))
+            all_logs = cursor.fetchall()
+            
+            # Manual pagination
+            logs = all_logs[offset:offset + limit]
             
             cursor.close()
             conn.close()
@@ -209,8 +216,8 @@ class LogManager:
         Retrieve activity logs within a date range.
         
         Args:
-            start_date: Start date (datetime or string 'YYYY-MM-DD')
-            end_date: End date (datetime or string 'YYYY-MM-DD')
+            start_date: Start date (datetime, QDate, or string 'YYYY-MM-DD')
+            end_date: End date (datetime, QDate, or string 'YYYY-MM-DD')
             limit: Maximum number of records
             offset: Offset for pagination
         
@@ -218,24 +225,68 @@ class LogManager:
             List of log tuples
         """
         try:
+            from PyQt5.QtCore import QDate
+            from datetime import datetime
+            
+            # Convert QDate to datetime
+            if isinstance(start_date, QDate):
+                start_date = datetime(start_date.year(), start_date.month(), start_date.day())
+            elif isinstance(start_date, str):
+                start_date = datetime.strptime(start_date, "%Y-%m-%d")
+            elif not isinstance(start_date, datetime):
+                start_date = datetime.now()
+                
+            if isinstance(end_date, QDate):
+                end_date = datetime(end_date.year(), end_date.month(), end_date.day())
+            elif isinstance(end_date, str):
+                end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            elif not isinstance(end_date, datetime):
+                end_date = datetime.now()
+            
+            # Add 1 day to end_date to include the entire end day
+            from datetime import timedelta
+            end_date = end_date + timedelta(days=1)
+            
             conn = get_connection()
             cursor = conn.cursor()
             
+            # Get all logs and filter in Python (more reliable with Access)
             query = """
-                SELECT TOP (?)
+                SELECT 
                     LogID, [Timestamp], ActionType, StaffID, [Description],
                     RecordID, RecordType, Details, [Status]
                 FROM ActivityLog
-                WHERE CAST([Timestamp] AS DATE) BETWEEN ? AND ?
                 ORDER BY [Timestamp] DESC
-                OFFSET ? ROWS
             """
             
-            cursor.execute(query, (limit, start_date, end_date, offset))
-            logs = cursor.fetchall()
+            cursor.execute(query)
+            all_logs = cursor.fetchall()
             
             cursor.close()
             conn.close()
+            
+            # Filter by date range in Python
+            filtered_logs = []
+            for log in all_logs:
+                if len(log) > 1:
+                    log_timestamp = log[1]
+                    # Handle datetime objects
+                    if isinstance(log_timestamp, str):
+                        try:
+                            log_timestamp = datetime.fromisoformat(log_timestamp.replace('Z', '+00:00'))
+                        except:
+                            try:
+                                log_timestamp = datetime.strptime(log_timestamp, "%Y-%m-%d %H:%M:%S")
+                            except:
+                                continue
+                    
+                    if isinstance(log_timestamp, datetime):
+                        if start_date <= log_timestamp < end_date:
+                            filtered_logs.append(log)
+            
+            # Manual pagination
+            logs = filtered_logs[offset:offset + limit]
+            
             return logs
             
         except Exception as e:
