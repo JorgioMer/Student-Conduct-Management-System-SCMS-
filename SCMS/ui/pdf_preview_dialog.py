@@ -25,16 +25,6 @@ from datetime import datetime
 from pathlib import Path
 import os
 
-# Import database functions for fetching student data
-from backend.db_blue_slip import get_blue_slips
-from backend.db_pink_slip import get_pink_slips
-from backend.db_green_slip import get_green_slips
-from backend.db_students import get_student
-from backend.config import get_course_college, COLLEGES
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
-
 # ── Image paths ───────────────────────────────────────────────────────────────
 # Resolve relative to this file's directory so imports from anywhere work.
 _HERE = Path(__file__).parent
@@ -42,43 +32,42 @@ HEADER_BANNER_PATH = str(_HERE / "header_banner.jpg")   # full-width ISO banner
 FOOTER_LOGO_PATH   = str(_HERE / "footer_logo.png")     # CCIS square logo
 
 # ── Document Styling Constants ────────────────────────────────────────────────
-NAVY       = HexColor("#1a3a52")
-GOLD       = HexColor("#d4af37")
-BLUE_CJC   = HexColor("#0070C0")   # matches the Word template CCIS blue
-TAN_CJC    = HexColor("#948A54")   # matches the Word template program-list tan
-WHITE      = HexColor("#ffffff")
-LIGHT_GRAY = HexColor("#f5f5f5")
-DARK_GRAY  = HexColor("#333333")
+NAVY             = HexColor("#1a3a52")
+GOLD             = HexColor("#d4af37")
+BLUE_CJC         = HexColor("#0070C0")
+TAN_CJC          = HexColor("#948A54")
+WHITE            = HexColor("#ffffff")
+LIGHT_GRAY       = HexColor("#f5f5f5")
+DARK_GRAY        = HexColor("#333333")
 GREEN_SLIP_COLOR = HexColor("#4CAF50")
 PINK_SLIP_COLOR  = HexColor("#E91E63")
 BLUE_SLIP_COLOR  = HexColor("#2196F3")
 
 # Page margins
-MARGIN_TOP    = 1.45 * inch   # extra room for the tall banner
-MARGIN_BOTTOM = 1.10 * inch   # room for footer
+MARGIN_TOP    = 1.65 * inch
+MARGIN_BOTTOM = 1.10 * inch
 MARGIN_LEFT   = 0.75 * inch
 MARGIN_RIGHT  = 0.75 * inch
 
-# Header / footer geometry (Letter: 8.5 × 11 inches)
 PAGE_W, PAGE_H = pagesizes.LETTER
-
-# Banner: full content width, proportional height
 BANNER_W = PAGE_W - MARGIN_LEFT - MARGIN_RIGHT
-BANNER_H = BANNER_W * (247 / 1883)   # original image aspect ratio
-
-# Footer logo: small square on the left
+BANNER_H = BANNER_W * (247 / 1883)
 LOGO_SIZE = 0.45 * inch
+CONTENT_W = PAGE_W - MARGIN_LEFT - MARGIN_RIGHT
 
 
-# ── Header and Footer Functions ────────────────────────────────────────────────
+# ── Helper ────────────────────────────────────────────────────────────────────
+def _safe(text):
+    """Encode to latin-1, replacing unmappable chars (e.g. em-dash). Never returns None."""
+    if text is None:
+        return '-'
+    return str(text).encode('latin-1', errors='replace').decode('latin-1')
+
+
+# ── Header and Footer ─────────────────────────────────────────────────────────
 class CorJesuHeaderFooter(BaseDocTemplate):
-    """
-    Custom PDF document using the official CCIS ISO header banner and
-    CCIS footer (logo + CCIS name/contact + program list + rule line).
-    """
-
     def __init__(self, filename, **kw):
-        self._ccis_title = str(kw.pop('title', 'SCMS Report') or 'SCMS Report')
+        self._ccis_title = _safe(kw.pop('title', 'SCMS Report') or 'SCMS Report')
         self.report_date = datetime.now().strftime("%B %d, %Y")
         BaseDocTemplate.__init__(
             self, filename,
@@ -100,50 +89,39 @@ class CorJesuHeaderFooter(BaseDocTemplate):
         )
         return PageTemplate(id='default', frames=[frame], onPage=self._on_page)
 
-    # ------------------------------------------------------------------
     def _on_page(self, c, doc):
         c.saveState()
-        c.setFont("Helvetica", 10)   # ensure a font is active before any text ops
+        c.setFont("Helvetica", 10)
 
         # ── HEADER ────────────────────────────────────────────────────
-        # Draw the ISO/Cor Jesu banner image
-        banner_y = PAGE_H - MARGIN_LEFT - BANNER_H   # top of page minus margin
+        banner_y = PAGE_H - MARGIN_LEFT - BANNER_H
         if os.path.exists(HEADER_BANNER_PATH):
-            c.drawImage(
-                HEADER_BANNER_PATH,
-                MARGIN_LEFT, banner_y,
-                width=BANNER_W, height=BANNER_H,
-                preserveAspectRatio=True, mask='auto'
-            )
+            c.drawImage(HEADER_BANNER_PATH, MARGIN_LEFT, banner_y,
+                        width=BANNER_W, height=BANNER_H,
+                        preserveAspectRatio=True, mask='auto')
         else:
-            # Fallback text header if image is missing
             c.setFillColor(NAVY)
             c.rect(MARGIN_LEFT, banner_y, BANNER_W, BANNER_H, fill=1, stroke=0)
             c.setFillColor(GOLD)
             c.setFont("Helvetica-Bold", 14)
-            c.drawCentredString(PAGE_W / 2, banner_y + BANNER_H * 0.6,
-                                "Cor Jesu College")
+            c.drawCentredString(PAGE_W / 2, banner_y + BANNER_H * 0.6, "Cor Jesu College")
             c.setFillColor(WHITE)
             c.setFont("Helvetica", 9)
             c.drawCentredString(PAGE_W / 2, banner_y + BANNER_H * 0.3,
                                 "ISO 9001:2015 Certified | CHED Accredited")
 
-        # Report title & date just below the banner
-        title_y = banner_y - 0.18 * inch
+        title_y = banner_y - 0.38 * inch
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(NAVY)
-        # Encode to latin-1, replacing any unmappable characters (e.g. em-dash -> hyphen)
-        safe_title = self._ccis_title.encode('latin-1', errors='replace').decode('latin-1')
-        c.drawString(MARGIN_LEFT, title_y, safe_title)
+        c.drawString(MARGIN_LEFT, title_y, self._ccis_title)
         c.setFont("Helvetica", 8)
         c.setFillColor(DARK_GRAY)
         c.drawRightString(PAGE_W - MARGIN_RIGHT, title_y,
                           f"Generated: {self.report_date}")
 
         # ── FOOTER ────────────────────────────────────────────────────
-        footer_top = MARGIN_BOTTOM - 0.08 * inch   # just inside bottom margin
+        footer_top = MARGIN_BOTTOM - 0.08 * inch
 
-        # Horizontal rule (thick-thin style matching the Word template)
         c.setStrokeColor(BLUE_CJC)
         c.setLineWidth(2.5)
         c.line(MARGIN_LEFT, footer_top + 0.55 * inch,
@@ -152,17 +130,12 @@ class CorJesuHeaderFooter(BaseDocTemplate):
         c.line(MARGIN_LEFT, footer_top + 0.52 * inch,
                PAGE_W - MARGIN_RIGHT, footer_top + 0.52 * inch)
 
-        # CCIS logo
         if os.path.exists(FOOTER_LOGO_PATH):
-            c.drawImage(
-                FOOTER_LOGO_PATH,
-                MARGIN_LEFT, footer_top,
-                width=LOGO_SIZE, height=LOGO_SIZE,
-                preserveAspectRatio=True, mask='auto'
-            )
+            c.drawImage(FOOTER_LOGO_PATH, MARGIN_LEFT, footer_top,
+                        width=LOGO_SIZE, height=LOGO_SIZE,
+                        preserveAspectRatio=True, mask='auto')
         logo_right = MARGIN_LEFT + LOGO_SIZE + 0.10 * inch
 
-        # Left block: CCIS name + contact
         c.setFont("Helvetica-BoldOblique", 10)
         c.setFillColor(BLUE_CJC)
         c.drawString(logo_right, footer_top + 0.30 * inch,
@@ -172,9 +145,8 @@ class CorJesuHeaderFooter(BaseDocTemplate):
         c.drawString(logo_right, footer_top + 0.16 * inch,
                      "Contact: (+63)(82) 553-2433 Loc. 169")
         c.drawString(logo_right, footer_top + 0.06 * inch,
-                     "Email: computerstudies@g.cjc.edu.ph  |  FB: CJC – College of Computing and Information Sciences")
+                     "Email: computerstudies@g.cjc.edu.ph  |  FB: CJC - College of Computing and Information Sciences")
 
-        # Right block: programs
         prog_x = PAGE_W - MARGIN_RIGHT
         c.setFont("Helvetica-Oblique", 7)
         c.setFillColor(TAN_CJC)
@@ -185,7 +157,6 @@ class CorJesuHeaderFooter(BaseDocTemplate):
         c.drawRightString(prog_x, footer_top + 0.06 * inch,
                           "| Bachelor of Library and Information Science")
 
-        # Page number centred below footer rule
         c.setFont("Helvetica", 7.5)
         c.setFillColor(DARK_GRAY)
         c.drawCentredString(PAGE_W / 2, 0.20 * inch, f"Page {doc.page}")
@@ -195,9 +166,7 @@ class CorJesuHeaderFooter(BaseDocTemplate):
 
 # ── Style Definitions ─────────────────────────────────────────────────────────
 def get_document_styles():
-    """Return a dictionary of custom paragraph styles."""
     styles = getSampleStyleSheet()
-
     title_style = ParagraphStyle(
         'CustomTitle', parent=styles['Heading1'],
         fontSize=16, textColor=NAVY, spaceAfter=12,
@@ -219,10 +188,10 @@ def get_document_styles():
         alignment=TA_JUSTIFY, spaceAfter=6
     )
     return {
-        'title': title_style,
-        'section': section_style,
+        'title':      title_style,
+        'section':    section_style,
         'subsection': subsection_style,
-        'normal': normal_style,
+        'normal':     normal_style,
     }
 
 
@@ -233,50 +202,59 @@ def create_table_style(slip_type='mixed'):
         'pink':  PINK_SLIP_COLOR,
         'blue':  BLUE_SLIP_COLOR,
     }.get(slip_type, NAVY)
-
     return TableStyle([
-        ('BACKGROUND',   (0, 0), (-1,  0), accent),
-        ('TEXTCOLOR',    (0, 0), (-1,  0), WHITE),
-        ('FONTNAME',     (0, 0), (-1,  0), 'Helvetica-Bold'),
-        ('FONTSIZE',     (0, 0), (-1,  0), 10),
-        ('ALIGN',        (0, 0), (-1,  0), 'CENTER'),
-        ('VALIGN',       (0, 0), (-1,  0), 'MIDDLE'),
-        ('BOTTOMPADDING',(0, 0), (-1,  0), 8),
-        ('FONTNAME',     (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE',     (0, 1), (-1, -1), 9),
-        ('TEXTCOLOR',    (0, 1), (-1, -1), DARK_GRAY),
-        ('ALIGN',        (0, 1), (-1, -1), 'CENTER'),
-        ('VALIGN',       (0, 1), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING',  (0, 1), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 1), (-1, -1), 6),
-        ('TOPPADDING',   (0, 1), (-1, -1), 6),
-        ('BOTTOMPADDING',(0, 1), (-1, -1), 6),
-        ('GRID',         (0, 0), (-1, -1), 0.5, grey),
-        ('ROWBACKGROUNDS',(0,1), (-1, -1), [WHITE, LIGHT_GRAY]),
+        ('BACKGROUND',    (0, 0), (-1,  0), accent),
+        ('TEXTCOLOR',     (0, 0), (-1,  0), WHITE),
+        ('FONTNAME',      (0, 0), (-1,  0), 'Helvetica-Bold'),
+        ('FONTSIZE',      (0, 0), (-1,  0), 10),
+        ('ALIGN',         (0, 0), (-1,  0), 'CENTER'),
+        ('VALIGN',        (0, 0), (-1,  0), 'MIDDLE'),
+        ('TOPPADDING',    (0, 0), (-1,  0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1,  0), 8),
+        ('FONTNAME',      (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE',      (0, 1), (-1, -1), 9),
+        ('TEXTCOLOR',     (0, 1), (-1, -1), DARK_GRAY),
+        ('ALIGN',         (0, 1), (-1, -1), 'CENTER'),
+        ('VALIGN',        (0, 1), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',   (0, 1), (-1, -1), 6),
+        ('RIGHTPADDING',  (0, 1), (-1, -1), 6),
+        ('TOPPADDING',    (0, 1), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ('GRID',          (0, 0), (-1, -1), 0.5, grey),
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+    ])
+
+
+def _info_table_style():
+    return TableStyle([
+        ('FONTNAME',      (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME',      (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE',      (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR',     (0, 0), (0, -1), NAVY),
+        ('TEXTCOLOR',     (1, 0), (1, -1), DARK_GRAY),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN',         (0, 0), (0, -1), 'RIGHT'),
+        ('ALIGN',         (1, 0), (1, -1), 'LEFT'),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
+        ('TOPPADDING',    (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('GRID',          (0, 0), (-1, -1), 0.5, grey),
+        ('ROWBACKGROUNDS',(0, 0), (-1, -1), [WHITE, LIGHT_GRAY]),
     ])
 
 
 # ── PDF Export Functions ──────────────────────────────────────────────────────
 def generate_overview_report(output_path, records_data):
-    """
-    Generate an overview report PDF with statistics and summaries.
-
-    Args:
-        output_path : Path where the PDF will be saved
-        records_data: Dict with 'green', 'pink', 'blue' slip record lists
-    Returns:
-        Path to the generated PDF
-    """
     doc = CorJesuHeaderFooter(
         output_path,
-        title="Monthly Overview Report — November 2024",
+        title="Monthly Overview Report - November 2024",
         docTitle="SCMS Monthly Overview"
     )
     story  = []
     styles = get_document_styles()
 
     story.append(Spacer(1, 0.3 * inch))
-
     story.append(Paragraph("<b>Report Period:</b> November 2024", styles['normal']))
     story.append(Spacer(1, 0.15 * inch))
 
@@ -303,12 +281,12 @@ def generate_overview_report(output_path, records_data):
         headers    = ['Student No.', 'Name', 'Year', 'Type', 'Date', 'Status']
         green_data = [headers] + [
             [
-                str(r[4]) if len(r) > 4 else 'N/A',
-                str(r[0]) if len(r) > 0 else 'N/A',
-                str(r[2]) if len(r) > 2 else 'N/A',
+                _safe(r[4] if len(r) > 4 else None),
+                _safe(r[0] if len(r) > 0 else None),
+                _safe(r[2] if len(r) > 2 else None),
                 'Excuse' if (r[5] is False if len(r) > 5 else False) else 'Dispensation',
-                str(r[6])[:10] if len(r) > 6 else 'N/A',
-                str(r[8]) if len(r) > 8 else 'Active',
+                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data['green'][:10]
         ]
@@ -319,44 +297,46 @@ def generate_overview_report(output_path, records_data):
 
     if records_data.get('pink'):
         story.append(PageBreak())
+        story.append(Spacer(1, 0.4 * inch))
         story.append(Paragraph("Pink Slips Report", styles['section']))
         headers   = ['Student No.', 'Name', 'Year', 'Violation', 'Date', 'Status']
         pink_data = [headers] + [
             [
-                str(r[4]) if len(r) > 4 else 'N/A',
-                str(r[0]) if len(r) > 0 else 'N/A',
-                str(r[2]) if len(r) > 2 else 'N/A',
-                str(r[5]) if len(r) > 5 else 'N/A',
-                str(r[6])[:10] if len(r) > 6 else 'N/A',
-                str(r[8]) if len(r) > 8 else 'Active',
+                _safe(r[4] if len(r) > 4 else None),
+                _safe(r[0] if len(r) > 0 else None),
+                _safe(r[2] if len(r) > 2 else None),
+                _safe(r[5] if len(r) > 5 else None),
+                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data['pink'][:10]
         ]
         t = Table(pink_data, colWidths=[1.2*inch, 1.5*inch, 0.8*inch, 1.2*inch, 0.9*inch, 0.8*inch])
         t.setStyle(create_table_style('pink'))
         story.append(t)
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.4 * inch))
 
     if records_data.get('blue'):
         story.append(PageBreak())
+        story.append(Spacer(1, 0.4 * inch))
         story.append(Paragraph("Blue Slips Report", styles['section']))
         headers   = ['Student No.', 'Name', 'Year', 'Violation', 'Severity', 'Date', 'Status']
         blue_data = [headers] + [
             [
-                str(r[4]) if len(r) > 4 else 'N/A',
-                str(r[0]) if len(r) > 0 else 'N/A',
-                str(r[2]) if len(r) > 2 else 'N/A',
-                str(r[5]) if len(r) > 5 else 'N/A',
-                str(r[6]) if len(r) > 6 else 'N/A',
-                str(r[7])[:10] if len(r) > 7 else 'N/A',
-                str(r[8]) if len(r) > 8 else 'Active',
+                _safe(r[4] if len(r) > 4 else None),
+                _safe(r[0] if len(r) > 0 else None),
+                _safe(r[2] if len(r) > 2 else None),
+                _safe(r[5] if len(r) > 5 else None),
+                _safe(r[6] if len(r) > 6 else None),
+                _safe(str(r[7])[:10] if len(r) > 7 else None),
+                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data['blue'][:10]
         ]
         t = Table(blue_data, colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch, 0.8*inch])
         t.setStyle(create_table_style('blue'))
         story.append(t)
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.4 * inch))
 
     story.append(Spacer(1, 0.3 * inch))
     story.append(Paragraph(
@@ -369,17 +349,6 @@ def generate_overview_report(output_path, records_data):
 
 
 def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
-    """
-    Generate a single slip-type report PDF.
-
-    Args:
-        output_path : Path where the PDF will be saved
-        slip_type   : 'green', 'pink', or 'blue'
-        records_data: List of record tuples
-        subtitle    : Optional subtitle for the report
-    Returns:
-        Path to the generated PDF
-    """
     type_map = {
         'green': 'Green Slip Report',
         'pink':  'Pink Slip Report',
@@ -389,7 +358,7 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
 
     doc = CorJesuHeaderFooter(
         output_path,
-        title=f"{report_title} — November 2024",
+        title=f"{report_title} - November 2024",
         docTitle=report_title
     )
     story  = []
@@ -398,52 +367,50 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
     story.append(Spacer(1, 0.3 * inch))
     story.append(Paragraph(report_title, styles['section']))
     if subtitle:
-        story.append(Paragraph(subtitle, styles['subsection']))
+        story.append(Paragraph(_safe(subtitle), styles['subsection']))
     story.append(Spacer(1, 0.15 * inch))
 
     if slip_type == 'green':
         headers    = ['Student No.', 'Name', 'Year', 'Type', 'Date', 'Days/Reason', 'Status']
         table_data = [headers] + [
             [
-                str(r[4]) if len(r) > 4 else 'N/A',
-                str(r[0]) if len(r) > 0 else 'N/A',
-                str(r[2]) if len(r) > 2 else 'N/A',
+                _safe(r[4] if len(r) > 4 else None),
+                _safe(r[0] if len(r) > 0 else None),
+                _safe(r[2] if len(r) > 2 else None),
                 'Excuse' if (r[5] is False if len(r) > 5 else False) else 'Dispensation',
-                str(r[6])[:10] if len(r) > 6 else 'N/A',
-                str(r[7]) if len(r) > 7 else 'N/A',
-                str(r[8]) if len(r) > 8 else 'Active',
+                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _safe(r[7] if len(r) > 7 else None),
+                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data[:20]
         ]
         col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.9*inch, 1.0*inch, 0.8*inch]
-
     elif slip_type == 'pink':
         headers    = ['Student No.', 'Name', 'Year', 'Violation', 'Date Issued', 'Action Taken', 'Status']
         table_data = [headers] + [
             [
-                str(r[4]) if len(r) > 4 else 'N/A',
-                str(r[0]) if len(r) > 0 else 'N/A',
-                str(r[2]) if len(r) > 2 else 'N/A',
-                str(r[5]) if len(r) > 5 else 'N/A',
-                str(r[6])[:10] if len(r) > 6 else 'N/A',
-                str(r[7]) if len(r) > 7 else 'N/A',
-                str(r[8]) if len(r) > 8 else 'Active',
+                _safe(r[4] if len(r) > 4 else None),
+                _safe(r[0] if len(r) > 0 else None),
+                _safe(r[2] if len(r) > 2 else None),
+                _safe(r[5] if len(r) > 5 else None),
+                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _safe(r[7] if len(r) > 7 else None),
+                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data[:20]
         ]
         col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.2*inch, 0.9*inch, 0.9*inch, 0.8*inch]
-
     else:  # blue
         headers    = ['Student No.', 'Name', 'Year', 'Violation', 'Severity', 'Date', 'Status']
         table_data = [headers] + [
             [
-                str(r[4]) if len(r) > 4 else 'N/A',
-                str(r[0]) if len(r) > 0 else 'N/A',
-                str(r[2]) if len(r) > 2 else 'N/A',
-                str(r[5]) if len(r) > 5 else 'N/A',
-                str(r[6]) if len(r) > 6 else 'N/A',
-                str(r[7])[:10] if len(r) > 7 else 'N/A',
-                str(r[8]) if len(r) > 8 else 'Active',
+                _safe(r[4] if len(r) > 4 else None),
+                _safe(r[0] if len(r) > 0 else None),
+                _safe(r[2] if len(r) > 2 else None),
+                _safe(r[5] if len(r) > 5 else None),
+                _safe(r[6] if len(r) > 6 else None),
+                _safe(str(r[7])[:10] if len(r) > 7 else None),
+                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data[:20]
         ]
@@ -452,10 +419,9 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
     t = Table(table_data, colWidths=col_widths)
     t.setStyle(create_table_style(slip_type))
     story.append(t)
-
     story.append(Spacer(1, 0.25 * inch))
     story.append(Paragraph(
-        f"<b>Total Records:</b> {len(records_data)} — "
+        f"<b>Total Records:</b> {len(records_data)}  "
         f"<b>Report Generated:</b> {datetime.now().strftime('%B %d, %Y at %I:%M %p')}",
         styles['normal']
     ))
@@ -464,18 +430,9 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
 
 
 def generate_student_conduct_summary(output_path, student_data):
-    """
-    Generate a student conduct summary report.
-
-    Args:
-        output_path : Path where the PDF will be saved
-        student_data: List of tuples (rank, student_no, name, year, green, pink, blue, total)
-    Returns:
-        Path to the generated PDF
-    """
     doc = CorJesuHeaderFooter(
         output_path,
-        title="Student Conduct Summary — November 2024",
+        title="Student Conduct Summary - November 2024",
         docTitle="Student Conduct Summary"
     )
     story  = []
@@ -489,13 +446,12 @@ def generate_student_conduct_summary(output_path, student_data):
 
     headers    = ['Rank', 'Student No.', 'Student Name', 'Year',
                   'Green', 'Pink', 'Blue', 'Total']
-    table_data = [headers] + student_data[:15]
+    table_data = [headers] + [[_safe(c) for c in row] for row in student_data[:15]]
     t = Table(table_data,
               colWidths=[0.6*inch, 1.0*inch, 1.8*inch, 0.7*inch,
                          0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch])
     t.setStyle(create_table_style('mixed'))
     story.append(t)
-
     story.append(Spacer(1, 0.25 * inch))
     story.append(Paragraph(
         "<b>Note:</b> This list helps the Office of the Prefect identify students who may need "
@@ -507,409 +463,273 @@ def generate_student_conduct_summary(output_path, student_data):
     return output_path
 
 
-# ── PDF Preview Dialog ────────────────────────────────────────────────────────
-class PDFPreviewDialog(QDialog):
-    """
-    A simple dialog to show a PDF file with open and print options.
-    Opens the PDF in the default system PDF viewer.
-    """
-    def __init__(self, pdf_path, title="PDF Preview", parent=None):
-        super().__init__(parent)
-        self.pdf_path = pdf_path
-        self.setWindowTitle(title)
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(200)
-        self.setStyleSheet("QDialog { background: #F5F5F5; }")
-        self._build()
-
-    def _build(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(16)
-
-        # Title label
-        title_lbl = QLabel(f"PDF Generated Successfully")
-        title_lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        title_lbl.setStyleSheet("color: #1a3a52; background: transparent; border: none;")
-        layout.addWidget(title_lbl)
-
-        # File path label
-        path_lbl = QLabel(f"<b>File:</b> {self.pdf_path}")
-        path_lbl.setFont(QFont("Segoe UI", 11))
-        path_lbl.setWordWrap(True)
-        path_lbl.setStyleSheet("color: #333333; background: transparent; border: none;")
-        layout.addWidget(path_lbl)
-
-        # Info text
-        info_lbl = QLabel("You can open this file in your PDF viewer or print it directly.")
-        info_lbl.setFont(QFont("Segoe UI", 10))
-        info_lbl.setStyleSheet("color: #666666; background: transparent; border: none;")
-        layout.addWidget(info_lbl)
-
-        layout.addStretch()
-
-        # Button row
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
-
-        # Open button
-        open_btn = QPushButton("   Open PDF   ")
-        open_btn.setFont(QFont("Segoe UI", 11))
-        open_btn.setFixedHeight(38)
-        open_btn.setStyleSheet("""
-            QPushButton {
-                background: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background: #1976D2;
-            }
-        """)
-        open_btn.clicked.connect(self._open_pdf)
-        btn_layout.addWidget(open_btn)
-
-        # Print button
-        print_btn = QPushButton("   Print   ")
-        print_btn.setFont(QFont("Segoe UI", 11))
-        print_btn.setFixedHeight(38)
-        print_btn.setStyleSheet("""
-            QPushButton {
-                background: #FF9800;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background: #F57C00;
-            }
-        """)
-        print_btn.clicked.connect(self._print_pdf)
-        btn_layout.addWidget(print_btn)
-
-        # Close button
-        close_btn = QPushButton("   Close   ")
-        close_btn.setFont(QFont("Segoe UI", 11))
-        close_btn.setFixedHeight(38)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: #CCCCCC;
-                color: #333333;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background: #BBBBBB;
-            }
-        """)
-        close_btn.clicked.connect(self.accept)
-        btn_layout.addWidget(close_btn)
-
-        layout.addLayout(btn_layout)
-
-    def _open_pdf(self):
-        """Open PDF in default system viewer"""
-        import subprocess
-        import sys
-        import os
-        
-        if not os.path.exists(self.pdf_path):
-            from ui.components import InfoDialog
-            InfoDialog("Error", f"PDF file not found:\n{self.pdf_path}", success=False, parent=self).exec_()
-            return
-        
-        try:
-            if sys.platform == "win32":
-                os.startfile(self.pdf_path)
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", self.pdf_path])
-            else:
-                subprocess.Popen(["xdg-open", self.pdf_path])
-        except Exception as e:
-            from ui.components import InfoDialog
-            InfoDialog("Error", f"Failed to open PDF:\n{str(e)}", success=False, parent=self).exec_()
-
-    def _print_pdf(self):
-        """Send PDF to default printer"""
-        import subprocess
-        import sys
-        import os
-        
-        if not os.path.exists(self.pdf_path):
-            from ui.components import InfoDialog
-            InfoDialog("Error", f"PDF file not found:\n{self.pdf_path}", success=False, parent=self).exec_()
-            return
-        
-        try:
-            if sys.platform == "win32":
-                os.startfile(self.pdf_path, "print")
-            elif sys.platform == "darwin":
-                subprocess.Popen(["lp", self.pdf_path])
-            else:
-                subprocess.Popen(["lp", self.pdf_path])
-        except Exception as e:
-            from ui.components import InfoDialog
-            InfoDialog("Error", f"Failed to print PDF:\n{str(e)}", success=False, parent=self).exec_()
-
-
-def generate_individual_student_report(output_path, student_number):
+def generate_individual_student_report(output_path, student_number,
+                                        student_info, green_slips, pink_slips,
+                                        blue_slips, get_course_college_fn,
+                                        colleges_dict):
     """
     Generate a comprehensive individual student conduct report.
-    
-    Shows:
-    - Student information (name, number, course, year, college)
-    - Summary of all slips by type
-    - Which colleges the student has availed slips from
-    - Detailed listing of all slips organized by type
-    
+
+    IMPORTANT — the function signature has changed. Instead of fetching DB data
+    internally, the caller now passes the already-fetched data in.  Update your
+    call-site like this:
+
+        from .db_blue_slip  import get_blue_slips
+        from .db_pink_slip  import get_pink_slips
+        from .db_green_slip import get_green_slips
+        from .db_students   import get_student
+        from .config        import get_course_college, COLLEGES
+
+        pdf_path = generate_individual_student_report(
+            output_path     = "/tmp/student_123.pdf",
+            student_number  = "2023-001",
+            student_info    = get_student("2023-001"),
+            green_slips     = get_green_slips("2023-001"),
+            pink_slips      = get_pink_slips("2023-001"),
+            blue_slips      = get_blue_slips("2023-001"),
+            get_course_college_fn = get_course_college,
+            colleges_dict   = COLLEGES,
+        )
+
     Args:
-        output_path : Path where the PDF will be saved
-        student_number: Student ID/number to generate report for
-    
+        output_path           : Destination PDF path
+        student_number        : Student ID string
+        student_info          : Tuple (stud_num, stud_name, stud_course,
+                                       stud_year, school_yr, stud_status)
+        green_slips           : List of green slip tuples
+        pink_slips            : List of pink slip tuples
+        blue_slips            : List of blue slip tuples
+        get_course_college_fn : Callable(course_str) -> college_code_str
+        colleges_dict         : Dict {college_code: college_full_name}
+
     Returns:
-        Path to the generated PDF, or None if student not found
+        output_path on success, None if student_info is falsy
     """
-    
-    # Fetch student information
-    student_info = get_student(student_number)
     if not student_info:
         return None
-    
+
     stud_num, stud_name, stud_course, stud_year, school_yr, stud_status = student_info
-    
-    # Get college from course
-    college_code = get_course_college(stud_course)
-    college_name = COLLEGES.get(college_code, "Unknown College")
-    
-    # Fetch all slips for this student
-    green_slips = get_green_slips(student_number)
-    pink_slips = get_pink_slips(student_number)
-    blue_slips = get_blue_slips(student_number)
-    
-    # Extract colleges from slips (colleges that issued these slips)
-    colleges_with_slips = set()
-    if green_slips:
-        for slip in green_slips:
-            # slip[1] is the course
-            slip_college = get_course_college(slip[1])
-            if slip_college:
-                colleges_with_slips.add((slip_college, COLLEGES.get(slip_college, slip_college)))
-    if pink_slips:
-        for slip in pink_slips:
-            slip_college = get_course_college(slip[1])
-            if slip_college:
-                colleges_with_slips.add((slip_college, COLLEGES.get(slip_college, slip_college)))
-    if blue_slips:
-        for slip in blue_slips:
-            slip_college = get_course_college(slip[1])
-            if slip_college:
-                colleges_with_slips.add((slip_college, COLLEGES.get(slip_college, slip_college)))
-    
-    colleges_with_slips = sorted(list(colleges_with_slips))
-    
-    # Create document
+
+    college_code = get_course_college_fn(stud_course) if stud_course else None
+    college_name = colleges_dict.get(college_code, college_code or 'Unknown College')
+
+    # Collect colleges that issued slips — ordered, deduped
+    colleges_seen = {}
+    for slip_list in (green_slips, pink_slips, blue_slips):
+        for slip in slip_list:
+            course = slip[1] if len(slip) > 1 else None
+            code   = get_course_college_fn(course) if course else None
+            if code and code not in colleges_seen:
+                colleges_seen[code] = colleges_dict.get(code, code)
+
     doc = CorJesuHeaderFooter(
         output_path,
-        title=f"Individual Student Conduct Report — {stud_num}",
+        title=f"Student Conduct Report - {_safe(stud_num)}",
         docTitle="Individual Student Conduct Report"
     )
-    
-    story = []
+    story  = []
     styles = get_document_styles()
-    
-    story.append(Spacer(1, 0.2 * inch))
-    
-    # ── Student Information Section ──────────────────────────────────────────
-    story.append(Paragraph("Student Information", styles['section']))
-    story.append(Spacer(1, 0.12 * inch))
-    
-    student_info_data = [
-        ['Student Number:', stud_num],
-        ['Full Name:', stud_name or '—'],
-        ['Course:', stud_course or '—'],
-        ['Year Level:', stud_year or '—'],
-        ['College:', college_name],
-        ['Status:', stud_status or 'Active'],
-    ]
-    
-    student_table = Table(
-        student_info_data,
-        colWidths=[1.8*inch, 3.7*inch]
-    )
-    student_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('TEXTCOLOR', (0, 0), (0, -1), NAVY),
-        ('TEXTCOLOR', (1, 0), (1, -1), DARK_GRAY),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('GRID', (0, 0), (-1, -1), 0.5, grey),
-        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [WHITE, LIGHT_GRAY]),
-    ]))
-    story.append(student_table)
+
     story.append(Spacer(1, 0.25 * inch))
-    
-    # ── Slip Summary Section ──────────────────────────────────────────────────
-    story.append(Paragraph("Conduct Summary", styles['section']))
-    story.append(Spacer(1, 0.12 * inch))
-    
-    summary_data = [
-        ['Slip Type', 'Count', 'Status'],
-        ['Green Slips (Dispensation/Excuse)', str(len(green_slips)), 'Open' if green_slips else '—'],
-        ['Pink Slips (Penalty)', str(len(pink_slips)), 'Open' if pink_slips else '—'],
-        ['Blue Slips (Violations)', str(len(blue_slips)), 'Open' if blue_slips else '—'],
-        ['Total Slips', str(len(green_slips) + len(pink_slips) + len(blue_slips)), ''],
+
+    # ── PAGE 1: Student Info + Summary + Colleges ─────────────────────────────
+
+    # Student Information
+    story.append(Paragraph("Student Information", styles['section']))
+    story.append(Spacer(1, 0.10 * inch))
+
+    info_rows = [
+        ['Student Number:', _safe(stud_num)],
+        ['Full Name:',      _safe(stud_name)],
+        ['Course:',         _safe(stud_course)],
+        ['Year Level:',     _safe(stud_year)],
+        ['College:',        _safe(college_name)],
+        ['School Year:',    _safe(school_yr)],
+        ['Status:',         _safe(stud_status) if stud_status else 'Active'],
     ]
-    
-    summary_table = Table(summary_data, colWidths=[2.5*inch, 1.0*inch, 2.0*inch])
+    info_table = Table(info_rows, colWidths=[1.6 * inch, CONTENT_W - 1.6 * inch])
+    info_table.setStyle(_info_table_style())
+    story.append(info_table)
+    story.append(Spacer(1, 0.30 * inch))
+
+    # Conduct Summary
+    story.append(Paragraph("Conduct Summary", styles['section']))
+    story.append(Spacer(1, 0.10 * inch))
+
+    total_slips = len(green_slips) + len(pink_slips) + len(blue_slips)
+    summary_rows = [
+        ['Slip Type',                           'Count'],
+        ['Green Slips (Dispensation / Excuse)', str(len(green_slips))],
+        ['Pink Slips (Penalty)',                str(len(pink_slips))],
+        ['Blue Slips (Violations)',             str(len(blue_slips))],
+        ['Total Slips',                         str(total_slips)],
+    ]
+    summary_table = Table(summary_rows, colWidths=[3.5 * inch, 1.5 * inch])
     summary_table.setStyle(create_table_style('mixed'))
     story.append(summary_table)
-    story.append(Spacer(1, 0.25 * inch))
-    
-    # ── Colleges with Slips Section ──────────────────────────────────────────
-    if colleges_with_slips:
-        story.append(Paragraph("Colleges with Recorded Slips", styles['section']))
-        story.append(Spacer(1, 0.12 * inch))
-        
-        college_info = []
-        for i, (code, name) in enumerate(colleges_with_slips, 1):
-            college_info.append([str(i), code, name])
-        
-        if not college_info:
-            college_info = [['—', '—', 'No colleges found']]
-        
-        college_table = Table(
-            [['#', 'Code', 'College Name']] + college_info,
-            colWidths=[0.4*inch, 0.8*inch, 4.0*inch]
+    story.append(Spacer(1, 0.30 * inch))
+
+    # Colleges Where Slips Were Availed
+    story.append(Paragraph("Colleges Where Slips Were Availed", styles['section']))
+    story.append(Spacer(1, 0.10 * inch))
+
+    if colleges_seen:
+        col_rows = [['#', 'College / Office']]
+        for i, (code, name) in enumerate(colleges_seen.items(), 1):
+            col_rows.append([str(i), _safe(code)])
+
+        col_table = Table(
+            col_rows,
+            colWidths=[0.40 * inch, CONTENT_W - 0.40 * inch]
         )
-        college_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), BLUE_CJC),
-            ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('TEXTCOLOR', (0, 1), (-1, -1), DARK_GRAY),
-            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
-            ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 1), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 1), (-1, -1), 6),
-            ('TOPPADDING', (0, 1), (-1, -1), 6),
+        col_table.setStyle(TableStyle([
+            # Header row
+            ('BACKGROUND',    (0, 0), (-1, 0),  BLUE_CJC),
+            ('TEXTCOLOR',     (0, 0), (-1, 0),  WHITE),
+            ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
+            ('FONTSIZE',      (0, 0), (-1, 0),  10),
+            ('ALIGN',         (0, 0), (-1, 0),  'CENTER'),
+            ('VALIGN',        (0, 0), (-1, 0),  'MIDDLE'),
+            ('TOPPADDING',    (0, 0), (-1, 0),  8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0),  8),
+            # Data rows
+            ('FONTNAME',      (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE',      (0, 1), (-1, -1), 9),
+            ('TEXTCOLOR',     (0, 1), (-1, -1), DARK_GRAY),
+            ('ALIGN',         (0, 1), (0, -1),  'CENTER'),
+            ('ALIGN',         (1, 1), (1, -1),  'LEFT'),
+            ('VALIGN',        (0, 1), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING',   (0, 1), (-1, -1), 8),
+            ('RIGHTPADDING',  (0, 1), (-1, -1), 8),
+            ('TOPPADDING',    (0, 1), (-1, -1), 6),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-            ('GRID', (0, 0), (-1, -1), 0.5, grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+            ('GRID',          (0, 0), (-1, -1), 0.5, grey),
+            ('ROWBACKGROUNDS',(0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
         ]))
-        story.append(college_table)
-        story.append(Spacer(1, 0.25 * inch))
-    
-    # ── Green Slips Section ──────────────────────────────────────────────────
+        story.append(col_table)
+    else:
+        story.append(Paragraph(
+            "No college data available for this student's recorded slips.",
+            styles['normal']
+        ))
+    story.append(Spacer(1, 0.30 * inch))
+
+    # ── Detailed Slip Pages ───────────────────────────────────────────────────
+
+    def _college_label(slip):
+        course = slip[1] if len(slip) > 1 else None
+        code   = get_course_college_fn(course) if course else None
+        return _safe(code if code else 'Unknown')
+
+    # Green Slips detail
     if green_slips:
         story.append(PageBreak())
-        story.append(Paragraph("Green Slips (Dispensation/Excuse)", styles['section']))
-        story.append(Spacer(1, 0.12 * inch))
-        
-        headers = ['Date', 'Type', 'Days/Reason', 'Status', 'College']
-        green_data = [headers]
-        
-        for slip in green_slips:
-            # slip structure: (studName, studCourse, studYrLvl, recordID, studNumber, 
-            #                   isExcuse, dateOfDispensation, daysOrReason, status)
-            college_code = get_course_college(slip[1])
-            college_display = COLLEGES.get(college_code, college_code or 'Unknown')
-            
-            green_data.append([
-                str(slip[6])[:10] if len(slip) > 6 and slip[6] else '—',
+        story.append(Spacer(1, 0.25 * inch))
+        story.append(Paragraph("Green Slips - Dispensation / Excuse", styles['section']))
+        story.append(Spacer(1, 0.10 * inch))
+
+        # slip indices: name[0] course[1] year[2] recordID[3] studNum[4]
+        #               isExcuse[5] date[6] daysOrReason[7] status[8]
+        g_headers = ['#', 'Date', 'Type', 'Days / Reason', 'Status', 'College']
+        g_col_w   = [0.30*inch, 0.90*inch, 1.00*inch, 2.20*inch, 0.80*inch, 0.90*inch]
+        g_rows    = [g_headers]
+        for i, slip in enumerate(green_slips, 1):
+            g_rows.append([
+                str(i),
+                _safe(str(slip[6])[:10] if len(slip) > 6 and slip[6] else None),
                 'Excuse' if (slip[5] is False if len(slip) > 5 else False) else 'Dispensation',
-                str(slip[7]) if len(slip) > 7 else '—',
-                str(slip[8]) if len(slip) > 8 else 'Active',
-                college_display,
+                _safe(slip[7] if len(slip) > 7 else None),
+                _safe(slip[8] if len(slip) > 8 else 'Active'),
+                _college_label(slip),
             ])
-        
-        green_table = Table(green_data, colWidths=[1.0*inch, 1.0*inch, 1.2*inch, 1.0*inch, 1.3*inch])
-        green_table.setStyle(create_table_style('green'))
-        story.append(green_table)
-        story.append(Spacer(1, 0.2 * inch))
-    
-    # ── Pink Slips Section ───────────────────────────────────────────────────
+        g_table = Table(g_rows, colWidths=g_col_w)
+        g_table.setStyle(create_table_style('green'))
+        g_table.setStyle(TableStyle([
+            ('ALIGN', (3, 1), (3, -1), 'LEFT'),
+            ('ALIGN', (5, 1), (5, -1), 'LEFT'),
+        ]))
+        story.append(g_table)
+        story.append(Spacer(1, 0.25 * inch))
+
+    # Pink Slips detail
     if pink_slips:
-        story.append(Paragraph("Pink Slips (Penalty)", styles['section']))
-        story.append(Spacer(1, 0.12 * inch))
-        
-        headers = ['Date', 'Violation', 'Action Taken', 'Status', 'College']
-        pink_data = [headers]
-        
-        for slip in pink_slips:
-            # slip structure: (studName, studCourse, studYrLvl, recordID, studNumber,
-            #                   violationType, dateOfIncident, actionTaken, status)
-            college_code = get_course_college(slip[1])
-            college_display = COLLEGES.get(college_code, college_code or 'Unknown')
-            
-            pink_data.append([
-                str(slip[6])[:10] if len(slip) > 6 and slip[6] else '—',
-                str(slip[5]) if len(slip) > 5 else '—',
-                str(slip[7]) if len(slip) > 7 else '—',
-                str(slip[8]) if len(slip) > 8 else 'Active',
-                college_display,
+        story.append(PageBreak())
+        story.append(Spacer(1, 0.25 * inch))
+        story.append(Paragraph("Pink Slips - Penalty", styles['section']))
+        story.append(Spacer(1, 0.10 * inch))
+
+        # slip indices: name[0] course[1] year[2] recordID[3] studNum[4]
+        #               violationType[5] dateOfIncident[6] actionTaken[7] status[8]
+        p_headers = ['#', 'Date', 'Violation', 'Action Taken', 'Status', 'College']
+        p_col_w   = [0.30*inch, 0.90*inch, 1.30*inch, 1.90*inch, 0.80*inch, 0.90*inch]
+        p_rows    = [p_headers]
+        for i, slip in enumerate(pink_slips, 1):
+            p_rows.append([
+                str(i),
+                _safe(str(slip[6])[:10] if len(slip) > 6 and slip[6] else None),
+                _safe(slip[5] if len(slip) > 5 else None),
+                _safe(slip[7] if len(slip) > 7 else None),
+                _safe(slip[8] if len(slip) > 8 else 'Active'),
+                _college_label(slip),
             ])
-        
-        pink_table = Table(pink_data, colWidths=[1.0*inch, 1.2*inch, 1.2*inch, 1.0*inch, 1.3*inch])
-        pink_table.setStyle(create_table_style('pink'))
-        story.append(pink_table)
-        story.append(Spacer(1, 0.2 * inch))
-    
-    # ── Blue Slips Section ───────────────────────────────────────────────────
+        p_table = Table(p_rows, colWidths=p_col_w)
+        p_table.setStyle(create_table_style('pink'))
+        p_table.setStyle(TableStyle([
+            ('ALIGN', (2, 1), (3, -1), 'LEFT'),
+            ('ALIGN', (5, 1), (5, -1), 'LEFT'),
+        ]))
+        story.append(p_table)
+        story.append(Spacer(1, 0.25 * inch))
+
+    # Blue Slips detail
     if blue_slips:
-        story.append(Paragraph("Blue Slips (Violations)", styles['section']))
-        story.append(Spacer(1, 0.12 * inch))
-        
-        headers = ['Date', 'Violation', 'Severity', 'Action', 'Status', 'College']
-        blue_data = [headers]
-        
-        for slip in blue_slips:
-            # slip structure: (studName, studCourse, studYrLvl, recordID, studNumber,
-            #                   violationType, severityLevel, actionTaken, status, ...)
-            college_code = get_course_college(slip[1])
-            college_display = COLLEGES.get(college_code, college_code or 'Unknown')
-            
-            blue_data.append([
-                str(slip[7])[:10] if len(slip) > 7 and slip[7] else '—',
-                str(slip[5]) if len(slip) > 5 else '—',
-                str(slip[6]) if len(slip) > 6 else '—',
-                str(slip[8]) if len(slip) > 8 else '—',
-                str(slip[9]) if len(slip) > 9 else 'Active',
-                college_display,
+        story.append(PageBreak())
+        story.append(Spacer(1, 0.25 * inch))
+        story.append(Paragraph("Blue Slips - Violations", styles['section']))
+        story.append(Spacer(1, 0.10 * inch))
+
+        # slip indices: name[0] course[1] year[2] recordID[3] studNum[4]
+        #               violationType[5] severityLevel[6] actionTaken[7]
+        #               date[7] status[8/9] — adjust if your tuple differs
+        b_headers = ['#', 'Date', 'Violation', 'Severity', 'Action Taken', 'Status', 'College']
+        b_col_w   = [0.30*inch, 0.85*inch, 1.15*inch, 0.80*inch, 1.45*inch, 0.75*inch, 0.90*inch]
+        b_rows    = [b_headers]
+        for i, slip in enumerate(blue_slips, 1):
+            b_rows.append([
+                str(i),
+                _safe(str(slip[7])[:10] if len(slip) > 7 and slip[7] else None),
+                _safe(slip[5] if len(slip) > 5 else None),
+                _safe(slip[6] if len(slip) > 6 else None),
+                _safe(slip[8] if len(slip) > 8 else None),
+                _safe(slip[9] if len(slip) > 9 else 'Active'),
+                _college_label(slip),
             ])
-        
-        blue_table = Table(blue_data, colWidths=[0.85*inch, 1.1*inch, 0.9*inch, 1.0*inch, 0.9*inch, 1.3*inch])
-        blue_table.setStyle(create_table_style('blue'))
-        story.append(blue_table)
-        story.append(Spacer(1, 0.2 * inch))
-    
-    # ── Footer section ───────────────────────────────────────────────────────
+        b_table = Table(b_rows, colWidths=b_col_w)
+        b_table.setStyle(create_table_style('blue'))
+        b_table.setStyle(TableStyle([
+            ('ALIGN', (2, 1), (2, -1), 'LEFT'),
+            ('ALIGN', (4, 1), (4, -1), 'LEFT'),
+            ('ALIGN', (6, 1), (6, -1), 'LEFT'),
+        ]))
+        story.append(b_table)
+        story.append(Spacer(1, 0.25 * inch))
+
+    # No records fallback
     if not (green_slips or pink_slips or blue_slips):
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.20 * inch))
         story.append(Paragraph(
             "<b>No records found:</b> This student has no slip records in the system.",
             styles['normal']
         ))
-    
-    story.append(Spacer(1, 0.3 * inch))
+
+    # Closing note
+    story.append(Spacer(1, 0.30 * inch))
     story.append(Paragraph(
         f"<b>Report Generated:</b> {datetime.now().strftime('%B %d, %Y at %I:%M %p')}<br/>"
-        f"<b>Document Confidentiality:</b> This report contains confidential student conduct "
-        "records. Authorized personnel only.",
+        "<b>Confidentiality Notice:</b> This report contains confidential student conduct "
+        "records. For authorised personnel only.",
         styles['normal']
     ))
-    
+
     doc.build(story)
     return output_path
