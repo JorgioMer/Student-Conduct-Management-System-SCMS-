@@ -22,7 +22,7 @@ from ui.components import (
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
 from ui.pdf_preview_dialog import PDFPreviewDialog
-from backend.pdf_export import generate_slip_report
+from backend.pdf_export import generate_slip_report, generate_individual_student_report
 from backend.db_activity_log import log_export, log_report_generated, log_batch_operation
 import tempfile
 import os
@@ -66,8 +66,9 @@ class RecordDetailDialog(QDialog):
     }
 
     def __init__(self, fields: list, slip_type: str = "mixed",
-                 slip_summary: dict = None, parent=None):
+                 slip_summary: dict = None, student_number: str = None, parent=None):
         super().__init__(parent)
+        self.student_number = student_number
         meta = self.SLIP_META.get(slip_type, self.SLIP_META["mixed"])
         self.setWindowTitle(meta["title"])
         self.setMinimumWidth(520)
@@ -193,7 +194,7 @@ class RecordDetailDialog(QDialog):
         scroll.setWidget(body)
         outer.addWidget(scroll)
 
-        # ── Footer close button ───────────────────────────────────────────────
+        # ── Footer buttons ────────────────────────────────────────────────────
         footer = QFrame()
         footer.setStyleSheet(f"""
             QFrame {{
@@ -206,6 +207,28 @@ class RecordDetailDialog(QDialog):
         f_lay = QHBoxLayout(footer)
         f_lay.setContentsMargins(20, 10, 20, 10)
         f_lay.addStretch()
+
+        # Export PDF button (if student number is available)
+        if self.student_number:
+            export_btn = QPushButton("  📄 Export as PDF  ")
+            export_btn.setFixedHeight(36)
+            export_btn.setCursor(Qt.PointingHandCursor)
+            export_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: #2196F3;
+                    color: {WHITE};
+                    border: none;
+                    border-radius: 7px;
+                    font-size: 12px;
+                    font-weight: bold;
+                    padding: 0 20px;
+                }}
+                QPushButton:hover {{
+                    background: #1976D2;
+                }}
+            """)
+            export_btn.clicked.connect(self._export_student_pdf)
+            f_lay.addWidget(export_btn)
 
         close_btn = QPushButton("  Close ")
         close_btn.setFixedHeight(36)
@@ -228,6 +251,22 @@ class RecordDetailDialog(QDialog):
         close_btn.clicked.connect(self.accept)
         f_lay.addWidget(close_btn)
         outer.addWidget(footer)
+
+    def _export_student_pdf(self):
+        """Export individual student conduct report as PDF."""
+        try:
+            temp_pdf = os.path.join(tempfile.gettempdir(), 
+                                    f"StudentReport_{self.student_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
+            
+            result = generate_individual_student_report(temp_pdf, self.student_number)
+            if result:
+                PDFPreviewDialog(temp_pdf, title="Student Conduct Report", parent=self).exec_()
+            else:
+                InfoDialog("Error", f"Student {self.student_number} not found in database.", 
+                          success=False, parent=self).exec_()
+        except Exception as e:
+            InfoDialog("Error", f"Failed to generate report:\n{str(e)}", 
+                      success=False, parent=self).exec_()
 
 
 # =============================================================================
@@ -252,12 +291,20 @@ def _view_selected_row(table: QTableWidget, slip_type: str, parent=None,
     headers = [table.horizontalHeaderItem(c).text()
                for c in range(table.columnCount())]
     fields = []
+    student_number = None
+    
     for col, header in enumerate(headers):
         item = table.item(row, col)
-        fields.append((header, item.text() if item else "—"))
+        field_value = item.text() if item else "—"
+        fields.append((header, field_value))
+        
+        # Try to extract student number from "Student No." column
+        if header.lower() in ("student no.", "student number") and field_value != "—":
+            student_number = field_value
 
     dlg = RecordDetailDialog(fields, slip_type=slip_type,
-                             slip_summary=slip_summary, parent=parent)
+                             slip_summary=slip_summary, 
+                             student_number=student_number, parent=parent)
     dlg.exec_()
 
 
