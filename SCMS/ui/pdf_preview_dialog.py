@@ -24,6 +24,10 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 from pathlib import Path
 import os
+import subprocess
+import platform
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt5.QtCore import Qt
 
 # ── Image paths ───────────────────────────────────────────────────────────────
 # Resolve relative to this file's directory so imports from anywhere work.
@@ -62,6 +66,17 @@ def _safe(text):
     if text is None:
         return '-'
     return str(text).encode('latin-1', errors='replace').decode('latin-1')
+
+
+def _fmt_date(val):
+    """Return a clean YYYY-MM-DD string from a date, datetime, or string value."""
+    if val is None:
+        return '-'
+    s = str(val).strip()
+    # Strip time portion from "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD HH:MM:SS.ffffff"
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        return s[:10]
+    return s[:10] if len(s) >= 10 else s
 
 
 # ── Header and Footer ─────────────────────────────────────────────────────────
@@ -285,7 +300,7 @@ def generate_overview_report(output_path, records_data):
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
                 'Excuse' if (r[5] is False if len(r) > 5 else False) else 'Dispensation',
-                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _fmt_date(r[6] if len(r) > 6 else None),
                 _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data['green'][:10]
@@ -305,8 +320,8 @@ def generate_overview_report(output_path, records_data):
                 _safe(r[4] if len(r) > 4 else None),
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
-                _safe(r[5] if len(r) > 5 else None),
-                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _safe(r[6] if len(r) > 6 else None),   # violation
+                _fmt_date(r[5] if len(r) > 5 else None),  # date
                 _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data['pink'][:10]
@@ -326,10 +341,10 @@ def generate_overview_report(output_path, records_data):
                 _safe(r[4] if len(r) > 4 else None),
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
-                _safe(r[5] if len(r) > 5 else None),
-                _safe(r[6] if len(r) > 6 else None),
-                _safe(str(r[7])[:10] if len(r) > 7 else None),
-                _safe(r[8] if len(r) > 8 else 'Active'),
+                _safe(r[5] if len(r) > 5 else None),   # violation
+                _safe(r[6] if len(r) > 6 else None),   # severity
+                _fmt_date(r[7] if len(r) > 7 else None),  # date
+                _safe(r[9] if len(r) > 9 else 'Active'),  # status
             ]
             for r in records_data['blue'][:10]
         ]
@@ -378,7 +393,7 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
                 'Excuse' if (r[5] is False if len(r) > 5 else False) else 'Dispensation',
-                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _fmt_date(r[6] if len(r) > 6 else None),
                 _safe(r[7] if len(r) > 7 else None),
                 _safe(r[8] if len(r) > 8 else 'Active'),
             ]
@@ -392,10 +407,10 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
                 _safe(r[4] if len(r) > 4 else None),
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
-                _safe(r[5] if len(r) > 5 else None),
-                _safe(str(r[6])[:10] if len(r) > 6 else None),
-                _safe(r[7] if len(r) > 7 else None),
-                _safe(r[8] if len(r) > 8 else 'Active'),
+                _safe(r[6] if len(r) > 6 else None),      # violation
+                _fmt_date(r[5] if len(r) > 5 else None),  # date
+                _safe(r[7] if len(r) > 7 else None),      # action taken
+                _safe(r[8] if len(r) > 8 else 'Active'),  # status
             ]
             for r in records_data[:20]
         ]
@@ -407,10 +422,10 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
                 _safe(r[4] if len(r) > 4 else None),
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
-                _safe(r[5] if len(r) > 5 else None),
-                _safe(r[6] if len(r) > 6 else None),
-                _safe(str(r[7])[:10] if len(r) > 7 else None),
-                _safe(r[8] if len(r) > 8 else 'Active'),
+                _safe(r[5] if len(r) > 5 else None),      # violation
+                _safe(r[6] if len(r) > 6 else None),      # severity
+                _fmt_date(r[7] if len(r) > 7 else None),  # date
+                _safe(r[9] if len(r) > 9 else 'Active'),  # status
             ]
             for r in records_data[:20]
         ]
@@ -733,3 +748,84 @@ def generate_individual_student_report(output_path, student_number,
 
     doc.build(story)
     return output_path
+
+
+# =============================================================================
+#  PDF Preview Dialog — Display PDF files
+# =============================================================================
+class PDFPreviewDialog(QDialog):
+    """Dialog to preview and interact with generated PDF files."""
+    
+    def __init__(self, pdf_path, title="PDF Preview", parent=None):
+        super().__init__(parent)
+        self.pdf_path = pdf_path
+        self.setWindowTitle(title)
+        self.setGeometry(100, 100, 600, 400)
+        self.init_ui()
+    
+    def init_ui(self):
+        """Initialize the dialog UI."""
+        layout = QVBoxLayout()
+        
+        # Info message
+        info_label = QLabel(
+            f"PDF generated successfully.\n\n"
+            f"File: {os.path.basename(self.pdf_path)}"
+        )
+        info_label.setStyleSheet(f"color: #333333; padding: 15px;")
+        layout.addWidget(info_label)
+        
+        # Button layout
+        button_layout = QHBoxLayout()
+        
+        # Open button
+        open_btn = QPushButton("Open with Default Viewer")
+        open_btn.setStyleSheet("background-color: #1a3a52; color: white; padding: 8px 15px; border-radius: 4px;")
+        open_btn.clicked.connect(self.open_pdf)
+        button_layout.addWidget(open_btn)
+        
+        # Open folder button
+        folder_btn = QPushButton("Open Folder")
+        folder_btn.setStyleSheet("background-color: #d4af37; color: black; padding: 8px 15px; border-radius: 4px;")
+        folder_btn.clicked.connect(self.open_folder)
+        button_layout.addWidget(folder_btn)
+        
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet("background-color: #666666; color: white; padding: 8px 15px; border-radius: 4px;")
+        close_btn.clicked.connect(self.accept)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+    
+    def open_pdf(self):
+        """Open the PDF with the system default viewer."""
+        if not os.path.exists(self.pdf_path):
+            return
+        
+        try:
+            if platform.system() == 'Windows':
+                os.startfile(self.pdf_path)
+            elif platform.system() == 'Darwin':  # macOS
+                subprocess.Popen(['open', self.pdf_path])
+            else:  # Linux and others
+                subprocess.Popen(['xdg-open', self.pdf_path])
+        except Exception as e:
+            pass
+    
+    def open_folder(self):
+        """Open the folder containing the PDF."""
+        folder = os.path.dirname(self.pdf_path)
+        if not os.path.exists(folder):
+            return
+        
+        try:
+            if platform.system() == 'Windows':
+                os.startfile(folder)
+            elif platform.system() == 'Darwin':  # macOS
+                subprocess.Popen(['open', folder])
+            else:  # Linux and others
+                subprocess.Popen(['xdg-open', folder])
+        except Exception as e:
+            pass
