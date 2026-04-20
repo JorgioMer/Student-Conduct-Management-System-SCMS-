@@ -25,6 +25,13 @@ from datetime import datetime
 from pathlib import Path
 import os
 
+# Import database functions for fetching student data
+from .db_blue_slip import get_blue_slips
+from .db_pink_slip import get_pink_slips
+from .db_green_slip import get_green_slips
+from .db_students import get_student
+from .config import get_course_college, COLLEGES
+
 # ── Image paths ───────────────────────────────────────────────────────────────
 # Resolve relative to this file's directory so imports from anywhere work.
 _HERE = Path(__file__).parent
@@ -493,5 +500,264 @@ def generate_student_conduct_summary(output_path, student_data):
         "semester only.",
         styles['normal']
     ))
+    doc.build(story)
+    return output_path
+
+
+def generate_individual_student_report(output_path, student_number):
+    """
+    Generate a comprehensive individual student conduct report.
+    
+    Shows:
+    - Student information (name, number, course, year, college)
+    - Summary of all slips by type
+    - Which colleges the student has availed slips from
+    - Detailed listing of all slips organized by type
+    
+    Args:
+        output_path : Path where the PDF will be saved
+        student_number: Student ID/number to generate report for
+    
+    Returns:
+        Path to the generated PDF, or None if student not found
+    """
+    
+    # Fetch student information
+    student_info = get_student(student_number)
+    if not student_info:
+        return None
+    
+    stud_num, stud_name, stud_course, stud_year, school_yr, stud_status = student_info
+    
+    # Get college from course
+    college_code = get_course_college(stud_course)
+    college_name = COLLEGES.get(college_code, "Unknown College")
+    
+    # Fetch all slips for this student
+    green_slips = get_green_slips(student_number)
+    pink_slips = get_pink_slips(student_number)
+    blue_slips = get_blue_slips(student_number)
+    
+    # Extract colleges from slips (colleges that issued these slips)
+    colleges_with_slips = set()
+    if green_slips:
+        for slip in green_slips:
+            # slip[1] is the course
+            slip_college = get_course_college(slip[1])
+            if slip_college:
+                colleges_with_slips.add((slip_college, COLLEGES.get(slip_college, slip_college)))
+    if pink_slips:
+        for slip in pink_slips:
+            slip_college = get_course_college(slip[1])
+            if slip_college:
+                colleges_with_slips.add((slip_college, COLLEGES.get(slip_college, slip_college)))
+    if blue_slips:
+        for slip in blue_slips:
+            slip_college = get_course_college(slip[1])
+            if slip_college:
+                colleges_with_slips.add((slip_college, COLLEGES.get(slip_college, slip_college)))
+    
+    colleges_with_slips = sorted(list(colleges_with_slips))
+    
+    # Create document
+    doc = CorJesuHeaderFooter(
+        output_path,
+        title=f"Individual Student Conduct Report — {stud_num}",
+        docTitle="Individual Student Conduct Report"
+    )
+    
+    story = []
+    styles = get_document_styles()
+    
+    story.append(Spacer(1, 0.2 * inch))
+    
+    # ── Student Information Section ──────────────────────────────────────────
+    story.append(Paragraph("Student Information", styles['section']))
+    story.append(Spacer(1, 0.12 * inch))
+    
+    student_info_data = [
+        ['Student Number:', stud_num],
+        ['Full Name:', stud_name or '—'],
+        ['Course:', stud_course or '—'],
+        ['Year Level:', stud_year or '—'],
+        ['College:', college_name],
+        ['Status:', stud_status or 'Active'],
+    ]
+    
+    student_table = Table(
+        student_info_data,
+        colWidths=[1.8*inch, 3.7*inch]
+    )
+    student_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR', (0, 0), (0, -1), NAVY),
+        ('TEXTCOLOR', (1, 0), (1, -1), DARK_GRAY),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, grey),
+        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [WHITE, LIGHT_GRAY]),
+    ]))
+    story.append(student_table)
+    story.append(Spacer(1, 0.25 * inch))
+    
+    # ── Slip Summary Section ──────────────────────────────────────────────────
+    story.append(Paragraph("Conduct Summary", styles['section']))
+    story.append(Spacer(1, 0.12 * inch))
+    
+    summary_data = [
+        ['Slip Type', 'Count', 'Status'],
+        ['Green Slips (Dispensation/Excuse)', str(len(green_slips)), 'Open' if green_slips else '—'],
+        ['Pink Slips (Penalty)', str(len(pink_slips)), 'Open' if pink_slips else '—'],
+        ['Blue Slips (Violations)', str(len(blue_slips)), 'Open' if blue_slips else '—'],
+        ['Total Slips', str(len(green_slips) + len(pink_slips) + len(blue_slips)), ''],
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[2.5*inch, 1.0*inch, 2.0*inch])
+    summary_table.setStyle(create_table_style('mixed'))
+    story.append(summary_table)
+    story.append(Spacer(1, 0.25 * inch))
+    
+    # ── Colleges with Slips Section ──────────────────────────────────────────
+    if colleges_with_slips:
+        story.append(Paragraph("Colleges with Recorded Slips", styles['section']))
+        story.append(Spacer(1, 0.12 * inch))
+        
+        college_info = []
+        for i, (code, name) in enumerate(colleges_with_slips, 1):
+            college_info.append([str(i), code, name])
+        
+        if not college_info:
+            college_info = [['—', '—', 'No colleges found']]
+        
+        college_table = Table(
+            [['#', 'Code', 'College Name']] + college_info,
+            colWidths=[0.4*inch, 0.8*inch, 4.0*inch]
+        )
+        college_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), BLUE_CJC),
+            ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 1), (-1, -1), DARK_GRAY),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+            ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 1), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 1), (-1, -1), 6),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+        ]))
+        story.append(college_table)
+        story.append(Spacer(1, 0.25 * inch))
+    
+    # ── Green Slips Section ──────────────────────────────────────────────────
+    if green_slips:
+        story.append(PageBreak())
+        story.append(Paragraph("Green Slips (Dispensation/Excuse)", styles['section']))
+        story.append(Spacer(1, 0.12 * inch))
+        
+        headers = ['Date', 'Type', 'Days/Reason', 'Status', 'College']
+        green_data = [headers]
+        
+        for slip in green_slips:
+            # slip structure: (studName, studCourse, studYrLvl, recordID, studNumber, 
+            #                   isExcuse, dateOfDispensation, daysOrReason, status)
+            college_code = get_course_college(slip[1])
+            college_display = COLLEGES.get(college_code, college_code or 'Unknown')
+            
+            green_data.append([
+                str(slip[6])[:10] if len(slip) > 6 and slip[6] else '—',
+                'Excuse' if (slip[5] is False if len(slip) > 5 else False) else 'Dispensation',
+                str(slip[7]) if len(slip) > 7 else '—',
+                str(slip[8]) if len(slip) > 8 else 'Active',
+                college_display,
+            ])
+        
+        green_table = Table(green_data, colWidths=[1.0*inch, 1.0*inch, 1.2*inch, 1.0*inch, 1.3*inch])
+        green_table.setStyle(create_table_style('green'))
+        story.append(green_table)
+        story.append(Spacer(1, 0.2 * inch))
+    
+    # ── Pink Slips Section ───────────────────────────────────────────────────
+    if pink_slips:
+        story.append(Paragraph("Pink Slips (Penalty)", styles['section']))
+        story.append(Spacer(1, 0.12 * inch))
+        
+        headers = ['Date', 'Violation', 'Action Taken', 'Status', 'College']
+        pink_data = [headers]
+        
+        for slip in pink_slips:
+            # slip structure: (studName, studCourse, studYrLvl, recordID, studNumber,
+            #                   violationType, dateOfIncident, actionTaken, status)
+            college_code = get_course_college(slip[1])
+            college_display = COLLEGES.get(college_code, college_code or 'Unknown')
+            
+            pink_data.append([
+                str(slip[6])[:10] if len(slip) > 6 and slip[6] else '—',
+                str(slip[5]) if len(slip) > 5 else '—',
+                str(slip[7]) if len(slip) > 7 else '—',
+                str(slip[8]) if len(slip) > 8 else 'Active',
+                college_display,
+            ])
+        
+        pink_table = Table(pink_data, colWidths=[1.0*inch, 1.2*inch, 1.2*inch, 1.0*inch, 1.3*inch])
+        pink_table.setStyle(create_table_style('pink'))
+        story.append(pink_table)
+        story.append(Spacer(1, 0.2 * inch))
+    
+    # ── Blue Slips Section ───────────────────────────────────────────────────
+    if blue_slips:
+        story.append(Paragraph("Blue Slips (Violations)", styles['section']))
+        story.append(Spacer(1, 0.12 * inch))
+        
+        headers = ['Date', 'Violation', 'Severity', 'Action', 'Status', 'College']
+        blue_data = [headers]
+        
+        for slip in blue_slips:
+            # slip structure: (studName, studCourse, studYrLvl, recordID, studNumber,
+            #                   violationType, severityLevel, actionTaken, status, ...)
+            college_code = get_course_college(slip[1])
+            college_display = COLLEGES.get(college_code, college_code or 'Unknown')
+            
+            blue_data.append([
+                str(slip[7])[:10] if len(slip) > 7 and slip[7] else '—',
+                str(slip[5]) if len(slip) > 5 else '—',
+                str(slip[6]) if len(slip) > 6 else '—',
+                str(slip[8]) if len(slip) > 8 else '—',
+                str(slip[9]) if len(slip) > 9 else 'Active',
+                college_display,
+            ])
+        
+        blue_table = Table(blue_data, colWidths=[0.85*inch, 1.1*inch, 0.9*inch, 1.0*inch, 0.9*inch, 1.3*inch])
+        blue_table.setStyle(create_table_style('blue'))
+        story.append(blue_table)
+        story.append(Spacer(1, 0.2 * inch))
+    
+    # ── Footer section ───────────────────────────────────────────────────────
+    if not (green_slips or pink_slips or blue_slips):
+        story.append(Spacer(1, 0.2 * inch))
+        story.append(Paragraph(
+            "<b>No records found:</b> This student has no slip records in the system.",
+            styles['normal']
+        ))
+    
+    story.append(Spacer(1, 0.3 * inch))
+    story.append(Paragraph(
+        f"<b>Report Generated:</b> {datetime.now().strftime('%B %d, %Y at %I:%M %p')}<br/>"
+        f"<b>Document Confidentiality:</b> This report contains confidential student conduct "
+        "records. Authorized personnel only.",
+        styles['normal']
+    ))
+    
     doc.build(story)
     return output_path
