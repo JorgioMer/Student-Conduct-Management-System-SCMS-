@@ -2,7 +2,7 @@
 #  SCMS — Reports Page
 # =============================================================================
 from PyQt5.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+    QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QPushButton, QFrame, QTabWidget, QWidget,
     QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView
 )
@@ -134,11 +134,18 @@ class ReportsPage(BasePage):
 
     # ── Overview ──────────────────────────────────────────────────────────────
     def _build_overview_tab(self) -> QWidget:
-        w = QWidget()
-        w.setStyleSheet(f"background: {WHITE};")
-        lay = QVBoxLayout(w)
+        from PyQt5.QtWidgets import QScrollArea
+        container = QWidget()
+        container.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(container)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(18)
+
+        scroll = QScrollArea()
+        scroll.setWidget(container)
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        w = scroll
 
         lay.addWidget(SectionTitle("Monthly Overview — November 2026"))
 
@@ -195,8 +202,9 @@ class ReportsPage(BasePage):
         """)
         slip_dist_layout = QVBoxLayout(slip_dist_frame)
         slip_dist_layout.setContentsMargins(10, 10, 10, 10)
+        slip_dist_frame.setMinimumHeight(300)
         slip_dist_layout.addWidget(slip_dist_chart)
-        charts_row.addWidget(slip_dist_frame)
+        charts_row.addWidget(slip_dist_frame, 1)
 
         # Year Level Breakdown Bar Chart
         year_breakdown_chart = self._create_year_breakdown_chart(green_slips + pink_slips + blue_slips)
@@ -210,8 +218,9 @@ class ReportsPage(BasePage):
         """)
         year_breakdown_layout = QVBoxLayout(year_breakdown_frame)
         year_breakdown_layout.setContentsMargins(10, 10, 10, 10)
+        year_breakdown_frame.setMinimumHeight(300)
         year_breakdown_layout.addWidget(year_breakdown_chart)
-        charts_row.addWidget(year_breakdown_frame)
+        charts_row.addWidget(year_breakdown_frame, 1)
 
         # Student Slip Count Distribution
         student_slips_chart = self._create_student_slip_distribution_chart(green_slips + pink_slips + blue_slips)
@@ -225,8 +234,9 @@ class ReportsPage(BasePage):
         """)
         student_slips_layout = QVBoxLayout(student_slips_frame)
         student_slips_layout.setContentsMargins(10, 10, 10, 10)
+        student_slips_frame.setMinimumHeight(300)
         student_slips_layout.addWidget(student_slips_chart)
-        charts_row.addWidget(student_slips_frame)
+        charts_row.addWidget(student_slips_frame, 1)
 
         lay.addLayout(charts_row)
 
@@ -281,11 +291,11 @@ class ReportsPage(BasePage):
             }}
         """)
         college_layout = QVBoxLayout(college_frame)
+        college_frame.setMinimumHeight(320)
         college_layout.setContentsMargins(10, 10, 10, 10)
         college_layout.addWidget(college_chart)
         lay.addWidget(college_frame)
 
-        lay.addStretch()
         return w
 
     # ── Green Slip Report ─────────────────────────────────────────────────────
@@ -448,9 +458,9 @@ class ReportsPage(BasePage):
         from backend.db_pink_slip import get_pink_slips
         from backend.db_blue_slip import get_blue_slips
 
-        w = QWidget()
-        w.setStyleSheet(f"background: {WHITE};")
-        lay = QVBoxLayout(w)
+        container = QWidget()
+        container.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(container)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(16)
 
@@ -549,6 +559,7 @@ class ReportsPage(BasePage):
                 border-radius: 10px;
             }}
         """)
+        chart_frame.setMinimumHeight(320)
         chart_lay = QVBoxLayout(chart_frame)
         chart_lay.setContentsMargins(10, 10, 10, 10)
         chart_lay.addWidget(college_chart)
@@ -577,9 +588,16 @@ class ReportsPage(BasePage):
             ["Code", "College Name", "Students", "Green", "Pink", "Blue", "Total"],
             rows
         )
+        detail_table.setMinimumHeight(len(rows) * 40 + 60)
+        detail_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         lay.addWidget(detail_table)
         lay.addStretch()
-        return w
+
+        scroll = QScrollArea()
+        scroll.setWidget(container)
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        return scroll
 
     # ── Student Top Records tab ───────────────────────────────────────────────
     def _build_toplist_tab(self) -> QWidget:
@@ -678,7 +696,7 @@ class ReportsPage(BasePage):
     # ── Chart Methods ─────────────────────────────────────────────────────────
     def _create_slip_distribution_chart(self, green, pink, blue) -> FigureCanvas:
         """Create a pie chart showing the distribution of slip types."""
-        fig = Figure(figsize=(4, 3), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
         ax = fig.add_subplot(111)
         
         sizes = [green, pink, blue]
@@ -703,7 +721,7 @@ class ReportsPage(BasePage):
 
     def _create_year_breakdown_chart(self, all_records) -> FigureCanvas:
         """Create a bar chart showing records by year level."""
-        fig = Figure(figsize=(4, 3), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
         ax = fig.add_subplot(111)
         
         # Count records by year (index 2 in the record tuple)
@@ -742,7 +760,7 @@ class ReportsPage(BasePage):
 
     def _create_student_slip_distribution_chart(self, all_records) -> FigureCanvas:
         """Create a bar chart showing top students with most slips."""
-        fig = Figure(figsize=(4, 3), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
         ax = fig.add_subplot(111)
         
         # Count slips per student (index 0 is student name)
@@ -780,7 +798,7 @@ class ReportsPage(BasePage):
 
     def _create_college_distribution_chart(self, college_data) -> FigureCanvas:
         """Create a bar chart showing records by college."""
-        fig = Figure(figsize=(5, 3.5), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(8, 4), dpi=90, facecolor='white', edgecolor='none')
         ax = fig.add_subplot(111)
 
         colleges = []

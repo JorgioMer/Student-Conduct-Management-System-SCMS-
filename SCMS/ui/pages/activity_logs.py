@@ -89,7 +89,7 @@ class ActivityLogsPage(BasePage):
         h_lay.addLayout(h_col)
         h_lay.addStretch()
 
-        export_logs_btn = QPushButton("   📥 Export Logs ")
+        export_logs_btn = QPushButton("    Export Logs  ")
         export_logs_btn.setStyleSheet(btn_gold())
         export_logs_btn.setFixedHeight(38)
         export_logs_btn.clicked.connect(self._export_logs)
@@ -102,13 +102,13 @@ class ActivityLogsPage(BasePage):
         stats_lay.setSpacing(12)
         
         total_logs = LogManager.get_total_logs()
-        self.total_logs_tile = StatTile("📊 Total Logs", str(total_logs), NAVY)
+        self.total_logs_tile = StatTile("  Total Logs ", str(total_logs), NAVY)
         stats_lay.addWidget(self.total_logs_tile)
         
-        self.today_logs_tile = StatTile("📅 Today", "0", GOLD)
+        self.today_logs_tile = StatTile("  Today ", "0", GOLD)
         stats_lay.addWidget(self.today_logs_tile)
         
-        self.month_logs_tile = StatTile("📆 This Month", "0", "#2196F3")
+        self.month_logs_tile = StatTile("  This Month ", "0", "#2196F3")
         stats_lay.addWidget(self.month_logs_tile)
         
         self.main_layout.addLayout(stats_lay)
@@ -153,6 +153,7 @@ class ActivityLogsPage(BasePage):
 
         # Action type filter
         action_lbl = QLabel("Action Type:")
+        action_lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
         action_lbl.setStyleSheet(f"color: {NAVY}; font-weight: bold; border: none; background: transparent;")
         filter_lay.addWidget(action_lbl)
         
@@ -167,8 +168,52 @@ class ActivityLogsPage(BasePage):
             "Print",
             "Search"
         ])
-        self.action_filter.setFixedHeight(34)
-        self.action_filter.setFixedWidth(140)
+        self.action_filter.setFixedHeight(38)
+        self.action_filter.setFixedWidth(160)
+        self.action_filter.setStyleSheet(f"""
+            QComboBox {{
+                background: {WHITE};
+                border: 1.5px solid #D0D5DD;
+                border-radius: 6px;
+                padding: 4px 8px;
+                padding-right: 36px;
+                font-size: 12px;
+                font-family: "Segoe UI";
+                color: {TEXT_DARK};
+            }}
+            QComboBox:focus {{ border: 1.5px solid {NAVY}; }}
+            QComboBox:hover {{ border: 1.5px solid {NAVY}; }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: right center;
+                width: 32px;
+                background: {NAVY};
+                border-left: none;
+                border-top-right-radius: 5px;
+                border-bottom-right-radius: 5px;
+            }}
+            QComboBox::down-arrow {{
+                width: 0px; height: 0px;
+                border-style: solid;
+                border-width: 5px 4px 0px 4px;
+                border-color: {GOLD} transparent transparent transparent;
+            }}
+            QComboBox QAbstractItemView {{
+                background: {WHITE};
+                border: 1px solid #D0D5DD;
+                border-radius: 4px;
+                selection-background-color: {NAVY}30;
+                selection-color: {TEXT_DARK};
+                font-size: 12px;
+                font-family: "Segoe UI";
+                padding: 2px;
+                outline: none;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 6px 10px;
+                min-height: 28px;
+            }}
+        """)
         filter_lay.addWidget(self.action_filter)
 
         # Status filter
@@ -184,45 +229,85 @@ class ActivityLogsPage(BasePage):
 
         # Date range
         date_lbl = QLabel("Date Range:")
+        date_lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
         date_lbl.setStyleSheet(f"color: {NAVY}; font-weight: bold; border: none; background: transparent;")
         filter_lay.addWidget(date_lbl)
-        
-        self.date_from = QDateEdit()
-        self.date_from.setDate(QDate.currentDate().addDays(-30))
-        self.date_from.setFixedHeight(34)
-        self.date_from.setFixedWidth(110)
-        self.date_from.setStyleSheet(f"""
+
+        _date_style = f"""
             QDateEdit {{
-                border: 1.5px solid {LIGHT_GRAY};
+                background: {WHITE};
+                border: 1.5px solid #D0D5DD;
                 border-radius: 6px;
-                padding: 0 6px;
-                font-size: 10px;
+                padding: 4px 8px;
+                font-size: 12px;
+                font-family: "Segoe UI";
+                color: {TEXT_DARK};
             }}
-        """)
+            QDateEdit:focus {{ border: 1.5px solid {NAVY}; }}
+            QDateEdit::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: right center;
+                width: 32px;
+                background: {NAVY};
+                border-left: none;
+                border-top-right-radius: 5px;
+                border-bottom-right-radius: 5px;
+            }}
+            QDateEdit::down-arrow {{
+                width: 0px; height: 0px;
+                border-style: solid;
+                border-width: 5px 4px 0px 4px;
+                border-color: {GOLD} transparent transparent transparent;
+            }}
+            QCalendarWidget QWidget {{
+                background: {WHITE}; color: {TEXT_DARK};
+                font-family: "Segoe UI"; font-size: 12px;
+            }}
+            QCalendarWidget QAbstractItemView {{
+                background: {WHITE}; color: {TEXT_DARK};
+                selection-background-color: {NAVY};
+                selection-color: {WHITE};
+            }}
+            QCalendarWidget QToolButton {{
+                background: {NAVY}; color: {GOLD};
+                font-weight: bold; border: none;
+                border-radius: 4px; padding: 4px 8px;
+            }}
+            QCalendarWidget QToolButton:hover {{ background: {GOLD}; color: {NAVY}; }}
+            QCalendarWidget QWidget#qt_calendar_navigationbar {{
+                background: {NAVY}; border-radius: 6px; padding: 4px;
+            }}
+        """
+
+        self.date_from = QDateEdit()
+        self.date_from.setCalendarPopup(True)
+        self.date_from.setDate(QDate.currentDate().addDays(-30))
+        self.date_from.setFixedHeight(38)
+        self.date_from.setFixedWidth(140)
+        self.date_from.setDisplayFormat("MMM d, yyyy")
+        self.date_from.setStyleSheet(_date_style)
+        self.date_from.setButtonSymbols(QDateEdit.NoButtons)
         filter_lay.addWidget(self.date_from)
-        
+
         to_lbl = QLabel("to")
+        to_lbl.setFont(QFont("Segoe UI", 11))
         to_lbl.setStyleSheet(f"color: {TEXT_DARK}; border: none; background: transparent;")
         filter_lay.addWidget(to_lbl)
-        
+
         self.date_to = QDateEdit()
+        self.date_to.setCalendarPopup(True)
         self.date_to.setDate(QDate.currentDate())
-        self.date_to.setFixedHeight(34)
-        self.date_to.setFixedWidth(110)
-        self.date_to.setStyleSheet(f"""
-            QDateEdit {{
-                border: 1.5px solid {LIGHT_GRAY};
-                border-radius: 6px;
-                padding: 0 6px;
-                font-size: 10px;
-            }}
-        """)
+        self.date_to.setFixedHeight(38)
+        self.date_to.setFixedWidth(140)
+        self.date_to.setDisplayFormat("MMM d, yyyy")
+        self.date_to.setStyleSheet(_date_style)
+        self.date_to.setButtonSymbols(QDateEdit.NoButtons)
         filter_lay.addWidget(self.date_to)
 
         filter_lay.addStretch()
 
         # Apply filter button
-        apply_btn = QPushButton("🔍 Apply Filter")
+        apply_btn = QPushButton("  Apply Filter ")
         apply_btn.setFixedHeight(34)
         apply_btn.setFixedWidth(120)
         apply_btn.setCursor(Qt.PointingHandCursor)
@@ -245,10 +330,25 @@ class ActivityLogsPage(BasePage):
         filter_lay.addWidget(apply_btn)
 
         # Reset filter button
-        reset_btn = QPushButton("↺ Reset")
-        reset_btn.setFixedHeight(34)
-        reset_btn.setFixedWidth(80)
-        reset_btn.setStyleSheet(btn_outline())
+        reset_btn = QPushButton("  Reset ")
+        reset_btn.setFixedHeight(38)
+        reset_btn.setFixedWidth(90)
+        reset_btn.setCursor(Qt.PointingHandCursor)
+        reset_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {WHITE};
+                color: {NAVY};
+                border: 2px solid {NAVY};
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 0 12px;
+            }}
+            QPushButton:hover {{
+                background: {NAVY};
+                color: {WHITE};
+            }}
+        """)
         reset_btn.clicked.connect(self._reset_filters)
         filter_lay.addWidget(reset_btn)
 
@@ -259,13 +359,14 @@ class ActivityLogsPage(BasePage):
         self.logs_table = QTableWidget()
         self.logs_table.setColumnCount(len(headers))
         self.logs_table.setHorizontalHeaderLabels(headers)
-        self.logs_table.horizontalHeader().setStretchLastSection(True)
-        self.logs_table.setColumnWidth(0, 160)
-        self.logs_table.setColumnWidth(1, 130)
-        self.logs_table.setColumnWidth(2, 100)
-        self.logs_table.setColumnWidth(3, 280)
-        self.logs_table.setColumnWidth(4, 100)
-        self.logs_table.setColumnWidth(5, 80)
+        self.logs_table.horizontalHeader().setStretchLastSection(False)
+        self.logs_table.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.logs_table.setColumnWidth(0, 160)  # Timestamp
+        self.logs_table.setColumnWidth(1, 160)  # Action Type
+        self.logs_table.setColumnWidth(2, 160)  # Staff ID
+        self.logs_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)  # Description stretches
+        self.logs_table.setColumnWidth(4, 160)  # Record ID
+        self.logs_table.setColumnWidth(5, 160)  # Status
         
         self.logs_table.setStyleSheet(f"""
             QTableWidget {{
@@ -290,15 +391,18 @@ class ActivityLogsPage(BasePage):
                 color: {TEXT_DARK};
             }}
         """)
-        self.logs_table.setMinimumHeight(400)
-        self.main_layout.addWidget(self.logs_table)
+        from PyQt5.QtWidgets import QSizePolicy
+        self.logs_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.logs_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.main_layout.addWidget(self.logs_table, 1)
 
         # Pagination Row
         pag_lay = QHBoxLayout()
         pag_lay.addStretch()
         
-        prev_btn = QPushButton("← Previous")
-        prev_btn.setFixedWidth(100)
+        prev_btn = QPushButton("  Previous ")
+        prev_btn.setFixedWidth(120)
+        prev_btn.setFixedHeight(38)
         prev_btn.setStyleSheet(btn_outline())
         prev_btn.clicked.connect(self._prev_page)
         pag_lay.addWidget(prev_btn)
@@ -309,7 +413,7 @@ class ActivityLogsPage(BasePage):
         self.page_lbl.setAlignment(Qt.AlignCenter)
         pag_lay.addWidget(self.page_lbl)
         
-        next_btn = QPushButton("Next →")
+        next_btn = QPushButton("Next  ")
         next_btn.setFixedWidth(100)
         next_btn.setStyleSheet(btn_outline())
         next_btn.clicked.connect(self._next_page)

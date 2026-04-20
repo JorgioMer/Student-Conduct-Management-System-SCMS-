@@ -230,7 +230,7 @@ class MainWindow(QMainWindow):
             (_slip_icon("#2196F3"),                           "Blue Slips",      3),
             (_sp_icon(QStyle.SP_FileDialogDetailedView),     "Record Trackers", 4),
             (_sp_icon(QStyle.SP_FileDialogContentsView),     "Reports",         5),
-            (_sp_icon(QStyle.SP_DriveFDIcon),                "Activity Logs",   6),
+            (_sp_icon(QStyle.SP_FileDialogListView),         "Activity Logs",   6),
         ]
 
         for icon, label, idx in nav_items:
