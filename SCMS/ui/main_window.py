@@ -15,13 +15,14 @@ from ui.styles import (
     OFF_WHITE, LIGHT_GRAY, MID_GRAY
 )
 from ui.components import HeaderBar, NavButton, add_shadow, ConfirmDialog
-from ui.pages.dashboard   import DashboardPage
-from ui.pages.green_slip  import GreenSlipPage
-from ui.pages.pink_slip   import PinkSlipPage
-from ui.pages.blue_slip   import BlueSlipPage
-from ui.pages.trackers    import TrackersPage
-from ui.pages.reports     import ReportsPage
-from ui.pages.settings    import SettingsPage
+from ui.pages.dashboard      import DashboardPage
+from ui.pages.green_slip     import GreenSlipPage
+from ui.pages.pink_slip      import PinkSlipPage
+from ui.pages.blue_slip      import BlueSlipPage
+from ui.pages.trackers       import TrackersPage
+from ui.pages.reports        import ReportsPage
+from ui.pages.activity_logs  import ActivityLogsPage
+from ui.pages.settings       import SettingsPage
 
 
 def _sp_icon(sp_enum: int) -> QIcon:
@@ -137,6 +138,7 @@ class MainWindow(QMainWindow):
         self.page_blue = None
         self.page_trackers = None
         self.page_reports = None
+        self.page_logs = None
         self.page_settings = None
 
         self._pages = {0: self.page_dashboard}
@@ -144,9 +146,18 @@ class MainWindow(QMainWindow):
             1: lambda: GreenSlipPage(),
             2: lambda: PinkSlipPage(),
             3: lambda: BlueSlipPage(),
-            4: lambda: TrackersPage(),
-            5: lambda: ReportsPage(),
-            6: lambda: SettingsPage(current_user={   # ← pass current_user here
+            4: lambda: TrackersPage(current_user={
+                "username":  self.username,
+                "full_name": self.full_name,
+                "role":      self.role,
+            }),
+            5: lambda: ReportsPage(current_user={
+                "username":  self.username,
+                "full_name": self.full_name,
+                "role":      self.role,
+            }),
+            6: lambda: ActivityLogsPage(),
+            7: lambda: SettingsPage(current_user={
                 "username":  self.username,
                 "full_name": self.full_name,
                 "role":      self.role,
@@ -155,7 +166,7 @@ class MainWindow(QMainWindow):
 
         self.stack.addWidget(self.page_dashboard)
         # placeholders to preserve indices
-        for _ in range(6):
+        for _ in range(7):
             self.stack.addWidget(QWidget())
 
         body_lay.addWidget(self.stack, 1)
@@ -219,6 +230,7 @@ class MainWindow(QMainWindow):
             (_slip_icon("#2196F3"),                           "Blue Slips",      3),
             (_sp_icon(QStyle.SP_FileDialogDetailedView),     "Record Trackers", 4),
             (_sp_icon(QStyle.SP_FileDialogContentsView),     "Reports",         5),
+            (_sp_icon(QStyle.SP_DriveFDIcon),                "Activity Logs",   6),
         ]
 
         for icon, label, idx in nav_items:
@@ -245,8 +257,8 @@ class MainWindow(QMainWindow):
         lay.addWidget(settings_label)
 
         settings_btn = NavButton(_sp_icon(QStyle.SP_FileDialogInfoView), "Settings")
-        settings_btn.clicked.connect(lambda: self._show_page(6))
-        self.btn_group.addButton(settings_btn, 6)
+        settings_btn.clicked.connect(lambda: self._show_page(7))
+        self.btn_group.addButton(settings_btn, 7)
         lay.addWidget(settings_btn)
 
         lay.addStretch()

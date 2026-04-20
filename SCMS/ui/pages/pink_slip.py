@@ -17,7 +17,8 @@ from ui.styles import (
 )
 from ui.components import (
     SectionTitle, SubTitle, Divider,
-    FieldLabel, add_shadow, ConfirmDialog, InfoDialog, StatTile
+    FieldLabel, add_shadow, ConfirmDialog, InfoDialog, StatTile,
+    AutoCompleteLineEdit
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
@@ -337,9 +338,7 @@ class PinkSlipPage(BasePage):
         self.pink_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.pink_year.setFixedHeight(38)
         self.pink_year.setStyleSheet(_combo_style(PINK_SLIP))
-        self.pink_course = QLineEdit()
-        self.pink_course.setPlaceholderText("Course")
-        self.pink_course.setFixedHeight(38)
+        self.pink_course = AutoCompleteLineEdit()
         grade_row.addWidget(self.pink_year)
         grade_row.addWidget(self.pink_course)
         form_lay.addLayout(grade_row, 1, 1)
@@ -613,7 +612,7 @@ class PinkSlipPage(BasePage):
             self._pink_sem_filter.setCurrentIndex(2)
         self._pink_sem_filter.currentIndexChanged.connect(self._apply_pink_filters)
 
-        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn = QPushButton("   Refresh ")
         refresh_btn.setStyleSheet(btn_pink())
         refresh_btn.setFixedHeight(38)
         refresh_btn.setFixedWidth(110)
@@ -775,7 +774,7 @@ class PinkSlipPage(BasePage):
 
         refresh_row = QHBoxLayout()
         refresh_row.addStretch()
-        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn = QPushButton("   Refresh Chart  ")
         refresh_btn.setStyleSheet(btn_pink())
         refresh_btn.setFixedHeight(36)
         refresh_btn.setFixedWidth(150)

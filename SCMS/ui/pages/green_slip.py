@@ -17,7 +17,8 @@ from ui.styles import (
 )
 from ui.components import (
     SectionTitle, SubTitle, Divider,
-    FieldLabel, Card, add_shadow, ConfirmDialog, InfoDialog, StatTile
+    FieldLabel, Card, add_shadow, ConfirmDialog, InfoDialog, StatTile,
+    AutoCompleteLineEdit
 )
 from ui.pages.base_page import BasePage, page_header, build_record_table
 from ui.data_events import data_events
@@ -394,9 +395,7 @@ class GreenSlipPage(BasePage):
         self.disp_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.disp_year.setFixedHeight(38)
         self.disp_year.setStyleSheet(_combo_style(GREEN_SLIP))
-        self.disp_course = QLineEdit()
-        self.disp_course.setPlaceholderText("Course")
-        self.disp_course.setFixedHeight(38)
+        self.disp_course = AutoCompleteLineEdit()
         grade_row.addWidget(self.disp_year)
         grade_row.addWidget(self.disp_course)
         form_lay.addLayout(grade_row, 1, 1)
@@ -441,13 +440,6 @@ class GreenSlipPage(BasePage):
         form_lay.addWidget(lbl("Authorized By", True), 4, 0)
         self.disp_auth = _build_officer_combo(GREEN_SLIP)   # ← CHANGED (was QLineEdit)
         form_lay.addWidget(self.disp_auth, 4, 1)
-
-        form_lay.addWidget(lbl("Status"), 4, 2)
-        self.disp_status = QComboBox()
-        self.disp_status.addItems(["Active", "Expired", "Cancelled"])
-        self.disp_status.setFixedHeight(38)
-        self.disp_status.setStyleSheet(_combo_style(GREEN_SLIP))
-        form_lay.addWidget(self.disp_status, 4, 3)
 
         form_lay.addWidget(lbl("Semester", True), 5, 0)
         self.disp_semester = QComboBox()
@@ -518,7 +510,7 @@ class GreenSlipPage(BasePage):
                 slip_type   = "Dispensation"
                 date_avail  = self.disp_date.date().toPyDate()
                 days        = self.disp_days.value()
-                status      = self.disp_status.currentText()
+                status      = "Active"
                 expiry      = self.disp_expiry.date().toPyDate()
                 purpose     = self.disp_reason.toPlainText().strip()
                 semester    = self.disp_semester.currentText()
@@ -665,9 +657,7 @@ class GreenSlipPage(BasePage):
         self.exc_year.addItems(["1st","2nd","3rd","4th","5th"])
         self.exc_year.setFixedHeight(38)
         self.exc_year.setStyleSheet(_combo_style(GREEN_SLIP))
-        self.exc_course = QLineEdit()
-        self.exc_course.setPlaceholderText("Course")
-        self.exc_course.setFixedHeight(38)
+        self.exc_course = AutoCompleteLineEdit()
         grade_row.addWidget(self.exc_year)
         grade_row.addWidget(self.exc_course)
         form_lay.addLayout(grade_row, 1, 1)
@@ -901,7 +891,7 @@ class GreenSlipPage(BasePage):
         self._green_grade_filter.setStyleSheet(_combo_style(GREEN_SLIP))
         self._green_grade_filter.currentIndexChanged.connect(self._apply_green_filters)
 
-        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn = QPushButton("  Refresh ")
         refresh_btn.setStyleSheet(btn_green())
         refresh_btn.setFixedHeight(38)
         refresh_btn.setFixedWidth(110)
@@ -1067,7 +1057,7 @@ class GreenSlipPage(BasePage):
 
         refresh_row = QHBoxLayout()
         refresh_row.addStretch()
-        refresh_btn = QPushButton("⟳  Refresh Charts")
+        refresh_btn = QPushButton("   Refresh Chart  ")
         refresh_btn.setStyleSheet(btn_green())
         refresh_btn.setFixedHeight(36)
         refresh_btn.setFixedWidth(150)

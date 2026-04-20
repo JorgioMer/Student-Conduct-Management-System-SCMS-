@@ -25,11 +25,22 @@ from ui.components import (
     StatTile, add_shadow, InfoDialog
 )
 from ui.pages.base_page import BasePage, build_record_table
+from ui.pdf_preview_dialog import PDFPreviewDialog
+from backend.pdf_export import (
+    generate_overview_report, generate_slip_report,
+    generate_student_conduct_summary
+)
+from backend.db_activity_log import log_export, log_report_generated
+from backend.config import get_course_college, get_college_name, get_all_colleges
+import tempfile
+import os
 
 
 class ReportsPage(BasePage):
-    def __init__(self, parent=None):
+    def __init__(self, current_user=None, parent=None):
         super().__init__(parent)
+        self.current_user = current_user or {}
+        self.staff_id = self.current_user.get("username", "UNKNOWN")
         self._build()
 
     def _build(self):
@@ -71,10 +82,7 @@ class ReportsPage(BasePage):
         export_all = QPushButton("   Export All Reports ")
         export_all.setStyleSheet(btn_gold())
         export_all.setFixedHeight(38)
-        export_all.clicked.connect(lambda: InfoDialog(
-            "Export",
-            "All reports have been prepared for export.\n(Backend export will be implemented in final system.)",
-            parent=self).exec_())
+        export_all.clicked.connect(self._export_overview_report)
         h_lay.addWidget(export_all)
         self.main_layout.addWidget(header)
 
@@ -85,11 +93,20 @@ class ReportsPage(BasePage):
         period_row.addWidget(period_lbl)
         self.period_cb = QComboBox()
         self.period_cb.addItems([
-            "November 2024",
-            "October 2024",
-            "September 2024",
-            "1st Semester S.Y. 2024–2025",
-            "S.Y. 2024–2025 (Full Year)",
+            "January 2026",
+            "February 2026",
+            "March 2026",
+            "April 2026",
+            "May 2026",
+            "June 2026",
+            "July 2026",
+            "August 2026",
+            "September 2026",
+            "October 2026",
+            "December 2026",
+            "1st Semester S.Y. 2025–2026",
+            "2ND Semester S.Y. 2025–2026",
+            "S.Y. 2025–2026 (Full Year)",
         ])
         self.period_cb.setFixedHeight(38)
         self.period_cb.setFixedWidth(280)
@@ -99,6 +116,7 @@ class ReportsPage(BasePage):
         print_btn = QPushButton(" Print Preview ")
         print_btn.setStyleSheet(btn_outline())
         print_btn.setFixedHeight(38)
+        print_btn.clicked.connect(self._export_overview_report)
         period_row.addWidget(print_btn)
         self.main_layout.addLayout(period_row)
 
@@ -108,6 +126,7 @@ class ReportsPage(BasePage):
         tabs.addTab(self._build_green_report(),  "   Green Slips ")
         tabs.addTab(self._build_pink_report(),   "   Pink Slips ")
         tabs.addTab(self._build_blue_report(),   "   Blue Slips ")
+        tabs.addTab(self._build_college_report(), "   By College ")
         tabs.addTab(self._build_toplist_tab(),   "   Student Records ")
 
         self.main_layout.addWidget(tabs)
@@ -121,7 +140,7 @@ class ReportsPage(BasePage):
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(18)
 
-        lay.addWidget(SectionTitle("Monthly Overview — November 2024"))
+        lay.addWidget(SectionTitle("Monthly Overview — November 2026"))
 
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
@@ -210,6 +229,62 @@ class ReportsPage(BasePage):
         charts_row.addWidget(student_slips_frame)
 
         lay.addLayout(charts_row)
+
+        # ── College Distribution Chart ───────────────────────────────────────
+        lay.addWidget(Divider())
+        college_chart_label = QLabel("Distribution by College")
+        college_chart_label.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        college_chart_label.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        lay.addWidget(college_chart_label)
+
+        # Build college data
+        all_slips = green_slips + pink_slips + blue_slips
+        college_data = {}
+        for college_code in get_all_colleges():
+            college_data[college_code] = {
+                "name": get_college_name(college_code),
+                "students": set(),
+                "green": 0,
+                "pink": 0,
+                "blue": 0,
+                "total": 0
+            }
+
+        for slip in all_slips:
+            try:
+                course = slip[1] if len(slip) > 1 else ""
+                college_code = get_course_college(course)
+                
+                if college_code is None:
+                    continue
+
+                stud_name = slip[0] if len(slip) > 0 else "Unknown"
+                college_data[college_code]["students"].add(stud_name)
+
+                if slip in green_slips:
+                    college_data[college_code]["green"] += 1
+                elif slip in pink_slips:
+                    college_data[college_code]["pink"] += 1
+                elif slip in blue_slips:
+                    college_data[college_code]["blue"] += 1
+                college_data[college_code]["total"] += 1
+            except:
+                pass
+
+        college_chart = self._create_college_distribution_chart(college_data)
+        college_frame = QFrame()
+        college_frame.setStyleSheet(f"""
+            QFrame {{
+                background: #FFF3E0;
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 10px;
+            }}
+        """)
+        college_layout = QVBoxLayout(college_frame)
+        college_layout.setContentsMargins(10, 10, 10, 10)
+        college_layout.addWidget(college_chart)
+        lay.addWidget(college_frame)
+
         lay.addStretch()
         return w
 
@@ -315,14 +390,25 @@ class ReportsPage(BasePage):
         top_row.addWidget(t_lbl)
         top_row.addStretch()
 
-        for label, style in [("   Export CSV", btn_outline()), ("   Print", btn_outline())]:
-            b = QPushButton(label)
-            b.setStyleSheet(style)
-            b.setFixedHeight(36)
-            b.clicked.connect(lambda _, lbl=label: InfoDialog(
-                lbl.strip(), f"{lbl.strip()} action will be implemented in the final system.",
-                parent=self).exec_())
-            top_row.addWidget(b)
+        # Export PDF button
+        export_pdf_btn = QPushButton("   Export PDF ")
+        export_pdf_btn.setStyleSheet(btn_outline())
+        export_pdf_btn.setFixedHeight(36)
+        export_pdf_btn.clicked.connect(
+            lambda _, st=slip_type, ttl=title, sbt=subtitle, rw=rows: 
+            self._export_slip_report(st, ttl, sbt, rw)
+        )
+        top_row.addWidget(export_pdf_btn)
+        
+        # Print button
+        print_btn = QPushButton("   Print ")
+        print_btn.setStyleSheet(btn_outline())
+        print_btn.setFixedHeight(36)
+        print_btn.clicked.connect(
+            lambda _, st=slip_type, ttl=title, sbt=subtitle, rw=rows: 
+            self._export_slip_report(st, ttl, sbt, rw)
+        )
+        top_row.addWidget(print_btn)
         lay.addLayout(top_row)
 
         sub = QLabel(subtitle)
@@ -353,6 +439,145 @@ class ReportsPage(BasePage):
         i_lay.addStretch()
         lay.addWidget(info_bar)
 
+        lay.addStretch()
+        return w
+
+    # ── College-Based Report tab ──────────────────────────────────────────────
+    def _build_college_report(self) -> QWidget:
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip import get_pink_slips
+        from backend.db_blue_slip import get_blue_slips
+
+        w = QWidget()
+        w.setStyleSheet(f"background: {WHITE};")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(16)
+
+        lay.addWidget(SectionTitle("Distribution by College"))
+
+        # Get all slips
+        green_slips = get_green_slips(None) or []
+        pink_slips = get_pink_slips(None) or []
+        blue_slips = get_blue_slips(None) or []
+        all_slips = green_slips + pink_slips + blue_slips
+
+        # Organize by college
+        college_data = {}
+        for college_code in get_all_colleges():
+            college_data[college_code] = {
+                "name": get_college_name(college_code),
+                "students": set(),
+                "green": 0,
+                "pink": 0,
+                "blue": 0,
+                "total": 0
+            }
+
+        # Count slips by college based on course
+        for slip in all_slips:
+            try:
+                course = slip[1] if len(slip) > 1 else ""
+                college_code = get_course_college(course)
+                
+                if college_code is None:
+                    continue
+
+                stud_name = slip[0] if len(slip) > 0 else "Unknown"
+                college_data[college_code]["students"].add(stud_name)
+
+                # Determine slip type and count
+                if slip in green_slips:
+                    college_data[college_code]["green"] += 1
+                elif slip in pink_slips:
+                    college_data[college_code]["pink"] += 1
+                elif slip in blue_slips:
+                    college_data[college_code]["blue"] += 1
+                college_data[college_code]["total"] += 1
+            except:
+                pass
+
+        # Create tiles for each college
+        tiles_row = QHBoxLayout()
+        tiles_row.setSpacing(12)
+        for college_code, data in college_data.items():
+            if data["total"] > 0:
+                tile = QFrame()
+                tile.setStyleSheet(f"""
+                    QFrame {{
+                        background: #F8F9FA;
+                        border: 1.5px solid {LIGHT_GRAY};
+                        border-radius: 10px;
+                    }}
+                """)
+                tile_lay = QVBoxLayout(tile)
+                tile_lay.setContentsMargins(14, 12, 14, 12)
+                tile_lay.setSpacing(8)
+
+                # College name
+                name_lbl = QLabel(college_code)
+                name_lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
+                name_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+                tile_lay.addWidget(name_lbl)
+
+                # Statistics
+                stats_text = f"Students: {len(data['students'])}\nTotal Records: {data['total']}"
+                stats_lbl = QLabel(stats_text)
+                stats_lbl.setFont(QFont("Segoe UI", 10))
+                stats_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
+                tile_lay.addWidget(stats_lbl)
+
+                # Slip breakdown
+                breakdown = QLabel(f"🟢 {data['green']}  🔴 {data['pink']}  🔵 {data['blue']}")
+                breakdown.setFont(QFont("Segoe UI", 10))
+                breakdown.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
+                tile_lay.addWidget(breakdown)
+
+                tiles_row.addWidget(tile)
+
+        tiles_row.addStretch()
+        lay.addLayout(tiles_row)
+        lay.addWidget(Divider())
+
+        # College breakdown chart
+        college_chart = self._create_college_distribution_chart(college_data)
+        chart_frame = QFrame()
+        chart_frame.setStyleSheet(f"""
+            QFrame {{
+                background: #F8F9FA;
+                border: 1px solid {LIGHT_GRAY};
+                border-radius: 10px;
+            }}
+        """)
+        chart_lay = QVBoxLayout(chart_frame)
+        chart_lay.setContentsMargins(10, 10, 10, 10)
+        chart_lay.addWidget(college_chart)
+        lay.addWidget(chart_frame)
+
+        # Detailed table
+        lay.addWidget(QLabel(""))  # Spacer
+        detail_lbl = QLabel("College Details")
+        detail_lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        detail_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        lay.addWidget(detail_lbl)
+
+        rows = []
+        for college_code, data in college_data.items():
+            rows.append((
+                college_code,
+                data["name"],
+                str(len(data["students"])),
+                str(data["green"]),
+                str(data["pink"]),
+                str(data["blue"]),
+                str(data["total"])
+            ))
+
+        detail_table = build_record_table(
+            ["Code", "College Name", "Students", "Green", "Pink", "Blue", "Total"],
+            rows
+        )
+        lay.addWidget(detail_table)
         lay.addStretch()
         return w
 
@@ -552,3 +777,111 @@ class ReportsPage(BasePage):
         fig.tight_layout(pad=0.5)
         canvas = FigureCanvas(fig)
         return canvas
+
+    def _create_college_distribution_chart(self, college_data) -> FigureCanvas:
+        """Create a bar chart showing records by college."""
+        fig = Figure(figsize=(5, 3.5), dpi=90, facecolor='white', edgecolor='none')
+        ax = fig.add_subplot(111)
+
+        colleges = []
+        totals = []
+        colors = []
+        college_colors = {
+            "CEDAS": "#FF6B6B",
+            "CABE": "#4ECDC4",
+            "CCIS": "#95E1D3",
+            "COE": "#F9CA24",
+            "CHS": "#6C5CE7",
+            "CSP": "#A29BFE"
+        }
+
+        for college_code, data in college_data.items():
+            if data["total"] > 0:
+                colleges.append(college_code)
+                totals.append(data["total"])
+                colors.append(college_colors.get(college_code, "#999999"))
+
+        if colleges:
+            x_pos = range(len(colleges))
+            bars = ax.bar(x_pos, totals, color=colors, edgecolor='black', linewidth=0.5)
+            ax.set_ylabel('Total Records', fontsize=9)
+            ax.set_xlabel('College', fontsize=9)
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(colleges, fontsize=8)
+
+            # Add value labels on bars
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                       f'{int(height)}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+
+            # Add grid
+            ax.yaxis.grid(True, alpha=0.3, linestyle='--')
+            ax.set_axisbelow(True)
+        else:
+            ax.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=12, color='gray')
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+
+        ax.set_title('Records by College', fontsize=11, fontweight='bold', pad=10)
+        fig.tight_layout(pad=0.5)
+        canvas = FigureCanvas(fig)
+        return canvas
+
+    # ── PDF Export Methods ────────────────────────────────────────────────────
+    def _export_overview_report(self):
+        """Export monthly overview report as PDF."""
+        try:
+            from backend.db_blue_slip import get_blue_slips
+            from backend.db_green_slip import get_green_slips
+            from backend.db_pink_slip import get_pink_slips
+            
+            # Collect data
+            records_data = {
+                'green': get_green_slips(None) or [],
+                'pink': get_pink_slips(None) or [],
+                'blue': get_blue_slips(None) or [],
+            }
+            
+            total_records = len(records_data['green']) + len(records_data['pink']) + len(records_data['blue'])
+            
+            # Generate PDF in temp location
+            temp_pdf = os.path.join(tempfile.gettempdir(), 'SCMS_Overview_Report.pdf')
+            generate_overview_report(temp_pdf, records_data)
+            
+            # Log the export action
+            log_report_generated(self.staff_id, "Monthly Overview")
+            
+            # Show preview dialog
+            PDFPreviewDialog(temp_pdf, "Monthly Overview Report", parent=self).exec_()
+        except Exception as e:
+            InfoDialog(
+                "Export Error",
+                f"Failed to generate overview report:\n{str(e)}",
+                success=False,
+                parent=self
+            ).exec_()
+
+    def _export_slip_report(self, slip_type, title, subtitle, rows):
+        """Export individual slip type report as PDF."""
+        try:
+            # Convert rows to database record format
+            records = [tuple(row) for row in rows] if rows else []
+            
+            # Generate PDF in temp location
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_pdf = os.path.join(tempfile.gettempdir(), f'SCMS_{slip_type.upper()}_Report_{timestamp}.pdf')
+            generate_slip_report(temp_pdf, slip_type, records, subtitle)
+            
+            # Log the export action
+            log_report_generated(self.staff_id, f"{slip_type.title()} Slip Report")
+            
+            # Show preview dialog
+            PDFPreviewDialog(temp_pdf, title, parent=self).exec_()
+        except Exception as e:
+            InfoDialog(
+                "Export Error",
+                f"Failed to generate {slip_type} slip report:\n{str(e)}",
+                success=False,
+                parent=self
+            ).exec_()

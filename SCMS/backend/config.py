@@ -99,3 +99,63 @@ def remove_school_year(year):
         config["school_years_list"] = school_years
         return save_config(config)
     return True
+
+
+# ── College and Course Mapping ────────────────────────────────────────────────
+COLLEGES = {
+    "CEDAS": {
+        "name": "College of Education and Sciences",
+        "courses": ["BSP", "BS CRIM", "BS MATH", "AB ELS", "BECED", "BEED", "BPED", 
+                   "BSED ENG", "BSED FIL", "BSED MATH", "BSED SCI", "BTV-TED"]
+    },
+    "CABE": {
+        "name": "College of Business and Entrepreneurship",
+        "courses": ["BSA", "BSMA", "BSAIS", "BPA", "BSTM", "BSHM", "BSBA-FM", 
+                   "BSBA-MM", "BSBA-HRDM", "DHTT"]
+    },
+    "CCIS": {
+        "name": "College Of Computing and Information Sciences",
+        "courses": ["BSCS", "BSIT", "BLIS"]
+    },
+    "COE": {
+        "name": "College of Engineering",
+        "courses": ["BSCE", "BSECE", "BSCPE"]
+    },
+    "CHS": {
+        "name": "College of Health Sciences",
+        "courses": ["BSN", "BSRT", "BSMLS"]
+    },
+    "CSP": {
+        "name": "College of Special Programs",
+        "courses": ["CSP"]
+    }
+}
+
+
+def get_course_college(course_code):
+    """Get the college code for a given course code"""
+    course_upper = course_code.upper().strip()
+    for college_code, college_info in COLLEGES.items():
+        if course_upper in college_info["courses"]:
+            return college_code
+    return None
+
+
+def get_college_name(college_code):
+    """Get the full name of a college by its code"""
+    if college_code in COLLEGES:
+        return COLLEGES[college_code]["name"]
+    return college_code
+
+
+def get_all_colleges():
+    """Get list of all colleges with their codes"""
+    return list(COLLEGES.keys())
+
+
+def get_all_courses():
+    """Get a flat list of all available courses"""
+    courses = []
+    for college_info in COLLEGES.values():
+        courses.extend(college_info["courses"])
+    return sorted(courses)
