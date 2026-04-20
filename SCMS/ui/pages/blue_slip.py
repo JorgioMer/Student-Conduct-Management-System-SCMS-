@@ -388,7 +388,9 @@ class BlueSlipPage(BasePage):
         self.blue_severity.setStyleSheet(_combo_style(BLUE_SLIP))
         form_lay.addWidget(self.blue_severity, 2, 3)
 
-        form_lay.addWidget(lbl("Violation Description", True), 3, 0)
+        _lbl_vd = lbl("Violation Description", True)
+        _lbl_vd.setContentsMargins(0, 8, 0, 0)
+        form_lay.addWidget(_lbl_vd, 3, 0, Qt.AlignTop)
         self.blue_desc = QTextEdit()
         self.blue_desc.setPlaceholderText("Provide a detailed account of the violation incident...")
         self.blue_desc.setFixedHeight(75)

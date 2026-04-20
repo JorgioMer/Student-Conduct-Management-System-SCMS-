@@ -373,7 +373,9 @@ class PinkSlipPage(BasePage):
         self.pink_violation.setStyleSheet(_combo_style(PINK_SLIP))
         form_lay.addWidget(self.pink_violation, 2, 3)
 
-        form_lay.addWidget(lbl("Description / Remarks"), 3, 0)
+        _lbl_dr = lbl("Description / Remarks")
+        _lbl_dr.setContentsMargins(0, 8, 0, 0)
+        form_lay.addWidget(_lbl_dr, 3, 0, Qt.AlignTop)
         self.pink_remarks = QTextEdit()
         self.pink_remarks.setPlaceholderText("Provide additional details about the violation...")
         self.pink_remarks.setFixedHeight(75)

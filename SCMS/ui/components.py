@@ -353,40 +353,31 @@ class NavButton(QPushButton):
 
 # ── Auto-Complete Line Edit with Course Suggestions ──────────────────────────
 class AutoCompleteLineEdit(QWidget):
-    """
-    A custom QLineEdit widget with dropdown suggestions for courses.
-    Filtered based on user input with fuzzy matching.
-    """
-    # Course data organized by college
     COURSES_BY_COLLEGE = {
-        "CEDAS": ["BSP", "BS CRIM", "BS MATH", "AB ELS", "BECED", "BEED", "BPED", 
+        "CEDAS": ["BSP", "BS CRIM", "BS MATH", "AB ELS", "BECED", "BEED", "BPED",
                   "BSED ENG", "BSED FIL", "BSED MATH", "BSED SCI", "BTV-TED"],
-        "CABE": ["BSA", "BSMA", "BSAIS", "BPA", "BSTM", "BSHM", "BSBA-FM", 
+        "CABE": ["BSA", "BSMA", "BSAIS", "BPA", "BSTM", "BSHM", "BSBA-FM",
                  "BSBA-MM", "BSBA-HRDM", "DHTT"],
         "CCIS": ["BSCS", "BSIT", "BLIS"],
-        "COE": ["BSCE", "BSECE", "BSCPE"],
-        "CHS": ["BSN", "BSRT", "BSMLS"],
-        "CSP": ["CSP"]
+        "COE":  ["BSCE", "BSECE", "BSCPE"],
+        "CHS":  ["BSN", "BSRT", "BSMLS"],
+        "CSP":  ["CSP"],
     }
-    
-    # Flatten to a simple list
-    ALL_COURSES = []
-    for courses in COURSES_BY_COLLEGE.values():
-        ALL_COURSES.extend(courses)
-    ALL_COURSES.sort()
-    
+    ALL_COURSES = sorted(
+        [c for courses in COURSES_BY_COLLEGE.values() for c in courses]
+    )
+
     textChanged = pyqtSignal(str)
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._build()
-        
+
     def _build(self):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        
-        # Main input line edit
+
         self.line_edit = QLineEdit()
         self.line_edit.setPlaceholderText("Course")
         self.line_edit.setFixedHeight(38)
@@ -404,22 +395,25 @@ class AutoCompleteLineEdit(QWidget):
                 border: 1.5px solid {NAVY};
             }}
         """)
-        
-        # Dropdown list widget for suggestions
-        self.list_widget = QTableWidget()
-        self.list_widget.setColumnCount(1)
-        self.list_widget.horizontalHeader().setVisible(False)
-        self.list_widget.verticalHeader().setVisible(False)
-        self.list_widget.setSelectionBehavior(QTableWidget.SelectRows)
-        self.list_widget.setSelectionMode(QTableWidget.SingleSelection)
-        self.list_widget.setMaximumHeight(0)  # Initially hidden
-        self.list_widget.setStyleSheet(f"""
+        lay.addWidget(self.line_edit)
+
+        # ── Floating popup (top-level, draws over everything) ──────────────
+        self._popup = QTableWidget()
+        self._popup.setWindowFlags(Qt.ToolTip)
+        self._popup.setColumnCount(1)
+        self._popup.horizontalHeader().setVisible(False)
+        self._popup.verticalHeader().setVisible(False)
+        self._popup.setSelectionBehavior(QTableWidget.SelectRows)
+        self._popup.setSelectionMode(QTableWidget.SingleSelection)
+        self._popup.setFocusPolicy(Qt.NoFocus)
+        self._popup.setStyleSheet(f"""
             QTableWidget {{
                 background: {WHITE};
                 border: 1px solid #D0D5DD;
-                border-top: none;
-                border-radius: 0 0 6px 6px;
+                border-radius: 4px;
                 gridline-color: {LIGHT_GRAY};
+                font-size: 13px;
+                font-family: "Segoe UI";
             }}
             QTableWidget::item {{
                 padding: 6px 12px;
@@ -432,141 +426,110 @@ class AutoCompleteLineEdit(QWidget):
             QTableWidget::item:hover {{
                 background: {NAVY}11;
             }}
-            QHeaderView::section {{
-                background: {WHITE};
-                padding: 0px;
-                border: none;
-            }}
         """)
-        
-        # Connect signals
-        self.line_edit.textChanged.connect(self._on_text_changed)
-        self.line_edit.focusOutEvent = self._on_focus_out
-        self.list_widget.itemClicked.connect(self._on_item_clicked)
-        self.list_widget.itemDoubleClicked.connect(self._on_item_clicked)
-        
-        # Handle keyboard navigation
-        self.list_widget.keyPressEvent = self._on_list_key_press
-        self.line_edit.keyPressEvent = self._on_input_key_press
-        
-        lay.addWidget(self.line_edit)
-        lay.addWidget(self.list_widget)
-        
-    def _on_text_changed(self, text):
-        """Filter and display suggestions based on input."""
-        self.textChanged.emit(text)
-        
-        # Get filtered courses
-        suggestions = self._get_matching_courses(text.strip())
-        
-        # Update list widget
-        self.list_widget.setRowCount(0)
-        
-        if suggestions:
-            # Show and populate dropdown
-            for course in suggestions:
-                row = self.list_widget.rowCount()
-                self.list_widget.insertRow(row)
-                item = QTableWidgetItem(course)
-                item.setFont(QFont("Segoe UI", 12))
-                self.list_widget.setItem(row, 0, item)
-            
-            # Set height based on number of items (max 5 items visible)
-            item_height = 30
-            num_visible = min(len(suggestions), 5)
-            self.list_widget.setMaximumHeight(num_visible * item_height)
-            self.list_widget.resizeColumnsToContents()
-        else:
-            self.list_widget.setMaximumHeight(0)
-    
-    def _get_matching_courses(self, query):
-        """Get courses that match the query using fuzzy matching."""
-        if not query:
-            return self.ALL_COURSES  # Show all if empty
-        
-        query_upper = query.upper()
-        matches = []
-        
-        # First, check for exact starts with (higher priority)
-        for course in self.ALL_COURSES:
-            if course.startswith(query_upper):
-                matches.append(course)
-        
-        # Then, check for contains (lower priority)
-        for course in self.ALL_COURSES:
-            if query_upper in course and course not in matches:
-                matches.append(course)
-        
-        return matches[:10]  # Limit to 10 results
-    
-    def _on_item_clicked(self, item):
-        """Select course from dropdown."""
-        course = self.list_widget.item(item.row(), 0).text()
-        self.line_edit.setText(course)
-        self.list_widget.setMaximumHeight(0)
-    
-    def _on_focus_out(self, event):
-        """Hide dropdown when focus is lost."""
-        import time
-        # Delay to allow item click to register
-        QApplication.processEvents()
-        self.list_widget.setMaximumHeight(0)
-        QLineEdit.focusOutEvent(self.line_edit, event)
-    
-    def _on_input_key_press(self, event):
-        """Handle keyboard navigation between input and dropdown."""
-        from PyQt5.QtCore import Qt
-        if event.key() in (Qt.Key_Down, Qt.Key_Up):
-            if self.list_widget.rowCount() > 0:
-                self.list_widget.selectRow(0 if event.key() == Qt.Key_Down else self.list_widget.rowCount() - 1)
-                self.list_widget.setFocus()
-                return
-        elif event.key() == Qt.Key_Return:
-            if self.list_widget.rowCount() > 0 and self.list_widget.currentRow() >= 0:
-                self._on_item_clicked(self.list_widget.item(self.list_widget.currentRow(), 0))
-                return
-        
-        QLineEdit.keyPressEvent(self.line_edit, event)
-    
-    def _on_list_key_press(self, event):
-        """Handle keyboard navigation in dropdown."""
-        from PyQt5.QtCore import Qt
-        if event.key() == Qt.Key_Return:
-            if self.list_widget.currentRow() >= 0:
-                self._on_item_clicked(self.list_widget.item(self.list_widget.currentRow(), 0))
-            return
-        elif event.key() == Qt.Key_Escape:
-            self.list_widget.setMaximumHeight(0)
-            self.line_edit.setFocus()
-            return
-        elif event.key() in (Qt.Key_Up, Qt.Key_Down):
-            QTableWidget.keyPressEvent(self.list_widget, event)
-            return
-        
-        # Any other key goes to the input
-        self.line_edit.setFocus()
-        QLineEdit.keyPressEvent(self.line_edit, event)
-    
-    def text(self):
-        """Get the current text."""
-        return self.line_edit.text()
-    
-    def setText(self, text):
-        """Set the current text."""
-        self.line_edit.setText(text)
-    
-    def clear(self):
-        """Clear the input."""
-        self.line_edit.clear()
-    
-    def setPlaceholderText(self, text):
-        """Set placeholder text."""
-        self.line_edit.setPlaceholderText(text)
-    
-    def setFixedHeight(self, height):
-        """Set fixed height for the input (dropdown height is dynamic)."""
-        self.line_edit.setFixedHeight(height)
+        self._popup.hide()
 
+        self.line_edit.textChanged.connect(self._on_text_changed)
+        self.line_edit.installEventFilter(self)
+        self._popup.itemClicked.connect(self._on_item_clicked)
+        self._popup.itemDoubleClicked.connect(self._on_item_clicked)
+        self._popup.installEventFilter(self)
+
+    def _show_popup(self, suggestions):
+        self._popup.setRowCount(0)
+        for course in suggestions:
+            row = self._popup.rowCount()
+            self._popup.insertRow(row)
+            item = QTableWidgetItem(course)
+            item.setFont(QFont("Segoe UI", 12))
+            self._popup.setItem(row, 0, item)
+
+        ROW_H   = 30
+        visible = min(len(suggestions), 5)
+        pop_h   = visible * ROW_H + 2
+        pop_w   = self.line_edit.width()
+
+        origin = self.line_edit.mapToGlobal(self.line_edit.rect().bottomLeft())
+        self._popup.setGeometry(origin.x(), origin.y(), pop_w, pop_h)
+        self._popup.horizontalHeader().setStretchLastSection(True)
+        self._popup.show()
+        self._popup.raise_()
+
+    def _hide_popup(self):
+        self._popup.hide()
+
+    def eventFilter(self, obj, event):
+        from PyQt5.QtCore import QEvent
+        if obj is self.line_edit:
+            if event.type() == QEvent.FocusOut:
+                QApplication.processEvents()
+                if not self._popup.hasFocus():
+                    self._hide_popup()
+            elif event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key == Qt.Key_Down and self._popup.isVisible():
+                    self._popup.setFocus()
+                    self._popup.selectRow(0)
+                    return True
+                elif key == Qt.Key_Escape:
+                    self._hide_popup()
+                elif key == Qt.Key_Return and self._popup.isVisible():
+                    if self._popup.currentRow() >= 0:
+                        self._on_item_clicked(
+                            self._popup.item(self._popup.currentRow(), 0))
+                    return True
+
+        elif obj is self._popup:
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if key == Qt.Key_Return:
+                    if self._popup.currentRow() >= 0:
+                        self._on_item_clicked(
+                            self._popup.item(self._popup.currentRow(), 0))
+                    return True
+                elif key == Qt.Key_Escape:
+                    self._hide_popup()
+                    self.line_edit.setFocus()
+                    return True
+                elif key in (Qt.Key_Up, Qt.Key_Down):
+                    pass
+                else:
+                    self.line_edit.setFocus()
+                    return False
+            elif event.type() == QEvent.FocusOut:
+                QApplication.processEvents()
+                if not self.line_edit.hasFocus():
+                    self._hide_popup()
+
+        return super().eventFilter(obj, event)
+
+    def _on_text_changed(self, text):
+        self.textChanged.emit(text)
+        suggestions = self._get_matching_courses(text.strip())
+        if suggestions:
+            self._show_popup(suggestions)
+        else:
+            self._hide_popup()
+
+    def _get_matching_courses(self, query):
+        if not query:
+            return self.ALL_COURSES
+        q = query.upper()
+        starts   = [c for c in self.ALL_COURSES if c.startswith(q)]
+        contains = [c for c in self.ALL_COURSES if q in c and c not in starts]
+        return (starts + contains)[:10]
+
+    def _on_item_clicked(self, item):
+        course = self._popup.item(item.row(), 0).text()
+        self.line_edit.setText(course)
+        self._hide_popup()
+        self.line_edit.setFocus()
+
+    def text(self):              return self.line_edit.text()
+    def setText(self, t):        self.line_edit.setText(t)
+    def clear(self):             self.line_edit.clear()
+    def setPlaceholderText(self, t): self.line_edit.setPlaceholderText(t)
+    def setFixedHeight(self, h): self.line_edit.setFixedHeight(h)
 
 # ── Confirmation dialog ───────────────────────────────────────────────────────
 class ConfirmDialog(QDialog):
