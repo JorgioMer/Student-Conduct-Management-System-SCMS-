@@ -24,6 +24,12 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 from pathlib import Path
 import os
+import io
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from collections import Counter
 
 # ── Image paths ───────────────────────────────────────────────────────────────
 # Resolve relative to this file's directory so imports from anywhere work.
@@ -62,6 +68,158 @@ def _safe(text):
     if text is None:
         return '-'
     return str(text).encode('latin-1', errors='replace').decode('latin-1')
+
+
+def _wrap_text_for_table(text, is_header=False):
+    """Wrap table cell text in a Paragraph object to enable text wrapping.
+    
+    Args:
+        text: String to wrap
+        is_header: True for header cells, False for data cells
+    
+    Returns:
+        Paragraph object with appropriate styling for text wrapping
+    """
+    if text is None:
+        text = '-'
+    text = _safe(text)
+    
+    if is_header:
+        style = ParagraphStyle(
+            'TableHeader',
+            fontName='Helvetica-Bold',
+            fontSize=10,
+            textColor=WHITE,
+            alignment=TA_CENTER,
+            wordWrap='CJK'
+        )
+    else:
+        style = ParagraphStyle(
+            'TableCell',
+            fontName='Helvetica',
+            fontSize=9,
+            textColor=DARK_GRAY,
+            alignment=TA_LEFT,
+            wordWrap='CJK'
+        )
+    
+    return Paragraph(text, style)
+
+
+def _wrap_table_row(row, is_header=False):
+    """Wrap all cells in a table row with Paragraph objects for text wrapping.
+    
+    Args:
+        row: List of cell values
+        is_header: True for header row, False for data rows
+    
+    Returns:
+        List of Paragraph-wrapped cells
+    """
+    return [_wrap_text_for_table(cell, is_header) for cell in row]
+
+
+# ── Chart Generation Functions ────────────────────────────────────────────────
+def _create_college_distribution_chart(college_data):
+    """Create a bar chart showing slip distribution by college.
+    
+    Args:
+        college_data: Dict with college codes as keys and slip counts as values
+    
+    Returns:
+        BytesIO object containing the chart image
+    """
+    fig = Figure(figsize=(8, 5), dpi=90, facecolor='white')
+    ax = fig.add_subplot(111)
+    
+    college_colors = {
+        "CEDAS": "#FF6B6B",
+        "CABE": "#4ECDC4",
+        "CCIS": "#95E1D3",
+        "COE": "#F9CA24",
+        "CHS": "#6C5CE7",
+        "CSP": "#A29BFE"
+    }
+    
+    colleges = []
+    green_counts = []
+    pink_counts = []
+    blue_counts = []
+    colors = []
+    
+    for college_code in sorted(college_data.keys()):
+        data = college_data[college_code]
+        if data["total"] > 0:
+            colleges.append(college_code)
+            green_counts.append(data["green"])
+            pink_counts.append(data["pink"])
+            blue_counts.append(data["blue"])
+            colors.append(college_colors.get(college_code, "#999999"))
+    
+    if colleges:
+        x = range(len(colleges))
+        width = 0.25
+        
+        bars1 = ax.bar([i - width for i in x], green_counts, width, label='Green Slips', color='#4CAF50', edgecolor='black', linewidth=0.5)
+        bars2 = ax.bar(x, pink_counts, width, label='Pink Slips', color='#E91E63', edgecolor='black', linewidth=0.5)
+        bars3 = ax.bar([i + width for i in x], blue_counts, width, label='Blue Slips', color='#2196F3', edgecolor='black', linewidth=0.5)
+        
+        ax.set_ylabel('Number of Slips', fontsize=10, fontweight='bold')
+        ax.set_xlabel('College', fontsize=10, fontweight='bold')
+        ax.set_xticks(x)
+        ax.set_xticklabels(colleges, fontsize=9)
+        ax.legend(fontsize=9)
+        ax.set_title('Slip Distribution by College', fontsize=12, fontweight='bold', pad=15)
+        ax.grid(axis='y', alpha=0.3, linestyle='--')
+    else:
+        ax.text(0.5, 0.5, 'No College Data Available', ha='center', va='center', fontsize=12, color='gray')
+    
+    fig.tight_layout()
+    
+    # Save to BytesIO buffer
+    img_buffer = io.BytesIO()
+    fig.savefig(img_buffer, format='png', bbox_inches='tight', dpi=90)
+    img_buffer.seek(0)
+    plt.close(fig)
+    
+    return img_buffer
+
+
+def _create_slip_distribution_chart(green_count, pink_count, blue_count):
+    """Create a pie chart showing overall slip distribution.
+    
+    Args:
+        green_count: Number of green slips
+        pink_count: Number of pink slips
+        blue_count: Number of blue slips
+    
+    Returns:
+        BytesIO object containing the chart image
+    """
+    fig = Figure(figsize=(6, 5), dpi=90, facecolor='white')
+    ax = fig.add_subplot(111)
+    
+    sizes = [green_count, pink_count, blue_count]
+    labels = [f'Green Slips\n({green_count})', f'Pink Slips\n({pink_count})', f'Blue Slips\n({blue_count})']
+    colors = ['#4CAF50', '#E91E63', '#2196F3']
+    explode = (0.05, 0.05, 0.05)
+    
+    if sum(sizes) > 0:
+        ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90,
+               explode=explode, shadow=True, textprops={'fontsize': 10, 'fontweight': 'bold'})
+        ax.set_title('Overall Slip Distribution', fontsize=12, fontweight='bold', pad=15)
+    else:
+        ax.text(0.5, 0.5, 'No Slip Data Available', ha='center', va='center', fontsize=12, color='gray')
+    
+    fig.tight_layout()
+    
+    # Save to BytesIO buffer
+    img_buffer = io.BytesIO()
+    fig.savefig(img_buffer, format='png', bbox_inches='tight', dpi=90)
+    img_buffer.seek(0)
+    plt.close(fig)
+    
+    return img_buffer
 
 
 # ── Header and Footer ─────────────────────────────────────────────────────────
@@ -157,10 +315,6 @@ class CorJesuHeaderFooter(BaseDocTemplate):
         c.drawRightString(prog_x, footer_top + 0.06 * inch,
                           "| Bachelor of Library and Information Science")
 
-        c.setFont("Helvetica", 7.5)
-        c.setFillColor(DARK_GRAY)
-        c.drawCentredString(PAGE_W / 2, 0.20 * inch, f"Page {doc.page}")
-
         c.restoreState()
 
 
@@ -215,11 +369,11 @@ def create_table_style(slip_type='mixed'):
         ('FONTSIZE',      (0, 1), (-1, -1), 9),
         ('TEXTCOLOR',     (0, 1), (-1, -1), DARK_GRAY),
         ('ALIGN',         (0, 1), (-1, -1), 'CENTER'),
-        ('VALIGN',        (0, 1), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING',   (0, 1), (-1, -1), 6),
-        ('RIGHTPADDING',  (0, 1), (-1, -1), 6),
-        ('TOPPADDING',    (0, 1), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ('VALIGN',        (0, 1), (-1, -1), 'TOP'),  # Changed from MIDDLE to TOP for wrapped text
+        ('LEFTPADDING',   (0, 1), (-1, -1), 8),
+        ('RIGHTPADDING',  (0, 1), (-1, -1), 8),
+        ('TOPPADDING',    (0, 1), (-1, -1), 8),     # Increased from 6 to 8
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),     # Increased from 6 to 8
         ('GRID',          (0, 0), (-1, -1), 0.5, grey),
         ('ROWBACKGROUNDS',(0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
     ])
@@ -232,30 +386,31 @@ def _info_table_style():
         ('FONTSIZE',      (0, 0), (-1, -1), 10),
         ('TEXTCOLOR',     (0, 0), (0, -1), NAVY),
         ('TEXTCOLOR',     (1, 0), (1, -1), DARK_GRAY),
-        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('VALIGN',        (0, 0), (-1, -1), 'TOP'),  # Changed from MIDDLE to TOP for wrapped text
         ('ALIGN',         (0, 0), (0, -1), 'RIGHT'),
         ('ALIGN',         (1, 0), (1, -1), 'LEFT'),
         ('LEFTPADDING',   (0, 0), (-1, -1), 8),
         ('RIGHTPADDING',  (0, 0), (-1, -1), 8),
-        ('TOPPADDING',    (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 8),     # Increased from 6 to 8
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),     # Increased from 6 to 8
         ('GRID',          (0, 0), (-1, -1), 0.5, grey),
         ('ROWBACKGROUNDS',(0, 0), (-1, -1), [WHITE, LIGHT_GRAY]),
     ])
 
 
 # ── PDF Export Functions ──────────────────────────────────────────────────────
-def generate_overview_report(output_path, records_data):
+def generate_overview_report(output_path, records_data, period=None):
+    current_month = period if period else datetime.now().strftime("%B %Y")
     doc = CorJesuHeaderFooter(
         output_path,
-        title="Monthly Overview Report - November 2024",
+        title=f"Monthly Overview Report - {current_month}",
         docTitle="SCMS Monthly Overview"
     )
     story  = []
     styles = get_document_styles()
 
     story.append(Spacer(1, 0.3 * inch))
-    story.append(Paragraph("<b>Report Period:</b> November 2024", styles['normal']))
+    story.append(Paragraph(f"<b>Report Period:</b> {current_month}", styles['normal']))
     story.append(Spacer(1, 0.15 * inch))
 
     green_count = len(records_data.get('green', []))
@@ -270,6 +425,8 @@ def generate_overview_report(output_path, records_data):
         ['Blue Slips (Violations)',           str(blue_count)],
         ['Total Records',                     str(total)],
     ]
+    # Wrap header and data rows for text wrapping support
+    stats_data = [_wrap_table_row(stats_data[0], is_header=True)] + [_wrap_table_row(row) for row in stats_data[1:]]
     stats_table = Table(stats_data, colWidths=[3.5 * inch, 1.5 * inch])
     stats_table.setStyle(create_table_style('mixed'))
     story.append(Paragraph("<b>Summary Statistics</b>", styles['section']))
@@ -290,6 +447,8 @@ def generate_overview_report(output_path, records_data):
             ]
             for r in records_data['green'][:10]
         ]
+        # Wrap header and data rows for text wrapping support
+        green_data = [_wrap_table_row(green_data[0], is_header=True)] + [_wrap_table_row(row) for row in green_data[1:]]
         t = Table(green_data, colWidths=[1.2*inch, 1.5*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch])
         t.setStyle(create_table_style('green'))
         story.append(t)
@@ -299,19 +458,21 @@ def generate_overview_report(output_path, records_data):
         story.append(PageBreak())
         story.append(Spacer(1, 0.4 * inch))
         story.append(Paragraph("Pink Slips Report", styles['section']))
-        headers   = ['Student No.', 'Name', 'Year', 'Violation', 'Date', 'Status']
+        headers   = ['Student No.', 'Name', 'Year', 'Course', 'Violation', 'Date Issued']
         pink_data = [headers] + [
             [
                 _safe(r[4] if len(r) > 4 else None),
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
+                _safe(r[1] if len(r) > 1 else None),
                 _safe(r[5] if len(r) > 5 else None),
                 _safe(str(r[6])[:10] if len(r) > 6 else None),
-                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data['pink'][:10]
         ]
-        t = Table(pink_data, colWidths=[1.2*inch, 1.5*inch, 0.8*inch, 1.2*inch, 0.9*inch, 0.8*inch])
+        # Wrap header and data rows for text wrapping support
+        pink_data = [_wrap_table_row(pink_data[0], is_header=True)] + [_wrap_table_row(row) for row in pink_data[1:]]
+        t = Table(pink_data, colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 1.2*inch, 0.9*inch])
         t.setStyle(create_table_style('pink'))
         story.append(t)
         story.append(Spacer(1, 0.4 * inch))
@@ -333,10 +494,86 @@ def generate_overview_report(output_path, records_data):
             ]
             for r in records_data['blue'][:10]
         ]
+        # Wrap header and data rows for text wrapping support
+        blue_data = [_wrap_table_row(blue_data[0], is_header=True)] + [_wrap_table_row(row) for row in blue_data[1:]]
         t = Table(blue_data, colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch, 0.8*inch])
         t.setStyle(create_table_style('blue'))
         story.append(t)
         story.append(Spacer(1, 0.4 * inch))
+
+    # ── Charts and College Summary ────────────────────────────────────────────
+    story.append(PageBreak())
+    story.append(Spacer(1, 0.3 * inch))
+    story.append(Paragraph("Visual Summary", styles['section']))
+    story.append(Spacer(1, 0.15 * inch))
+    
+    # Overall slip distribution chart
+    try:
+        chart_buffer = _create_slip_distribution_chart(green_count, pink_count, blue_count)
+        story.append(RLImage(chart_buffer, width=4.5*inch, height=3.75*inch))
+        story.append(Spacer(1, 0.3 * inch))
+    except Exception as e:
+        story.append(Paragraph(f"<i>Chart unavailable: {str(e)}</i>", styles['normal']))
+    
+    # Build college data
+    all_slips = records_data.get('green', []) + records_data.get('pink', []) + records_data.get('blue', [])
+    college_data = {}
+    for slip in all_slips:
+        try:
+            course = slip[1] if len(slip) > 1 else ""
+            from backend.config import get_course_college, COLLEGES
+            college_code = get_course_college(course) if course else None
+            
+            if college_code is None:
+                continue
+            
+            if college_code not in college_data:
+                college_data[college_code] = {"green": 0, "pink": 0, "blue": 0, "total": 0}
+            
+            if slip in records_data.get('green', []):
+                college_data[college_code]["green"] += 1
+            elif slip in records_data.get('pink', []):
+                college_data[college_code]["pink"] += 1
+            elif slip in records_data.get('blue', []):
+                college_data[college_code]["blue"] += 1
+            college_data[college_code]["total"] += 1
+        except:
+            pass
+    
+    # College distribution chart
+    if college_data:
+        story.append(Paragraph("Slip Distribution by College", styles['section']))
+        story.append(Spacer(1, 0.1 * inch))
+        
+        try:
+            chart_buffer = _create_college_distribution_chart(college_data)
+            story.append(RLImage(chart_buffer, width=6*inch, height=3.75*inch))
+            story.append(Spacer(1, 0.3 * inch))
+        except Exception as e:
+            story.append(Paragraph(f"<i>Chart unavailable: {str(e)}</i>", styles['normal']))
+        
+        # College summary table
+        story.append(PageBreak())
+        story.append(Spacer(1, 0.3 * inch))
+        story.append(Paragraph("College Summary", styles['section']))
+        story.append(Spacer(1, 0.15 * inch))
+        
+        college_summary = [['College', 'Green', 'Pink', 'Blue', 'Total']]
+        for college_code in sorted(college_data.keys()):
+            data = college_data[college_code]
+            college_summary.append([
+                college_code,
+                str(data['green']),
+                str(data['pink']),
+                str(data['blue']),
+                str(data['total'])
+            ])
+        
+        # Wrap header and data rows
+        college_summary = [_wrap_table_row(college_summary[0], is_header=True)] + [_wrap_table_row(row) for row in college_summary[1:]]
+        college_table = Table(college_summary, colWidths=[2.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
+        college_table.setStyle(create_table_style('mixed'))
+        story.append(college_table)
 
     story.append(Spacer(1, 0.3 * inch))
     story.append(Paragraph(
@@ -348,7 +585,8 @@ def generate_overview_report(output_path, records_data):
     return output_path
 
 
-def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
+def generate_slip_report(output_path, slip_type, records_data, subtitle="", period=None):
+    current_month = period if period else datetime.now().strftime("%B %Y")
     type_map = {
         'green': 'Green Slip Report',
         'pink':  'Pink Slip Report',
@@ -358,7 +596,7 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
 
     doc = CorJesuHeaderFooter(
         output_path,
-        title=f"{report_title} - November 2024",
+        title=f"{report_title} - {current_month}",
         docTitle=report_title
     )
     story  = []
@@ -386,20 +624,19 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
         ]
         col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.9*inch, 1.0*inch, 0.8*inch]
     elif slip_type == 'pink':
-        headers    = ['Student No.', 'Name', 'Year', 'Violation', 'Date Issued', 'Action Taken', 'Status']
+        headers    = ['Student No.', 'Name', 'Year', 'Course', 'Violation', 'Date Issued']
         table_data = [headers] + [
             [
                 _safe(r[4] if len(r) > 4 else None),
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
+                _safe(r[1] if len(r) > 1 else None),
                 _safe(r[5] if len(r) > 5 else None),
                 _safe(str(r[6])[:10] if len(r) > 6 else None),
-                _safe(r[7] if len(r) > 7 else None),
-                _safe(r[8] if len(r) > 8 else 'Active'),
             ]
             for r in records_data[:20]
         ]
-        col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.2*inch, 0.9*inch, 0.9*inch, 0.8*inch]
+        col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 1.2*inch, 0.9*inch]
     else:  # blue
         headers    = ['Student No.', 'Name', 'Year', 'Violation', 'Severity', 'Date', 'Status']
         table_data = [headers] + [
@@ -416,6 +653,8 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
         ]
         col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.8*inch, 0.8*inch, 0.8*inch]
 
+    # Wrap header and data rows for text wrapping support
+    table_data = [_wrap_table_row(table_data[0], is_header=True)] + [_wrap_table_row(row) for row in table_data[1:]]
     t = Table(table_data, colWidths=col_widths)
     t.setStyle(create_table_style(slip_type))
     story.append(t)
@@ -430,9 +669,10 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle=""):
 
 
 def generate_student_conduct_summary(output_path, student_data):
+    current_month = datetime.now().strftime("%B %Y")
     doc = CorJesuHeaderFooter(
         output_path,
-        title="Student Conduct Summary - November 2024",
+        title=f"Student Conduct Summary - {current_month}",
         docTitle="Student Conduct Summary"
     )
     story  = []
@@ -447,6 +687,10 @@ def generate_student_conduct_summary(output_path, student_data):
     headers    = ['Rank', 'Student No.', 'Student Name', 'Year',
                   'Green', 'Pink', 'Blue', 'Total']
     table_data = [headers] + [[_safe(c) for c in row] for row in student_data[:15]]
+    
+    # Wrap header and data rows for text wrapping support
+    table_data = [_wrap_table_row(table_data[0], is_header=True)] + [_wrap_table_row(row) for row in table_data[1:]]
+    
     t = Table(table_data,
               colWidths=[0.6*inch, 1.0*inch, 1.8*inch, 0.7*inch,
                          0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch])
@@ -547,6 +791,8 @@ def generate_individual_student_report(output_path, student_number,
         ['School Year:',    _safe(school_yr)],
         ['Status:',         _safe(stud_status) if stud_status else 'Active'],
     ]
+    # Wrap rows for text wrapping support
+    info_rows = [_wrap_table_row(row) for row in info_rows]
     info_table = Table(info_rows, colWidths=[1.6 * inch, CONTENT_W - 1.6 * inch])
     info_table.setStyle(_info_table_style())
     story.append(info_table)
@@ -564,6 +810,8 @@ def generate_individual_student_report(output_path, student_number,
         ['Blue Slips (Violations)',             str(len(blue_slips))],
         ['Total Slips',                         str(total_slips)],
     ]
+    # Wrap header and data rows for text wrapping support
+    summary_rows = [_wrap_table_row(summary_rows[0], is_header=True)] + [_wrap_table_row(row) for row in summary_rows[1:]]
     summary_table = Table(summary_rows, colWidths=[3.5 * inch, 1.5 * inch])
     summary_table.setStyle(create_table_style('mixed'))
     story.append(summary_table)
@@ -577,6 +825,9 @@ def generate_individual_student_report(output_path, student_number,
         col_rows = [['#', 'College / Office']]
         for i, (code, name) in enumerate(colleges_seen.items(), 1):
             col_rows.append([str(i), _safe(code)])
+
+        # Wrap header and data rows for text wrapping support
+        col_rows = [_wrap_table_row(col_rows[0], is_header=True)] + [_wrap_table_row(row) for row in col_rows[1:]]
 
         col_table = Table(
             col_rows,
@@ -598,11 +849,11 @@ def generate_individual_student_report(output_path, student_number,
             ('TEXTCOLOR',     (0, 1), (-1, -1), DARK_GRAY),
             ('ALIGN',         (0, 1), (0, -1),  'CENTER'),
             ('ALIGN',         (1, 1), (1, -1),  'LEFT'),
-            ('VALIGN',        (0, 1), (-1, -1), 'MIDDLE'),
+            ('VALIGN',        (0, 1), (-1, -1), 'TOP'),  # Changed from MIDDLE to TOP for wrapped text
             ('LEFTPADDING',   (0, 1), (-1, -1), 8),
             ('RIGHTPADDING',  (0, 1), (-1, -1), 8),
-            ('TOPPADDING',    (0, 1), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ('TOPPADDING',    (0, 1), (-1, -1), 8),     # Increased from 6 to 8
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),     # Increased from 6 to 8
             ('GRID',          (0, 0), (-1, -1), 0.5, grey),
             ('ROWBACKGROUNDS',(0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
         ]))
@@ -642,10 +893,13 @@ def generate_individual_student_report(output_path, student_number,
                 _safe(slip[8] if len(slip) > 8 else 'Active'),
                 _college_label(slip),
             ])
+        # Wrap header and data rows for text wrapping support
+        g_rows = [_wrap_table_row(g_rows[0], is_header=True)] + [_wrap_table_row(row) for row in g_rows[1:]]
         g_table = Table(g_rows, colWidths=g_col_w)
         g_table.setStyle(create_table_style('green'))
         g_table.setStyle(TableStyle([
             ('ALIGN', (3, 1), (3, -1), 'LEFT'),
+            ('VALIGN', (0, 1), (-1, -1), 'TOP'),  # Ensure wrapped text aligns to top
             ('ALIGN', (5, 1), (5, -1), 'LEFT'),
         ]))
         story.append(g_table)
@@ -672,10 +926,13 @@ def generate_individual_student_report(output_path, student_number,
                 _safe(slip[8] if len(slip) > 8 else 'Active'),
                 _college_label(slip),
             ])
+        # Wrap header and data rows for text wrapping support
+        p_rows = [_wrap_table_row(p_rows[0], is_header=True)] + [_wrap_table_row(row) for row in p_rows[1:]]
         p_table = Table(p_rows, colWidths=p_col_w)
         p_table.setStyle(create_table_style('pink'))
         p_table.setStyle(TableStyle([
             ('ALIGN', (2, 1), (3, -1), 'LEFT'),
+            ('VALIGN', (0, 1), (-1, -1), 'TOP'),  # Ensure wrapped text aligns to top
             ('ALIGN', (5, 1), (5, -1), 'LEFT'),
         ]))
         story.append(p_table)
@@ -704,10 +961,13 @@ def generate_individual_student_report(output_path, student_number,
                 _safe(slip[9] if len(slip) > 9 else 'Active'),
                 _college_label(slip),
             ])
+        # Wrap header and data rows for text wrapping support
+        b_rows = [_wrap_table_row(b_rows[0], is_header=True)] + [_wrap_table_row(row) for row in b_rows[1:]]
         b_table = Table(b_rows, colWidths=b_col_w)
         b_table.setStyle(create_table_style('blue'))
         b_table.setStyle(TableStyle([
             ('ALIGN', (2, 1), (2, -1), 'LEFT'),
+            ('VALIGN', (0, 1), (-1, -1), 'TOP'),  # Ensure wrapped text aligns to top
             ('ALIGN', (4, 1), (4, -1), 'LEFT'),
             ('ALIGN', (6, 1), (6, -1), 'LEFT'),
         ]))

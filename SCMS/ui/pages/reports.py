@@ -86,7 +86,7 @@ class ReportsPage(BasePage):
         h_lay.addWidget(export_all)
         self.main_layout.addWidget(header)
 
-        # Period selector
+        # Period selector - Auto-select current month
         period_row = QHBoxLayout()
         period_lbl = QLabel("Report Period:")
         period_lbl.setStyleSheet("border: none; background: transparent;")
@@ -108,6 +108,11 @@ class ReportsPage(BasePage):
             "2ND Semester S.Y. 2025–2026",
             "S.Y. 2025–2026 (Full Year)",
         ])
+        # Auto-select current month
+        current_month = datetime.now().strftime("%B %Y")
+        index = self.period_cb.findText(current_month)
+        if index >= 0:
+            self.period_cb.setCurrentIndex(index)
         self.period_cb.setFixedHeight(38)
         self.period_cb.setFixedWidth(280)
         period_row.addWidget(self.period_cb)
@@ -338,21 +343,21 @@ class ReportsPage(BasePage):
                 stud_name = record[0] if len(record) > 0 else "Unknown"
                 stud_num  = record[4] if len(record) > 4 else "N/A"
                 year      = record[2] if len(record) > 2 else "N/A"
-                violation = record[6] if len(record) > 6 else "N/A"
-                date      = str(record[5])[:10] if len(record) > 5 else "N/A"
-                action    = record[7] if len(record) > 7 else "N/A"
-                rows.append((stud_num, stud_name, year, violation, date, action, "Done"))
+                course    = record[1] if len(record) > 1 else "N/A"
+                violation = record[5] if len(record) > 5 else "N/A"
+                date      = str(record[6])[:10] if len(record) > 6 else "N/A"
+                rows.append((stud_num, stud_name, year, course, violation, date))
             except:
                 pass
 
         if not rows:
-            rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
+            rows = [("No records", "Add records to see them here", "-", "-", "-", "-")]
 
         return self._build_slip_report_tab(
             "pink", "Pink Slip Monthly Report",
             "Penalty slips issued this month (one per student per semester)",
             PINK_SLIP, "#FCE4EC",
-            ["Student No.", "Student Name", "Year", "Violation", "Date Issued", "Action Taken", "Status"],
+            ["Student No.", "Student Name", "Year", "Course", "Violation", "Date Issued"],
             rows
         )
 
@@ -863,9 +868,12 @@ class ReportsPage(BasePage):
             
             total_records = len(records_data['green']) + len(records_data['pink']) + len(records_data['blue'])
             
+            # Get selected period from combobox
+            selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') else datetime.now().strftime("%B %Y")
+            
             # Generate PDF in temp location
             temp_pdf = os.path.join(tempfile.gettempdir(), 'SCMS_Overview_Report.pdf')
-            generate_overview_report(temp_pdf, records_data)
+            generate_overview_report(temp_pdf, records_data, period=selected_period)
             
             # Log the export action
             log_report_generated(self.staff_id, "Monthly Overview")
@@ -886,10 +894,13 @@ class ReportsPage(BasePage):
             # Convert rows to database record format
             records = [tuple(row) for row in rows] if rows else []
             
+            # Get selected period from combobox
+            selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') else datetime.now().strftime("%B %Y")
+            
             # Generate PDF in temp location
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             temp_pdf = os.path.join(tempfile.gettempdir(), f'SCMS_{slip_type.upper()}_Report_{timestamp}.pdf')
-            generate_slip_report(temp_pdf, slip_type, records, subtitle)
+            generate_slip_report(temp_pdf, slip_type, records, subtitle, period=selected_period)
             
             # Log the export action
             log_report_generated(self.staff_id, f"{slip_type.title()} Slip Report")

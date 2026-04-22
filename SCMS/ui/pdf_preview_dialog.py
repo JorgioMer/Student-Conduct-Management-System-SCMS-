@@ -26,7 +26,7 @@ from pathlib import Path
 import os
 import subprocess
 import platform
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QWidget
 from PyQt5.QtCore import Qt
 
 # ── Image paths ───────────────────────────────────────────────────────────────
@@ -760,43 +760,197 @@ class PDFPreviewDialog(QDialog):
         super().__init__(parent)
         self.pdf_path = pdf_path
         self.setWindowTitle(title)
-        self.setGeometry(100, 100, 600, 400)
+        self.setGeometry(100, 100, 700, 500)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f5f5f5;
+            }
+            QLabel {
+                color: #333333;
+            }
+        """)
         self.init_ui()
     
     def init_ui(self):
         """Initialize the dialog UI."""
-        layout = QVBoxLayout()
+        from PyQt5.QtGui import QIcon, QFont
+        from PyQt5.QtWidgets import QScrollArea
         
-        # Info message
-        info_label = QLabel(
-            f"PDF generated successfully.\n\n"
-            f"File: {os.path.basename(self.pdf_path)}"
-        )
-        info_label.setStyleSheet(f"color: #333333; padding: 15px;")
-        layout.addWidget(info_label)
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+        
+        # ── Header Section ────────────────────────────────────────────────────
+        header_layout = QVBoxLayout()
+        header_layout.setSpacing(10)
+        
+        # Title
+        title_label = QLabel("✓ PDF Report Generated Successfully")
+        title_font = QFont("Segoe UI", 14, QFont.Bold)
+        title_label.setFont(title_font)
+        title_label.setStyleSheet("color: #4CAF50; padding: 10px 0px;")
+        header_layout.addWidget(title_label)
+        
+        # File information section
+        info_frame_layout = QVBoxLayout()
+        info_frame_layout.setSpacing(8)
+        info_frame_layout.setContentsMargins(15, 15, 15, 15)
+        
+        # File name
+        filename_label = QLabel(f"<b>File Name:</b>")
+        filename_label.setStyleSheet("color: #1a3a52;")
+        info_frame_layout.addWidget(filename_label)
+        
+        filename_value = QLabel(f"  {os.path.basename(self.pdf_path)}")
+        filename_value.setStyleSheet("color: #555555; font-size: 11px; word-wrap: break-word;")
+        filename_value.setWordWrap(True)
+        info_frame_layout.addWidget(filename_value)
+        
+        # File location
+        location_label = QLabel(f"<b>Location:</b>")
+        location_label.setStyleSheet("color: #1a3a52;")
+        info_frame_layout.addWidget(location_label)
+        
+        location_value = QLabel(f"  {os.path.dirname(self.pdf_path)}")
+        location_value.setStyleSheet("color: #555555; font-size: 11px; word-wrap: break-word;")
+        location_value.setWordWrap(True)
+        info_frame_layout.addWidget(location_value)
+        
+        # File size
+        try:
+            file_size = os.path.getsize(self.pdf_path)
+            size_mb = file_size / (1024 * 1024)
+            size_text = f"{size_mb:.2f} MB" if size_mb > 0.1 else f"{file_size / 1024:.2f} KB"
+        except:
+            size_text = "Unknown"
+        
+        size_label = QLabel(f"<b>File Size:</b>")
+        size_label.setStyleSheet("color: #1a3a52;")
+        info_frame_layout.addWidget(size_label)
+        
+        size_value = QLabel(f"  {size_text}")
+        size_value.setStyleSheet("color: #555555; font-size: 11px;")
+        info_frame_layout.addWidget(size_value)
+        
+        # Creation time
+        try:
+            import time
+            mod_time = os.path.getmtime(self.pdf_path)
+            time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mod_time))
+        except:
+            time_str = "Unknown"
+        
+        time_label = QLabel(f"<b>Created:</b>")
+        time_label.setStyleSheet("color: #1a3a52;")
+        info_frame_layout.addWidget(time_label)
+        
+        time_value = QLabel(f"  {time_str}")
+        time_value.setStyleSheet("color: #555555; font-size: 11px;")
+        info_frame_layout.addWidget(time_value)
+        
+        # Create info frame with background
+        info_frame = QWidget()
+        info_frame.setLayout(info_frame_layout)
+        info_frame.setStyleSheet("""
+            QWidget {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+            }
+        """)
+        
+        header_layout.addWidget(info_frame)
+        layout.addLayout(header_layout)
+        
+        # ── Actions Section ────────────────────────────────────────────────────
+        actions_label = QLabel("What would you like to do?")
+        actions_label.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        actions_label.setStyleSheet("color: #1a3a52; padding: 10px 0px;")
+        layout.addWidget(actions_label)
         
         # Button layout
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(12)
         
         # Open button
-        open_btn = QPushButton("Open with Default Viewer")
-        open_btn.setStyleSheet("background-color: #1a3a52; color: white; padding: 8px 15px; border-radius: 4px;")
+        open_btn = QPushButton("📄 Open PDF")
+        open_btn.setMinimumHeight(40)
+        open_btn.setMinimumWidth(140)
+        open_btn.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        open_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0070C0;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 6px;
+                border: none;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0056a0;
+            }
+            QPushButton:pressed {
+                background-color: #003f7f;
+            }
+        """)
         open_btn.clicked.connect(self.open_pdf)
         button_layout.addWidget(open_btn)
         
         # Open folder button
-        folder_btn = QPushButton("Open Folder")
-        folder_btn.setStyleSheet("background-color: #d4af37; color: black; padding: 8px 15px; border-radius: 4px;")
+        folder_btn = QPushButton("📁 Open Folder")
+        folder_btn.setMinimumHeight(40)
+        folder_btn.setMinimumWidth(140)
+        folder_btn.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        folder_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #d4af37;
+                color: black;
+                padding: 10px 20px;
+                border-radius: 6px;
+                border: none;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c19b1f;
+            }
+            QPushButton:pressed {
+                background-color: #a68028;
+            }
+        """)
         folder_btn.clicked.connect(self.open_folder)
         button_layout.addWidget(folder_btn)
         
+        button_layout.addStretch()
+        
         # Close button
-        close_btn = QPushButton("Close")
-        close_btn.setStyleSheet("background-color: #666666; color: white; padding: 8px 15px; border-radius: 4px;")
+        close_btn = QPushButton("✕ Close")
+        close_btn.setMinimumHeight(40)
+        close_btn.setMinimumWidth(100)
+        close_btn.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #757575;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 6px;
+                border: none;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #616161;
+            }
+            QPushButton:pressed {
+                background-color: #424242;
+            }
+        """)
         close_btn.clicked.connect(self.accept)
         button_layout.addWidget(close_btn)
         
         layout.addLayout(button_layout)
+        
+        # Add stretch at bottom
+        layout.addStretch()
+        
         self.setLayout(layout)
     
     def open_pdf(self):
