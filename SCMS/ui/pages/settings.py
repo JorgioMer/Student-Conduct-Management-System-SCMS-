@@ -399,13 +399,13 @@ class SettingsPage(BasePage):
                 current_uname = self.current_user.get("username", "")
 
                 edit_btn = QPushButton("Edit")
-                edit_btn.setFixedSize(120, 32)
+                edit_btn.setFixedSize(110, 36)
                 edit_btn.setStyleSheet(btn_primary())
                 edit_btn.clicked.connect(lambda _, u=uname, n=name, ro=role, s=status:
                                         self._show_edit_user(u, n, ro, s))
 
                 del_btn = QPushButton("Delete")
-                del_btn.setFixedSize(120, 32)
+                del_btn.setFixedSize(110, 36)
                 del_btn.setStyleSheet(btn_danger())
                 if uname == current_uname:
                     del_btn.setEnabled(False)
@@ -417,12 +417,12 @@ class SettingsPage(BasePage):
                     cell_w = QWidget()
                     cell_w.setStyleSheet("background: transparent;")
                     cell_lay = QHBoxLayout(cell_w)
-                    cell_lay.setContentsMargins(6, 4, 6, 4)
+                    cell_lay.setContentsMargins(0, 0, 0, 0)
                     cell_lay.setAlignment(Qt.AlignCenter)
                     cell_lay.addWidget(btn)
                     table.setCellWidget(r, col_idx, cell_w)
 
-            table.setRowHeight(r, 46)
+            table.setRowHeight(r, 52)
 
     def _show_add_user(self):
         self._show_user_dialog()
