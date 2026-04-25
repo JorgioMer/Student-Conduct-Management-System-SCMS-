@@ -25,6 +25,7 @@ from ui.components import (
     StatTile, add_shadow, InfoDialog
 )
 from ui.pages.base_page import BasePage, build_record_table
+from ui.data_events import data_events
 from ui.pdf_preview_dialog import PDFPreviewDialog
 from backend.pdf_export import (
     generate_overview_report, generate_slip_report,
@@ -41,7 +42,11 @@ class ReportsPage(BasePage):
         super().__init__(parent)
         self.current_user = current_user or {}
         self.staff_id = self.current_user.get("username", "UNKNOWN")
+        self._tabs = None  # Store tab widget reference
+        self._built_tabs = set()  # Track which tabs have been built
         self._build()
+        # Connect to data changes
+        data_events.slips_changed.connect(self._on_slips_changed)
 
     def _build(self):
         # Header
@@ -127,6 +132,7 @@ class ReportsPage(BasePage):
 
         # Tabs
         tabs = QTabWidget()
+        self._tabs = tabs  # Store reference for refresh
         tabs.addTab(self._build_overview_tab(),  "   Overview ")
         tabs.addTab(self._build_green_report(),  "   Green Slips ")
         tabs.addTab(self._build_pink_report(),   "   Pink Slips ")
@@ -914,3 +920,37 @@ class ReportsPage(BasePage):
                 success=False,
                 parent=self
             ).exec_()
+
+    def _on_slips_changed(self):
+        """Refresh reports when slips data changes."""
+        try:
+            if self._tabs is None:
+                return
+            
+            # Refresh all visible/built tabs
+            current_idx = self._tabs.currentIndex()
+            
+            # Always rebuild overview and college tabs as they're important
+            try:
+                self._tabs.removeTab(0)  # Overview
+                self._tabs.insertTab(0, self._build_overview_tab(), "   Overview ")
+            except Exception as e:
+                print(f"[ERROR] Failed to refresh overview tab: {str(e)}")
+            
+            try:
+                # Find and refresh college report tab
+                for i in range(self._tabs.count()):
+                    if "College" in self._tabs.tabText(i):
+                        self._tabs.removeTab(i)
+                        self._tabs.insertTab(i, self._build_college_report(), "   By College ")
+                        break
+            except Exception as e:
+                print(f"[ERROR] Failed to refresh college tab: {str(e)}")
+            
+            # Reset to previously viewed tab if it still exists
+            if current_idx < self._tabs.count():
+                self._tabs.setCurrentIndex(current_idx)
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh reports: {str(e)}")
+            import traceback
+            traceback.print_exc()
