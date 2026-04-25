@@ -483,7 +483,34 @@ class GreenSlipPage(BasePage):
         btn_row.addWidget(clear_btn)
         btn_row.addWidget(save_btn)
         lay.addLayout(btn_row)
+        
+        # Connect auto-fill on student number entry
+        self.disp_stud_no.editingFinished.connect(self._auto_fill_dispensation)
+        
         return w
+
+    def _auto_fill_dispensation(self):
+        """Auto-fill dispensation form when student number exists in database."""
+        stud_no = self.disp_stud_no.text().strip()
+        if not stud_no:
+            return
+        
+        try:
+            student = get_student(stud_no)
+            if student:
+                # student = (studNumber, studName, studCourse, studYrLvl, schoolYr, studStatus)
+                self.disp_stud_name.setText(student[1] or "")
+                self.disp_course.setText(student[2] or "")
+                
+                # Set year if available
+                year = student[3] or ""
+                if year:
+                    index = self.disp_year.findText(year)
+                    if index >= 0:
+                        self.disp_year.setCurrentIndex(index)
+        except Exception as e:
+            # Silently fail - user can fill manually
+            pass
 
     def _clear_dispensation(self):
         self.disp_stud_no.clear()
@@ -666,16 +693,16 @@ class GreenSlipPage(BasePage):
         grade_row = QHBoxLayout(year_course_widget)
         grade_row.setContentsMargins(0, 0, 0, 0)
         grade_row.setSpacing(8)
-        self.disp_year = QComboBox()
-        self.disp_year.addItems(["1st","2nd","3rd","4th","5th"])
-        self.disp_year.setFixedHeight(38)
-        self.disp_year.setFixedWidth(110)
-        self.disp_year.setStyleSheet(_combo_style(GREEN_SLIP))
-        self.disp_year.setCurrentIndex(0)
-        self.disp_course = AutoCompleteLineEdit()
-        self.disp_course.setFixedHeight(38)
-        grade_row.addWidget(self.disp_year)
-        grade_row.addWidget(self.disp_course, 1)
+        self.exc_year = QComboBox()
+        self.exc_year.addItems(["1st","2nd","3rd","4th","5th"])
+        self.exc_year.setFixedHeight(38)
+        self.exc_year.setFixedWidth(110)
+        self.exc_year.setStyleSheet(_combo_style(GREEN_SLIP))
+        self.exc_year.setCurrentIndex(0)
+        self.exc_course = AutoCompleteLineEdit()
+        self.exc_course.setFixedHeight(38)
+        grade_row.addWidget(self.exc_year)
+        grade_row.addWidget(self.exc_course, 1)
         form_lay.addWidget(year_course_widget, 1, 1)
 
         form_lay.addWidget(lbl("Date Availed", True), 1, 2)
@@ -756,7 +783,34 @@ class GreenSlipPage(BasePage):
         btn_row.addWidget(clear_btn)
         btn_row.addWidget(save_btn)
         lay.addLayout(btn_row)
+        
+        # Connect auto-fill on student number entry
+        self.exc_stud_no.editingFinished.connect(self._auto_fill_excuse)
+        
         return w
+
+    def _auto_fill_excuse(self):
+        """Auto-fill excuse form when student number exists in database."""
+        stud_no = self.exc_stud_no.text().strip()
+        if not stud_no:
+            return
+        
+        try:
+            student = get_student(stud_no)
+            if student:
+                # student = (studNumber, studName, studCourse, studYrLvl, schoolYr, studStatus)
+                self.exc_stud_name.setText(student[1] or "")
+                self.exc_course.setText(student[2] or "")
+                
+                # Set year if available
+                year = student[3] or ""
+                if year:
+                    index = self.exc_year.findText(year)
+                    if index >= 0:
+                        self.exc_year.setCurrentIndex(index)
+        except Exception as e:
+            # Silently fail - user can fill manually
+            pass
 
     # =========================================================================
     # Tracker tab
@@ -837,17 +891,21 @@ class GreenSlipPage(BasePage):
         self._rebuild_green_table(filtered)
 
     def _rebuild_green_table(self, data):
-        if self.green_tracker_table is None or self.green_tracker_layout is None:
+        if self.green_tracker_layout is None:
+            print("[WARNING] Tracker layout not initialized yet")
             return
         headers = ["Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Availed", "Days / Absence Type",
                    "Expiry / Date", "Status"]
-        for i in range(self.green_tracker_layout.count()):
-            item = self.green_tracker_layout.itemAt(i)
-            if item and item.widget() is self.green_tracker_table:
-                self.green_tracker_layout.removeWidget(self.green_tracker_table)
-                self.green_tracker_table.deleteLater()
-                break
+        # Remove old table if it exists
+        if self.green_tracker_table is not None:
+            for i in range(self.green_tracker_layout.count()):
+                item = self.green_tracker_layout.itemAt(i)
+                if item and item.widget() is self.green_tracker_table:
+                    self.green_tracker_layout.removeWidget(self.green_tracker_table)
+                    self.green_tracker_table.deleteLater()
+                    break
+        # Create and add new table
         self.green_tracker_table = build_record_table(headers, data)
         _apply_table_selection_style(self.green_tracker_table, GREEN_SLIP)
         self.green_tracker_table.setMinimumHeight(280)
@@ -1144,9 +1202,13 @@ class GreenSlipPage(BasePage):
     def _on_slips_changed(self):
         try:
             self._refresh_green_tracker()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh green tracker: {str(e)}")
+            import traceback
+            traceback.print_exc()
         try:
             self._refresh_green_summary()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh green summary: {str(e)}")
+            import traceback
+            traceback.print_exc()

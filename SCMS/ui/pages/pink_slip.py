@@ -424,7 +424,35 @@ class PinkSlipPage(BasePage):
         btn_row.addWidget(clear_btn)
         btn_row.addWidget(save_btn)
         lay.addLayout(btn_row)
+        
+        # Connect auto-fill on student number entry
+        self.pink_no.editingFinished.connect(self._auto_fill_pink)
+        
         return w
+
+    def _auto_fill_pink(self):
+        """Auto-fill pink slip form when student number exists in database."""
+        stud_no = self.pink_no.text().strip()
+        if not stud_no:
+            return
+        
+        try:
+            from backend.db_students import get_student
+            student = get_student(stud_no)
+            if student:
+                # student = (studNumber, studName, studCourse, studYrLvl, schoolYr, studStatus)
+                self.pink_name.setText(student[1] or "")
+                self.pink_course.setText(student[2] or "")
+                
+                # Set year if available
+                year = student[3] or ""
+                if year:
+                    index = self.pink_year.findText(year)
+                    if index >= 0:
+                        self.pink_year.setCurrentIndex(index)
+        except Exception as e:
+            # Silently fail - user can fill manually
+            pass
 
     def _clear_pink_form(self):
         self.pink_no.clear()
@@ -557,16 +585,20 @@ class PinkSlipPage(BasePage):
         self._rebuild_pink_table(filtered)
 
     def _rebuild_pink_table(self, data):
-        if self.pink_tracker_table is None or self.pink_tracker_layout is None:
+        if self.pink_tracker_layout is None:
+            print("[WARNING] Pink tracker layout not initialized yet")
             return
         headers = ["Student No.", "Student Name", "Year", "Course",
                    "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
-        for i in range(self.pink_tracker_layout.count()):
-            item = self.pink_tracker_layout.itemAt(i)
-            if item and item.widget() is self.pink_tracker_table:
-                self.pink_tracker_layout.removeWidget(self.pink_tracker_table)
-                self.pink_tracker_table.deleteLater()
-                break
+        # Remove old table if it exists
+        if self.pink_tracker_table is not None:
+            for i in range(self.pink_tracker_layout.count()):
+                item = self.pink_tracker_layout.itemAt(i)
+                if item and item.widget() is self.pink_tracker_table:
+                    self.pink_tracker_layout.removeWidget(self.pink_tracker_table)
+                    self.pink_tracker_table.deleteLater()
+                    break
+        # Create and add new table
         self.pink_tracker_table = build_record_table(headers, data)
         _apply_table_selection_style(self.pink_tracker_table, PINK_SLIP)
         self.pink_tracker_table.setMinimumHeight(260)
@@ -845,9 +877,13 @@ class PinkSlipPage(BasePage):
     def _on_slips_changed(self):
         try:
             self._refresh_pink_tracker()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh pink tracker: {str(e)}")
+            import traceback
+            traceback.print_exc()
         try:
             self._refresh_pink_summary()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh pink summary: {str(e)}")
+            import traceback
+            traceback.print_exc()

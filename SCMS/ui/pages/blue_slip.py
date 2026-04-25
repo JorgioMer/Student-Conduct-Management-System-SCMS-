@@ -474,7 +474,35 @@ class BlueSlipPage(BasePage):
         btn_row.addWidget(clear_btn)
         btn_row.addWidget(save_btn)
         lay.addLayout(btn_row)
+        
+        # Connect auto-fill on student number entry
+        self.blue_no.editingFinished.connect(self._auto_fill_blue)
+        
         return w
+
+    def _auto_fill_blue(self):
+        """Auto-fill blue slip form when student number exists in database."""
+        stud_no = self.blue_no.text().strip()
+        if not stud_no:
+            return
+        
+        try:
+            from backend.db_students import get_student
+            student = get_student(stud_no)
+            if student:
+                # student = (studNumber, studName, studCourse, studYrLvl, schoolYr, studStatus)
+                self.blue_name.setText(student[1] or "")
+                self.blue_course.setText(student[2] or "")
+                
+                # Set year if available
+                year = student[3] or ""
+                if year:
+                    index = self.blue_year.findText(year)
+                    if index >= 0:
+                        self.blue_year.setCurrentIndex(index)
+        except Exception as e:
+            # Silently fail - user can fill manually
+            pass
 
     def _clear_blue_form(self):
         self.blue_no.clear()
@@ -680,16 +708,20 @@ class BlueSlipPage(BasePage):
     }
 
     def _rebuild_blue_table(self, data):
-        if self.blue_tracker_table is None or self.blue_tracker_layout is None:
+        if self.blue_tracker_layout is None:
+            print("[WARNING] Blue tracker layout not initialized yet")
             return
         headers = ["Student No.", "Student Name", "Year", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
-        for i in range(self.blue_tracker_layout.count()):
-            item = self.blue_tracker_layout.itemAt(i)
-            if item and item.widget() is self.blue_tracker_table:
-                self.blue_tracker_layout.removeWidget(self.blue_tracker_table)
-                self.blue_tracker_table.deleteLater()
-                break
+        # Remove old table if it exists
+        if self.blue_tracker_table is not None:
+            for i in range(self.blue_tracker_layout.count()):
+                item = self.blue_tracker_layout.itemAt(i)
+                if item and item.widget() is self.blue_tracker_table:
+                    self.blue_tracker_layout.removeWidget(self.blue_tracker_table)
+                    self.blue_tracker_table.deleteLater()
+                    break
+        # Create and add new table
         self.blue_tracker_table = build_record_table(headers, data)
         _apply_table_selection_style(self.blue_tracker_table, BLUE_SLIP)
         self.blue_tracker_table.setMinimumHeight(260)
@@ -1234,12 +1266,16 @@ class BlueSlipPage(BasePage):
     def _on_slips_changed(self):
         try:
             self._refresh_blue_tracker()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh blue tracker: {str(e)}")
+            import traceback
+            traceback.print_exc()
         try:
             self._refresh_blue_summary()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh blue summary: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
 from ui.components import Divider

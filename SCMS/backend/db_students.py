@@ -36,6 +36,8 @@ def add_student_if_not_exists(stud_num, name="", course="", year="", school_yr="
     Only requires studNumber; other fields can be partial or empty.
     Called automatically when creating slips.
     
+    If student exists with blank fields, updates them with new data provided.
+    This allows gradual enrichment of student records as new slips are created.
     If school_yr is not provided, uses the current school year from settings.
     """
     if not stud_num:
@@ -50,21 +52,48 @@ def add_student_if_not_exists(stud_num, name="", course="", year="", school_yr="
     
     try:
         # Check if student already exists
-        cursor.execute("SELECT studNumber FROM Students WHERE studNumber = ?", (stud_num,))
+        cursor.execute("""
+            SELECT studNumber, studName, studCourse, studYrLvl 
+            FROM Students WHERE studNumber = ?
+        """, (stud_num,))
         existing = cursor.fetchone()
         
         if not existing:
-            # Add student with available partial info
-            # Use empty string or reasonable defaults for missing fields
+            # Add new student with available partial info
             cursor.execute("""
                 INSERT INTO Students 
                 (studNumber, studName, studCourse, 
                  studYrLvl, schoolYr, studStatus)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (stud_num, name or "", course or "", year or "", 
-                  school_yr or "Active", status or "Active"))
+                  school_yr, status or "Active"))
             conn.commit()
             return True  # Student was added
+        else:
+            # Student exists - update any blank fields with new data
+            existing_name = existing[1] if existing[1] else ""
+            existing_course = existing[2] if existing[2] else ""
+            existing_year = existing[3] if existing[3] else ""
+            
+            # Prepare updated values - use existing if not blank, otherwise use new
+            updated_name = existing_name or name or ""
+            updated_course = existing_course or course or ""
+            updated_year = existing_year or year or ""
+            
+            # Check if any improvement is being made (filling in blank fields)
+            should_update = False
+            if (name and not existing_name) or \
+               (course and not existing_course) or \
+               (year and not existing_year):
+                should_update = True
+            
+            if should_update:
+                cursor.execute("""
+                    UPDATE Students 
+                    SET studName = ?, studCourse = ?, studYrLvl = ?
+                    WHERE studNumber = ?
+                """, (updated_name, updated_course, updated_year, stud_num))
+                conn.commit()
         
         return False  # Student already existed
     except Exception as e:
