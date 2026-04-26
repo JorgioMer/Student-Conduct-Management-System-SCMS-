@@ -8,10 +8,11 @@ def add_pink_slip(stud_num, date_issued, violation, action_taken, officer, sem="
     Add a Pink Slip record to the database.
     Automatically adds the student if they don't exist.
     """
+    # First, add student if they don't exist
+    add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year)
+    
+    conn = None
     try:
-        # First, add student if they don't exist
-        add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year)
-        
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -21,35 +22,51 @@ def add_pink_slip(stud_num, date_issued, violation, action_taken, officer, sem="
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (stud_num, date_issued, violation, action_taken, officer, sem, remarks))
         conn.commit()
-        conn.close()
+        
+        # Get the ID of the newly inserted record
+        cursor.execute("SELECT @@IDENTITY AS id")
+        result = cursor.fetchone()
+        record_id = str(result[0]) if result else None
+        return record_id
     except Exception as e:
-        raise Exception(f"Failed to add pink slip for student {stud_num}: {str(e)}")
+        if conn:
+            conn.rollback()
+        raise Exception(f"Failed to add pink slip for student {stud_num}: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_pink_slips(student_number):
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    if student_number is None:
-        # Return ALL pink slips
-        cursor.execute("""
-            SELECT s.studName, s.studCourse,
-                   s.studYrLvl, p.*
-            FROM Students s
-            INNER JOIN [Pink Slip Record] p 
-                   ON s.studNumber = p.studNumber
-        """)
-    else:
-        # Return slips for specific student
-        cursor.execute("""
-            SELECT s.studName, s.studCourse,
-                   s.studYrLvl, p.*
-            FROM Students s
-            INNER JOIN [Pink Slip Record] p 
-                   ON s.studNumber = p.studNumber
-            WHERE p.studNumber = ?
-        """, (student_number,))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        if student_number is None:
+            # Return ALL pink slips
+            cursor.execute("""
+                SELECT s.studName, s.studCourse,
+                       s.studYrLvl, p.*
+                FROM Students s
+                INNER JOIN [Pink Slip Record] p 
+                       ON s.studNumber = p.studNumber
+            """)
+        else:
+            # Return slips for specific student
+            cursor.execute("""
+                SELECT s.studName, s.studCourse,
+                       s.studYrLvl, p.*
+                FROM Students s
+                INNER JOIN [Pink Slip Record] p 
+                       ON s.studNumber = p.studNumber
+                WHERE p.studNumber = ?
+            """, (student_number,))
+        
+        rows = cursor.fetchall()
+        return rows
+    except Exception as e:
+        raise Exception(f"Failed to retrieve pink slips: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()

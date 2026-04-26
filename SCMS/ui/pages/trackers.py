@@ -325,6 +325,14 @@ class TrackersPage(BasePage):
         data_events.slips_changed.connect(self._on_slips_changed)
         self._build()
 
+    def closeEvent(self, event):
+        """Clean up signal connections when page is closed"""
+        try:
+            data_events.slips_changed.disconnect(self._on_slips_changed)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _build(self):
         header = QFrame()
         header.setFixedHeight(82)

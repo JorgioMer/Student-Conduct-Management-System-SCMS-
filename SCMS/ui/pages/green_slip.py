@@ -31,6 +31,7 @@ from backend.db_green_slip import add_green_slip, get_green_slips
 from backend.db_students import add_student, get_student
 from backend.config import get_current_semester
 from backend.db_accounts import get_officer_names          # ← NEW
+from backend.db_activity_log import log_slip_created
 
 import base64
 from PyQt5.QtWidgets import QDateEdit
@@ -512,6 +513,14 @@ class GreenSlipPage(BasePage):
             # Silently fail - user can fill manually
             pass
 
+    def closeEvent(self, event):
+        """Clean up signal connections when page is closed"""
+        try:
+            data_events.slips_changed.disconnect(self._on_slips_changed)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _clear_dispensation(self):
         self.disp_stud_no.clear()
         self.disp_stud_name.clear()
@@ -552,11 +561,13 @@ class GreenSlipPage(BasePage):
                 semester    = self.disp_semester.currentText()
                 remarks = absence_type = dates_absence = supp_doc = ""
                 # auth_by already read above
-                add_green_slip(stud_num, slip_type, date_avail, days, status,
+                record_id = add_green_slip(stud_num, slip_type, date_avail, days, status,
                                expiry, purpose, remarks, absence_type,
                                dates_absence, supp_doc, auth_by,
                                stud_name=stud_name, stud_course=stud_course,
                                stud_year=stud_year)
+                # Log the action
+                log_slip_created(auth_by, "Green", stud_name, record_id=record_id)
                 InfoDialog("Record Saved",
                            "Dispensation Green Slip record has been saved successfully!",
                            success=True, parent=self).exec_()
@@ -614,11 +625,13 @@ class GreenSlipPage(BasePage):
                 supp_doc      = self.exc_doc.currentText()
                 semester      = self.exc_semester.currentText()
                 # auth_by already read above
-                add_green_slip(stud_num, slip_type, date_avail, days, status,
+                record_id = add_green_slip(stud_num, slip_type, date_avail, days, status,
                                expiry, purpose, remarks, absence_type,
                                dates_absence, supp_doc, auth_by,
                                stud_name=stud_name, stud_course=stud_course,
                                stud_year=stud_year)
+                # Log the action
+                log_slip_created(auth_by, "Green", stud_name, record_id=record_id)
                 InfoDialog("Record Saved",
                            "Excuse Green Slip record has been saved successfully!",
                            success=True, parent=self).exec_()

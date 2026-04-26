@@ -29,6 +29,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_blue_slip import add_blue_slip, get_blue_slips
 from backend.config import get_current_semester
+from backend.db_activity_log import log_slip_created
 
 # ── Column index constants ────────────────────────────────────────────────────
 # Query: SELECT s.studName, s.studCourse, s.studYrLvl, b.*
@@ -592,6 +593,14 @@ class BlueSlipPage(BasePage):
             success=(same_type_count == 0), parent=self
         ).exec_()
 
+    def closeEvent(self, event):
+        """Clean up signal connections when page is closed"""
+        try:
+            data_events.slips_changed.disconnect(self._on_slips_changed)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _save_blue(self):
         if not self.blue_no.text().strip():
             InfoDialog("Missing Fields", "Please fill in all required fields.",
@@ -613,10 +622,12 @@ class BlueSlipPage(BasePage):
                 status            = self.blue_status.currentText()
                 violation_desc    = self.blue_desc.toPlainText().strip()
                 witnesses         = self.blue_witnesses.text().strip()
-                add_blue_slip(stud_num, violation_type, date_of_violation, severity,
+                record_id = add_blue_slip(stud_num, violation_type, date_of_violation, severity,
                               action_taken, status=status, violation_desc=violation_desc,
                               witnesses=witnesses, stud_name=stud_name,
                               stud_course=stud_course, stud_year=stud_year)
+                # Log the action
+                log_slip_created("SYSTEM", "Blue", stud_name, record_id=record_id)
                 InfoDialog("Record Saved",
                            "Blue Slip violation record has been saved successfully!",
                            success=True, parent=self).exec_()

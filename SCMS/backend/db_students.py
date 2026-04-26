@@ -3,31 +3,45 @@ from .config import get_school_year
 
 
 def add_student(stud_num, name, course, year, school_yr, status):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO Students 
-        (studNumber, studName, studCourse, 
-         studYrLvl, schoolYr, studStatus)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (stud_num, name, course, year, school_yr, status))
-    conn.commit()
-    conn.close()
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Students 
+            (studNumber, studName, studCourse, 
+             studYrLvl, schoolYr, studStatus)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (stud_num, name, course, year, school_yr, status))
+        conn.commit()
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise Exception(f"Failed to add student {stud_num}: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_student(student_number):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT studNumber, studName, 
-               studCourse, studYrLvl,
-               schoolYr, studStatus
-        FROM Students
-        WHERE studNumber = ?
-    """, (student_number,))
-    row = cursor.fetchone()
-    conn.close()
-    return row
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT studNumber, studName, 
+                   studCourse, studYrLvl,
+                   schoolYr, studStatus
+            FROM Students
+            WHERE studNumber = ?
+        """, (student_number,))
+        row = cursor.fetchone()
+        return row
+    except Exception as e:
+        raise Exception(f"Failed to retrieve student {student_number}: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()
 
 
 def add_student_if_not_exists(stud_num, name="", course="", year="", school_yr="", status="Active"):
@@ -40,8 +54,13 @@ def add_student_if_not_exists(stud_num, name="", course="", year="", school_yr="
     This allows gradual enrichment of student records as new slips are created.
     If school_yr is not provided, uses the current school year from settings.
     """
+    # Validate and sanitize student number
+    stud_num = str(stud_num).strip() if stud_num else ""
     if not stud_num:
-        raise ValueError("Student number is required")
+        raise ValueError("Student number is required and cannot be empty")
+    
+    if len(stud_num) > 50:
+        raise ValueError("Student number is too long (max 50 characters)")
     
     # Use current school year from config if not provided
     if not school_yr:

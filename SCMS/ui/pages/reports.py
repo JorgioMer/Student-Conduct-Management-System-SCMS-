@@ -143,7 +143,16 @@ class ReportsPage(BasePage):
         self.main_layout.addWidget(tabs)
         self.main_layout.addStretch()
 
+
     # ── Overview ──────────────────────────────────────────────────────────────
+    def closeEvent(self, event):
+        """Clean up signal connections when page is closed"""
+        try:
+            data_events.slips_changed.disconnect(self._on_slips_changed)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _build_overview_tab(self) -> QWidget:
         from PyQt5.QtWidgets import QScrollArea
         container = QWidget()

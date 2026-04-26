@@ -61,7 +61,12 @@ def main():
     app.setStyleSheet(GLOBAL_STYLE)
 
     # Initialize activity log table
-    create_activity_log_table()
+    try:
+        success = create_activity_log_table()
+        if not success:
+            print("⚠ Warning: Activity log table initialization failed. Logging may not work.")
+    except Exception as e:
+        print(f"⚠ Error during activity log initialization: {str(e)}")
 
     # Show login window
     login = LoginWindow()

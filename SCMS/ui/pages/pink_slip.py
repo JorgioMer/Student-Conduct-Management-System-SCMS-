@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_pink_slip import add_pink_slip, get_pink_slips
 from backend.config import get_current_semester
 from backend.db_accounts import get_officer_names          # ← NEW
+from backend.db_activity_log import log_slip_created
 
 class CalendarDateEdit(QDateEdit):
     def __init__(self, *args, **kwargs):
@@ -472,6 +473,14 @@ class PinkSlipPage(BasePage):
             self.pink_sem.setCurrentIndex(0)
         self.pink_year.setCurrentIndex(0)
 
+    def closeEvent(self, event):
+        """Clean up signal connections when page is closed"""
+        try:
+            data_events.slips_changed.disconnect(self._on_slips_changed)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _save_pink(self):
         if not self.pink_no.text().strip():
             InfoDialog("Missing Fields",
@@ -502,9 +511,11 @@ class PinkSlipPage(BasePage):
                 sem          = self.pink_sem.currentText()
                 remarks      = self.pink_remarks.toPlainText().strip()
                 # officer already read above
-                add_pink_slip(stud_num, date_issued, violation, action_taken, officer,
+                record_id = add_pink_slip(stud_num, date_issued, violation, action_taken, officer,
                               sem=sem, remarks=remarks, stud_name=stud_name,
                               stud_course=stud_course, stud_year=stud_year)
+                # Log the action
+                log_slip_created(officer, "Pink", stud_name, record_id=record_id)
                 InfoDialog("Record Saved",
                            "Pink Slip record has been saved successfully!",
                            success=True, parent=self).exec_()

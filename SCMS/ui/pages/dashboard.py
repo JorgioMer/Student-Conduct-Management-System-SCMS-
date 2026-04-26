@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QScrollArea, QFrame, QGridLayout, QSizePolicy, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView
 )
-from PyQt5.QtCore import Qt, QDate, pyqtSignal
+from PyQt5.QtCore import Qt, QDate, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QColor
 
 import qtawesome as qta  # pip install qtawesome
@@ -42,6 +42,43 @@ class DashboardPage(QWidget):
         super().__init__(parent)
         self.role = role
         self.setStyleSheet(f"background: {OFF_WHITE};")
+        
+        # Month tracking for auto-refresh
+        today = QDate.currentDate()
+        self.current_month = today.month()
+        self.current_year = today.year()
+        self.main_layout = None
+        self.scroll_widget = None
+        
+        # Timer to check for month changes (every minute)
+        self.refresh_timer = QTimer()
+        self.refresh_timer.timeout.connect(self._check_month_change)
+        self.refresh_timer.start(60000)
+        
+        self._build()
+    
+    def _check_month_change(self):
+        """Check if the month has changed and refresh dashboard if needed"""
+        today = QDate.currentDate()
+        if today.month() != self.current_month or today.year() != self.current_year:
+            # Month changed - refresh dashboard
+            self.current_month = today.month()
+            self.current_year = today.year()
+            self._refresh_dashboard()
+    
+    def _refresh_dashboard(self):
+        """Refresh dashboard data (called on month change)"""
+        # Clear and rebuild the scroll area content
+        parent = self
+        parent.setStyleSheet(f"background: {OFF_WHITE};")
+        
+        # Clear existing layout
+        if self.main_layout is not None:
+            while self.main_layout.count():
+                item = self.main_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+        
         self._build()
 
     def _build(self):
@@ -130,12 +167,12 @@ class DashboardPage(QWidget):
         green_count = len(green_slips)
         pink_count = len(pink_slips)
         blue_count = len(blue_slips)
-        pending_blue = sum(1 for r in blue_slips if len(r) > 7 and "Pending" in str(r[7]))
+        pending_blue = sum(1 for r in blue_slips if r and len(r) > 7 and "Pending" in str(r[7]))
 
         all_students = set()
         for r in green_slips + pink_slips + blue_slips:
-            if len(r) > 1:
-                all_students.add(r[1])
+            if r and len(r) > 1 and r[1]:
+                all_students.add(str(r[1]))
         active_students = len(all_students)
 
         tiles_row = QHBoxLayout()
@@ -328,6 +365,11 @@ class DashboardPage(QWidget):
 
             main.addWidget(table)
         main.addStretch()
+
+    def closeEvent(self, event):
+        """Clean up timer when dashboard is closed"""
+        self.refresh_timer.stop()
+        super().closeEvent(event)
 
 
 # ---------------------------------------------------------------------------

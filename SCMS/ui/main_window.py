@@ -22,6 +22,7 @@ from ui.pages.blue_slip      import BlueSlipPage
 from ui.pages.trackers       import TrackersPage
 from ui.pages.reports        import ReportsPage
 from ui.pages.activity_logs  import ActivityLogsPage
+from ui.pages.monthly_analysis import MonthlyAnalysisPage
 from ui.pages.settings       import SettingsPage
 
 
@@ -139,6 +140,7 @@ class MainWindow(QMainWindow):
         self.page_trackers = None
         self.page_reports = None
         self.page_logs = None
+        self.page_monthly = None
         self.page_settings = None
 
         self._pages = {0: self.page_dashboard}
@@ -157,7 +159,8 @@ class MainWindow(QMainWindow):
                 "role":      self.role,
             }),
             6: lambda: ActivityLogsPage(),
-            7: lambda: SettingsPage(current_user={
+            7: lambda: MonthlyAnalysisPage(),
+            8: lambda: SettingsPage(current_user={
                 "username":  self.username,
                 "full_name": self.full_name,
                 "role":      self.role,
@@ -166,7 +169,7 @@ class MainWindow(QMainWindow):
 
         self.stack.addWidget(self.page_dashboard)
         # placeholders to preserve indices
-        for _ in range(7):
+        for _ in range(8):
             self.stack.addWidget(QWidget())
 
         body_lay.addWidget(self.stack, 1)
@@ -231,6 +234,7 @@ class MainWindow(QMainWindow):
             (_sp_icon(QStyle.SP_FileDialogDetailedView),     "Record Trackers", 4),
             (_sp_icon(QStyle.SP_FileDialogContentsView),     "Reports",         5),
             (_sp_icon(QStyle.SP_FileDialogListView),         "Activity Logs",   6),
+            (_sp_icon(QStyle.SP_DirIcon),                    "Monthly Analysis",7),
         ]
 
         for icon, label, idx in nav_items:

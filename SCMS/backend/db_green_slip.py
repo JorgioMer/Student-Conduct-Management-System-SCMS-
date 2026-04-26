@@ -18,6 +18,7 @@ def add_green_slip(stud_num, slip_type, date_avail,
     # First, add student if they don't exist
     add_student_if_not_exists(stud_num, name=stud_name, course=stud_course, year=stud_year)
     
+    conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -38,35 +39,51 @@ def add_green_slip(stud_num, slip_type, date_avail,
               expiry, purpose, remarks, absence_type, 
               dates_absence, supp_doc, auth_by))
         conn.commit()
-        conn.close()
+        
+        # Get the ID of the newly inserted record
+        cursor.execute("SELECT @@IDENTITY AS id")
+        result = cursor.fetchone()
+        record_id = str(result[0]) if result else None
+        return record_id
     except Exception as e:
-        raise Exception(f"Failed to add green slip for student {stud_num}: {str(e)}")
+        if conn:
+            conn.rollback()
+        raise Exception(f"Failed to add green slip for student {stud_num}: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_green_slips(student_number):
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    if student_number is None:
-        # Return ALL green slips
-        cursor.execute("""
-            SELECT s.studName, s.studCourse, 
-                   s.studYrLvl, g.*
-            FROM Students s
-            INNER JOIN [Green Slip Record] g 
-                   ON s.studNumber = g.studNumber
-        """)
-    else:
-        # Return slips for specific student
-        cursor.execute("""
-            SELECT s.studName, s.studCourse, 
-                   s.studYrLvl, g.*
-            FROM Students s
-            INNER JOIN [Green Slip Record] g 
-                   ON s.studNumber = g.studNumber
-            WHERE g.studNumber = ?
-        """, (student_number,))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        if student_number is None:
+            # Return ALL green slips
+            cursor.execute("""
+                SELECT s.studName, s.studCourse, 
+                       s.studYrLvl, g.*
+                FROM Students s
+                INNER JOIN [Green Slip Record] g 
+                       ON s.studNumber = g.studNumber
+            """)
+        else:
+            # Return slips for specific student
+            cursor.execute("""
+                SELECT s.studName, s.studCourse, 
+                       s.studYrLvl, g.*
+                FROM Students s
+                INNER JOIN [Green Slip Record] g 
+                       ON s.studNumber = g.studNumber
+                WHERE g.studNumber = ?
+            """, (student_number,))
+        
+        rows = cursor.fetchall()
+        return rows
+    except Exception as e:
+        raise Exception(f"Failed to retrieve green slips: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()

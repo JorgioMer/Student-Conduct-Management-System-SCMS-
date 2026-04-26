@@ -14,6 +14,7 @@ def create_activity_log_table():
     import pyodbc
     from backend.db_connection import get_connection
     
+    conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -54,13 +55,22 @@ def create_activity_log_table():
         else:
             print("✓ ActivityLog table already exists")
         
-        cursor.close()
-        conn.close()
         return True
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         print(f"✗ Error creating ActivityLog table: {str(e)}")
         return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def get_activity_log_creation_sql():
