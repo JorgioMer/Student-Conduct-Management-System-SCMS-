@@ -802,7 +802,7 @@ class PDFPreviewDialog(QDialog):
         info_frame_layout.addWidget(filename_label)
         
         filename_value = QLabel(f"  {os.path.basename(self.pdf_path)}")
-        filename_value.setStyleSheet("color: #555555; font-size: 11px; word-wrap: break-word;")
+        filename_value.setStyleSheet("color: #555555; font-size: 11px;")
         filename_value.setWordWrap(True)
         info_frame_layout.addWidget(filename_value)
         
@@ -812,7 +812,7 @@ class PDFPreviewDialog(QDialog):
         info_frame_layout.addWidget(location_label)
         
         location_value = QLabel(f"  {os.path.dirname(self.pdf_path)}")
-        location_value.setStyleSheet("color: #555555; font-size: 11px; word-wrap: break-word;")
+        location_value.setStyleSheet("color: #555555; font-size: 11px;")
         location_value.setWordWrap(True)
         info_frame_layout.addWidget(location_value)
         

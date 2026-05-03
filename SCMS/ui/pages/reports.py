@@ -48,6 +48,70 @@ class ReportsPage(BasePage):
         # Connect to data changes
         data_events.slips_changed.connect(self._on_slips_changed)
 
+    def _filter_records_by_period(self, records, date_field_index=6):
+        """Filter records by the selected report period.
+        
+        Args:
+            records: List of slip records
+            date_field_index: Index of the date field in the record tuple (default 6)
+        
+        Returns:
+            Filtered list containing only records from the selected period
+        """
+        period = self.period_cb.currentText() if hasattr(self, 'period_cb') else ""
+        if not records or not period:
+            return records
+        
+        filtered = []
+        for record in records:
+            try:
+                if len(record) <= date_field_index:
+                    continue
+                
+                date_str = str(record[date_field_index]).strip()
+                if not date_str or date_str == "N/A":
+                    continue
+                
+                # Parse date (handle DD/MM/YYYY and YYYY-MM-DD formats)
+                try:
+                    if "/" in date_str:
+                        date_obj = datetime.strptime(date_str.split()[0], "%d/%m/%Y")
+                    else:
+                        date_obj = datetime.strptime(date_str.split()[0], "%Y-%m-%d")
+                except ValueError:
+                    continue
+                
+                # Check if date matches period
+                if self._date_in_period(date_obj, period):
+                    filtered.append(record)
+            except Exception:
+                continue
+        
+        return filtered
+    
+    def _date_in_period(self, date_obj, period_str):
+        """Check if a date falls within the selected period."""
+        month = date_obj.month
+        year = date_obj.year
+        
+        # Monthly periods (e.g., "May 2026")
+        if len(period_str.split()) == 2:
+            try:
+                period_date = datetime.strptime(period_str, "%B %Y")
+                return month == period_date.month and year == period_date.year
+            except ValueError:
+                return True
+        
+        # Semester periods
+        if "1st Semester" in period_str or "1ST Semester" in period_str:
+            return month in [6, 7, 8, 9, 10, 11]  # June to November
+        if "2ND Semester" in period_str or "2nd Semester" in period_str:
+            return month in [12, 1, 2, 3, 4, 5]  # December to May
+        if "Full Year" in period_str:
+            return True
+        
+        return True
+
     def _build(self):
         # Header
         header = QFrame()
@@ -120,14 +184,15 @@ class ReportsPage(BasePage):
             self.period_cb.setCurrentIndex(index)
         self.period_cb.setFixedHeight(38)
         self.period_cb.setFixedWidth(280)
+        self.period_cb.currentIndexChanged.connect(self._on_period_changed)
         period_row.addWidget(self.period_cb)
         period_row.addStretch()
 
-        print_btn = QPushButton(" Print Preview ")
-        print_btn.setStyleSheet(btn_outline())
-        print_btn.setFixedHeight(38)
-        print_btn.clicked.connect(self._export_overview_report)
-        period_row.addWidget(print_btn)
+        self.top_print_btn = QPushButton(" Print Preview ")
+        self.top_print_btn.setStyleSheet(btn_outline())
+        self.top_print_btn.setFixedHeight(38)
+        self.top_print_btn.clicked.connect(self._export_overview_report)
+        period_row.addWidget(self.top_print_btn)
         self.main_layout.addLayout(period_row)
 
         # Tabs
@@ -167,15 +232,19 @@ class ReportsPage(BasePage):
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         w = scroll
 
-        lay.addWidget(SectionTitle("Monthly Overview — November 2026"))
+        # Get selected period
+        selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') else "November 2026"
+        
+        lay.addWidget(SectionTitle(f"Monthly Overview — {selected_period}"))
 
         from backend.db_blue_slip import get_blue_slips
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip import get_pink_slips
 
-        green_slips = get_green_slips(None) or []
-        pink_slips  = get_pink_slips(None)  or []
-        blue_slips  = get_blue_slips(None)  or []
+        # Get all slips and filter by selected period
+        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
+        pink_slips  = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
+        blue_slips  = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
 
         green_count   = len(green_slips)
         pink_count    = len(pink_slips)
@@ -322,7 +391,7 @@ class ReportsPage(BasePage):
     def _build_green_report(self) -> QWidget:
         from backend.db_green_slip import get_green_slips
 
-        green_records = get_green_slips(None) or []
+        green_records = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
         rows = []
         for record in green_records[:5]:
             try:
@@ -351,7 +420,7 @@ class ReportsPage(BasePage):
     def _build_pink_report(self) -> QWidget:
         from backend.db_pink_slip import get_pink_slips
 
-        pink_records = get_pink_slips(None) or []
+        pink_records = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
         rows = []
         for record in pink_records[:5]:
             try:
@@ -379,7 +448,7 @@ class ReportsPage(BasePage):
     def _build_blue_report(self) -> QWidget:
         from backend.db_blue_slip import get_blue_slips
 
-        blue_records = get_blue_slips(None) or []
+        blue_records = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
         rows = []
         for record in blue_records[:5]:
             try:
@@ -421,9 +490,12 @@ class ReportsPage(BasePage):
         top_row.addStretch()
 
         # Export PDF button
+        has_data = not (len(rows) == 1 and rows[0][0] == "No records")
         export_pdf_btn = QPushButton("   Export PDF ")
         export_pdf_btn.setStyleSheet(btn_outline())
         export_pdf_btn.setFixedHeight(36)
+        export_pdf_btn.setEnabled(has_data)
+        export_pdf_btn.setToolTip("" if has_data else "No data available for this period")
         export_pdf_btn.clicked.connect(
             lambda _, st=slip_type, ttl=title, sbt=subtitle, rw=rows: 
             self._export_slip_report(st, ttl, sbt, rw)
@@ -434,6 +506,8 @@ class ReportsPage(BasePage):
         print_btn = QPushButton("   Print ")
         print_btn.setStyleSheet(btn_outline())
         print_btn.setFixedHeight(36)
+        print_btn.setEnabled(has_data)
+        print_btn.setToolTip("" if has_data else "No data available for this period")
         print_btn.clicked.connect(
             lambda _, st=slip_type, ttl=title, sbt=subtitle, rw=rows: 
             self._export_slip_report(st, ttl, sbt, rw)
@@ -486,10 +560,10 @@ class ReportsPage(BasePage):
 
         lay.addWidget(SectionTitle("Distribution by College"))
 
-        # Get all slips
-        green_slips = get_green_slips(None) or []
-        pink_slips = get_pink_slips(None) or []
-        blue_slips = get_blue_slips(None) or []
+        # Get and filter all slips by period
+        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
+        pink_slips = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
+        blue_slips = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
         all_slips = green_slips + pink_slips + blue_slips
 
         # Organize by college
@@ -883,6 +957,16 @@ class ReportsPage(BasePage):
             
             total_records = len(records_data['green']) + len(records_data['pink']) + len(records_data['blue'])
             
+            # Check if there's data to export
+            if total_records == 0:
+                InfoDialog(
+                    "No Data",
+                    "No slip records available for this period.\nPlease select a different time period or date range.",
+                    success=False,
+                    parent=self
+                ).exec_()
+                return
+            
             # Get selected period from combobox
             selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') else datetime.now().strftime("%B %Y")
             
@@ -905,6 +989,16 @@ class ReportsPage(BasePage):
 
     def _export_slip_report(self, slip_type, title, subtitle, rows):
         """Export individual slip type report as PDF."""
+        # Check if there's data to export
+        if not rows or len(rows) == 0:
+            InfoDialog(
+                "No Data",
+                f"No {slip_type} slip records available for this period.\nPlease select a different time period or date range.",
+                success=False,
+                parent=self
+            ).exec_()
+            return
+        
         try:
             # Convert rows to database record format
             records = [tuple(row) for row in rows] if rows else []
@@ -961,5 +1055,53 @@ class ReportsPage(BasePage):
                 self._tabs.setCurrentIndex(current_idx)
         except Exception as e:
             print(f"[ERROR] Failed to refresh reports: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _on_period_changed(self):
+        """Refresh all reports when the period selection changes."""
+        try:
+            if self._tabs is None:
+                return
+            
+            # Check if there's data for this period
+            from backend.db_blue_slip import get_blue_slips
+            from backend.db_green_slip import get_green_slips
+            from backend.db_pink_slip import get_pink_slips
+            
+            total_records = (len(get_green_slips(None) or []) + 
+                           len(get_pink_slips(None) or []) + 
+                           len(get_blue_slips(None) or []))
+            
+            # Enable/disable top button based on data availability
+            if hasattr(self, 'top_print_btn'):
+                self.top_print_btn.setEnabled(total_records > 0)
+                self.top_print_btn.setToolTip("" if total_records > 0 else "No data available for this period")
+            
+            # Store current tab index
+            current_idx = self._tabs.currentIndex()
+            
+            # Rebuild all tabs with new period
+            tab_configs = [
+                (0, self._build_overview_tab(), "   Overview "),
+                (1, self._build_green_report(), "   Green Slips "),
+                (2, self._build_pink_report(), "   Pink Slips "),
+                (3, self._build_blue_report(), "   Blue Slips "),
+                (4, self._build_college_report(), "   By College "),
+            ]
+            
+            for idx, widget, label in tab_configs:
+                try:
+                    if idx < self._tabs.count():
+                        self._tabs.removeTab(idx)
+                    self._tabs.insertTab(idx, widget, label)
+                except Exception as e:
+                    print(f"[ERROR] Failed to refresh tab {label}: {str(e)}")
+            
+            # Restore to same tab if it still exists
+            if current_idx < self._tabs.count():
+                self._tabs.setCurrentIndex(current_idx)
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh on period change: {str(e)}")
             import traceback
             traceback.print_exc()

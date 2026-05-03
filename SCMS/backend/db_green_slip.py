@@ -1,5 +1,84 @@
 from .db_connection import get_connection
 from .db_students import add_student_if_not_exists
+from datetime import datetime
+
+
+def check_and_update_expired_green_slips():
+    """
+    Automatically update expired Green Slip statuses.
+    Checks all green slips and updates status from "Active" to "Expired" 
+    if the expiry date has passed.
+    
+    Returns:
+        int: Number of slips that were expired and updated
+    """
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        today = datetime.now().date()
+        
+        # Get all active green slips with expiry dates
+        cursor.execute("""
+            SELECT ID, exprDate_greenDisp, status_green
+            FROM [Green Slip Record]
+            WHERE status_green = 'Active' AND exprDate_greenDisp IS NOT NULL
+        """)
+        
+        active_slips = cursor.fetchall()
+        expired_count = 0
+        
+        for slip in active_slips:
+            slip_id = slip[0]
+            expiry_date = slip[1]
+            
+            try:
+                # Handle different date formats from database
+                if isinstance(expiry_date, str):
+                    # Parse string date (try multiple formats)
+                    date_str = expiry_date.split()[0]  # Get just the date part
+                    
+                    # Try DD/MM/YYYY format first (most common in database)
+                    try:
+                        expiry_date = datetime.strptime(date_str, '%d/%m/%Y').date()
+                    except ValueError:
+                        # Try YYYY-MM-DD format as fallback
+                        try:
+                            expiry_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                        except ValueError:
+                            # Try MM/DD/YYYY format
+                            expiry_date = datetime.strptime(date_str, '%m/%d/%Y').date()
+                elif hasattr(expiry_date, 'date'):
+                    # datetime object
+                    expiry_date = expiry_date.date()
+                # else: already a date object
+                
+                # Check if expiry date has passed
+                if expiry_date < today:
+                    # Update status to "Expired"
+                    cursor.execute("""
+                        UPDATE [Green Slip Record]
+                        SET status_green = 'Expired'
+                        WHERE ID = ?
+                    """, (slip_id,))
+                    expired_count += 1
+            except Exception as slip_error:
+                # Log individual slip errors but continue processing others
+                print(f"[WARNING] Error processing slip {slip_id}: {str(slip_error)}")
+                continue
+        
+        if expired_count > 0:
+            conn.commit()
+        
+        return expired_count
+    
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise Exception(f"Failed to check and update expired green slips: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()
 
 
 def add_green_slip(stud_num, slip_type, date_avail, 

@@ -90,8 +90,7 @@ def _wrap_text_for_table(text, is_header=False):
             fontName='Helvetica-Bold',
             fontSize=10,
             textColor=WHITE,
-            alignment=TA_CENTER,
-            wordWrap='CJK'
+            alignment=TA_CENTER
         )
     else:
         style = ParagraphStyle(
@@ -99,8 +98,7 @@ def _wrap_text_for_table(text, is_header=False):
             fontName='Helvetica',
             fontSize=9,
             textColor=DARK_GRAY,
-            alignment=TA_LEFT,
-            wordWrap='CJK'
+            alignment=TA_LEFT
         )
     
     return Paragraph(text, style)
@@ -542,8 +540,8 @@ def generate_overview_report(output_path, records_data, period=None):
     
     # College distribution chart
     if college_data:
-        story.append(Paragraph("Slip Distribution by College", styles['section']))
-        story.append(Spacer(1, 0.1 * inch))
+        story.append(PageBreak())
+        story.append(Spacer(1, 0.5 * inch))
         
         try:
             chart_buffer = _create_college_distribution_chart(college_data)

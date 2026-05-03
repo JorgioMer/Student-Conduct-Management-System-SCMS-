@@ -21,6 +21,12 @@ from ui.components import (
     SectionTitle, SubTitle, Divider, StatTile,
     SlipCard, Card, add_shadow
 )
+from ui.data_events import data_events
+
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from backend.db_green_slip import check_and_update_expired_green_slips
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +88,12 @@ class DashboardPage(QWidget):
         self._build()
 
     def _build(self):
+        # First, check and update any expired green slips
+        try:
+            check_and_update_expired_green_slips()
+        except Exception as e:
+            print(f"[WARNING] Failed to check for expired green slips: {str(e)}")
+        
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)

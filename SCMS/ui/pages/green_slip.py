@@ -27,7 +27,7 @@ from ui.pages.trackers import _apply_table_selection_style
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from backend.db_green_slip import add_green_slip, get_green_slips
+from backend.db_green_slip import add_green_slip, get_green_slips, check_and_update_expired_green_slips
 from backend.db_students import add_student, get_student
 from backend.config import get_current_semester
 from backend.db_accounts import get_officer_names          # ← NEW
@@ -829,6 +829,15 @@ class GreenSlipPage(BasePage):
     # Tracker tab
     # =========================================================================
     def _load_green_tracker_data(self):
+        # First, check and update any expired green slips
+        try:
+            expired_count = check_and_update_expired_green_slips()
+            if expired_count > 0:
+                # Emit signal to refresh charts if any slips were expired
+                data_events.slips_changed.emit()
+        except Exception as e:
+            print(f"[WARNING] Failed to check for expired green slips: {str(e)}")
+        
         from backend.db_green_slip import get_green_slips
         sample = []
         try:

@@ -524,22 +524,6 @@ class LoginWindow(QWidget):
         card_lay.addWidget(self.login_btn)
         card_lay.addSpacing(20)
 
-        hint = QLabel(
-            "<b>Demo credentials:</b><br>"
-            "admin / admin123 &nbsp;·&nbsp; staff / staff123"
-        )
-        hint.setFont(QFont("Segoe UI", 10))
-        hint.setTextFormat(Qt.RichText)
-        hint.setAlignment(Qt.AlignCenter)
-        hint.setStyleSheet(f"""
-            color: {MID_GRAY};
-            background: {OFF_WHITE};
-            border: 1px solid {LIGHT_GRAY};
-            border-radius: 6px;
-            padding: 8px;
-        """)
-        card_lay.addWidget(hint)
-
         right_lay.addWidget(card, 0, Qt.AlignCenter)
 
         copy_lbl = QLabel("© 2026 Office of the Prefect — CJC  |  SCMS v1.0")
