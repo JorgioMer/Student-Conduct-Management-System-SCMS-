@@ -2,7 +2,7 @@
 ; This script creates a professional installer for SCMS using Inno Setup
 
 #define MyAppName "SCMS"
-#define MyAppVersion "1.0.5"
+#define MyAppVersion "1.0.6"
 #define MyAppPublisher "Student Conduct Management"
 #define MyAppExeName "SCMS.exe"
 #define SourcePath "dist"
@@ -41,10 +41,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Main executable and supporting files
-Source: "{#SourcePath}\SCMS.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}\SCMS\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Database
-Source: "{#SourcePath}\SCMS\backend\database\SCMSDatabase.accdb"; DestDir: "{app}\backend\database"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -62,3 +59,4 @@ begin
     MsgBox('SCMS has been successfully installed!', mbInformation, MB_OK);
   end;
 end;
+

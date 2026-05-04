@@ -198,7 +198,7 @@ function Build-Executable {
         return $false
     }
     
-    $exePath = Join-Path $DIST_DIR "SCMS.exe"
+    $exePath = Join-Path $DIST_DIR "SCMS" "SCMS.exe"
     if (-not (Test-Path $exePath)) {
         Write-CustomError "SCMS.exe not found after build"
         return $false
@@ -225,6 +225,11 @@ function Build-Installer {
         Write-CustomError "Inno Setup compiler not found"
         return $false
     }
+    
+    # Update version in ISS file
+    $issContent = Get-Content $ISS_SCRIPT -Raw
+    $issContent = $issContent -replace '#define MyAppVersion ".*?"', "#define MyAppVersion `"$Version`""
+    Set-Content $ISS_SCRIPT -Value $issContent -Force
     
     Set-Location $projectRoot
     & $ISCC_PATH $ISS_SCRIPT 2>&1 | ForEach-Object {

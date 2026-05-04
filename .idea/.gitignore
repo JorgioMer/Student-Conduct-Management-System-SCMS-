@@ -8,3 +8,32 @@
 /dataSources.local.xml
 # Editor-based HTTP Client requests
 /httpRequests/
+# Local history of files
+/.idea/localHistory/
+# Log files
+/idea.log
+# System generated files   
+*.iml
+# OS generated files    
+.DS_Store
+# Windows thumbnail cache    
+Thumbs.db
+# JetBrains IDEs specific files
+.idea/
+*.iws
+*.ipr
+# Ignore all files in the .idea directory except for the ones we want to keep
+/.idea/*
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+!.idea/misc.xml
+!.idea/modules.xml
+!.idea/vcs.xml
+# Ignore all files in the .idea/codeStyles directory except for the ones we want to keep
+/.idea/codeStyles/*
+!.idea/codeStyles/Project.xml
+# Ignore all files in the .idea/inspectionProfiles directory except for the ones we want to keep
+/.idea/inspectionProfiles/*
+!.idea/inspectionProfiles/Project_Default.xml
+
+/.backups/

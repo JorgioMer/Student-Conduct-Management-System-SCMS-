@@ -23,7 +23,6 @@ a = Analysis(
         'reportlab.lib.styles',
         'reportlab.lib.units',
         'reportlab.platypus',
-        'Pillow',
         'PIL',
         'PIL.Image',
         'pyodbc',
@@ -59,4 +58,15 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='SCMS'
 )
