@@ -194,6 +194,9 @@ class ReportsPage(BasePage):
         self.top_print_btn.clicked.connect(self._export_overview_report)
         period_row.addWidget(self.top_print_btn)
         self.main_layout.addLayout(period_row)
+        
+        # Initialize button state based on current period's data
+        self._update_print_button_state()
 
         # Tabs
         tabs = QTabWidget()
@@ -948,11 +951,21 @@ class ReportsPage(BasePage):
             from backend.db_green_slip import get_green_slips
             from backend.db_pink_slip import get_pink_slips
             
-            # Collect data
+            # Get all records and filter by selected period
+            all_green = get_green_slips(None) or []
+            all_pink = get_pink_slips(None) or []
+            all_blue = get_blue_slips(None) or []
+            
+            # Filter records by the selected period
+            green_filtered = self._filter_records_by_period(all_green, date_field_index=6)
+            pink_filtered = self._filter_records_by_period(all_pink, date_field_index=6)
+            blue_filtered = self._filter_records_by_period(all_blue, date_field_index=6)
+            
+            # Collect filtered data
             records_data = {
-                'green': get_green_slips(None) or [],
-                'pink': get_pink_slips(None) or [],
-                'blue': get_blue_slips(None) or [],
+                'green': green_filtered,
+                'pink': pink_filtered,
+                'blue': blue_filtered,
             }
             
             total_records = len(records_data['green']) + len(records_data['pink']) + len(records_data['blue'])
@@ -1024,11 +1037,35 @@ class ReportsPage(BasePage):
                 parent=self
             ).exec_()
 
+    def _update_print_button_state(self):
+        """Update the print preview button state based on current period's data."""
+        try:
+            from backend.db_blue_slip import get_blue_slips
+            from backend.db_green_slip import get_green_slips
+            from backend.db_pink_slip import get_pink_slips
+            
+            # Filter records by the selected period
+            green_slips_filtered = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
+            pink_slips_filtered = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
+            blue_slips_filtered = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
+            
+            total_records = len(green_slips_filtered) + len(pink_slips_filtered) + len(blue_slips_filtered)
+            
+            # Update print preview button state
+            if hasattr(self, 'top_print_btn'):
+                self.top_print_btn.setEnabled(total_records > 0)
+                self.top_print_btn.setToolTip("" if total_records > 0 else "No data available for this period")
+        except Exception as e:
+            print(f"[ERROR] Failed to update print button state: {str(e)}")
+
     def _on_slips_changed(self):
-        """Refresh reports when slips data changes."""
+        """Refresh reports when slips data changes - called whenever a slip is added."""
         try:
             if self._tabs is None:
                 return
+            
+            # Update the print preview button state based on current period data
+            self._update_print_button_state()
             
             # Refresh all visible/built tabs
             current_idx = self._tabs.currentIndex()
@@ -1064,19 +1101,8 @@ class ReportsPage(BasePage):
             if self._tabs is None:
                 return
             
-            # Check if there's data for this period
-            from backend.db_blue_slip import get_blue_slips
-            from backend.db_green_slip import get_green_slips
-            from backend.db_pink_slip import get_pink_slips
-            
-            total_records = (len(get_green_slips(None) or []) + 
-                           len(get_pink_slips(None) or []) + 
-                           len(get_blue_slips(None) or []))
-            
-            # Enable/disable top button based on data availability
-            if hasattr(self, 'top_print_btn'):
-                self.top_print_btn.setEnabled(total_records > 0)
-                self.top_print_btn.setToolTip("" if total_records > 0 else "No data available for this period")
+            # Update print preview button state based on filtered data
+            self._update_print_button_state()
             
             # Store current tab index
             current_idx = self._tabs.currentIndex()

@@ -29,6 +29,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_blue_slip import add_blue_slip, get_blue_slips
 from backend.config import get_current_semester
+from backend.db_accounts import get_officer_names
 from backend.db_activity_log import log_slip_created
 
 # ── Column index constants ────────────────────────────────────────────────────
@@ -216,6 +217,20 @@ def _search_style(accent):
             border: 1.5px solid {accent};
         }}
     """
+
+
+def _build_officer_combo(accent: str) -> QComboBox:
+    """
+    Build a QComboBox pre-populated with active officer names from the
+    Accounts table.  Falls back gracefully if the DB is unavailable.
+    """
+    combo = QComboBox()
+    combo.setFixedHeight(38)
+    combo.setStyleSheet(_combo_style(accent))
+    combo.addItem("— Select Officer —")          # placeholder / index 0
+    for name in get_officer_names():
+        combo.addItem(name)
+    return combo
 
 
 class BlueSlipPage(BasePage):
@@ -409,9 +424,7 @@ class BlueSlipPage(BasePage):
         form_lay.addWidget(self.blue_action, 4, 1)
 
         form_lay.addWidget(lbl("Officer in Charge", True), 4, 2)
-        self.blue_officer = QLineEdit()
-        self.blue_officer.setPlaceholderText("Name of prefect / officer")
-        self.blue_officer.setFixedHeight(38)
+        self.blue_officer = _build_officer_combo(BLUE_SLIP)
         form_lay.addWidget(self.blue_officer, 4, 3)
 
         form_lay.addWidget(lbl("Status"), 5, 0)
@@ -510,7 +523,7 @@ class BlueSlipPage(BasePage):
         self.blue_name.clear()
         self.blue_course.clear()
         self.blue_desc.clear()
-        self.blue_officer.clear()
+        self.blue_officer.setCurrentIndex(0)
         self.blue_witnesses.clear()
         self.blue_year.setCurrentIndex(0)
         self.blue_vtype.setCurrentIndex(0)

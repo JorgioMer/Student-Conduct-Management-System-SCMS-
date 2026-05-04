@@ -1,0 +1,116 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version type (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+      
+      - name: Verify Python installation
+        run: |
+          python --version
+          python -m pip --version
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+          echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      
+      - name: Verify Inno Setup installation
+        run: |
+          Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+      
+      - name: Build executable and installer
+        run: |
+          .\build-and-package.ps1 -SkipTest
+        shell: powershell
+      
+      - name: List build artifacts
+        run: |
+          Write-Host "Build artifacts:"
+          Get-ChildItem *.exe
+          Get-ChildItem dist -Recurse -Include "*.exe" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+        shell: powershell
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            SCMS-Setup-v*.exe
+            CHANGELOG.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload artifact for debugging
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            SCMS-Setup-v*.exe
+            dist/SCMS.exe
+          retention-days: 30
+
+  test:
+    needs: build
+    runs-on: windows-latest
+    if: always()
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+      
+      - name: Verify installer exists
+        run: |
+          if (Get-ChildItem "SCMS-Setup-v*.exe" -ErrorAction SilentlyContinue) {
+            Write-Host "✓ Installer verified"
+          } else {
+            Write-Host "✗ Installer not found"
+            exit 1
+          }
+        shell: powershell
+      
+      - name: Check installer size
+        run: |
+          $installer = Get-ChildItem "SCMS-Setup-v*.exe"
+          $sizeMB = [Math]::Round($installer.Length / 1MB, 2)
+          Write-Host "Installer size: $sizeMB MB"
+          if ($sizeMB -gt 100) {
+            Write-Host "⚠ Warning: Installer is larger than 100MB"
+          }
+        shell: powershell
