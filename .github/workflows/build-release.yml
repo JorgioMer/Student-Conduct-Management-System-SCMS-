@@ -98,9 +98,9 @@ jobs:
       - name: Verify installer exists
         run: |
           if (Get-ChildItem "SCMS-Setup-v*.exe" -ErrorAction SilentlyContinue) {
-            Write-Host "✓ Installer verified"
+            Write-Host "[OK] Installer verified"
           } else {
-            Write-Host "✗ Installer not found"
+            Write-Host "[FAILED] Installer not found"
             exit 1
           }
         shell: powershell
@@ -111,6 +111,6 @@ jobs:
           $sizeMB = [Math]::Round($installer.Length / 1MB, 2)
           Write-Host "Installer size: $sizeMB MB"
           if ($sizeMB -gt 100) {
-            Write-Host "⚠ Warning: Installer is larger than 100MB"
+            Write-Host "[WARNING] Installer is larger than 100MB"
           }
         shell: powershell

@@ -401,7 +401,6 @@ class LoginWindow(QWidget):
         card_lay.addWidget(welcome)
         card_lay.addSpacing(4)
         card_lay.addWidget(sub)
-        card_lay.addSpacing(20)
 
         user_lbl = QLabel("Username")
         user_lbl.setFont(QFont("Segoe UI", 12, QFont.DemiBold))
