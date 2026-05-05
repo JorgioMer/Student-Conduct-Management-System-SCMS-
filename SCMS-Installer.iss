@@ -2,7 +2,7 @@
 ; This script creates a professional installer for SCMS using Inno Setup
 
 #define MyAppName "SCMS"
-#define MyAppVersion "1.0.6"
+#define MyAppVersion "1.0.7"
 #define MyAppPublisher "Student Conduct Management"
 #define MyAppExeName "SCMS.exe"
 #define SourcePath "dist"
@@ -59,4 +59,5 @@ begin
     MsgBox('SCMS has been successfully installed!', mbInformation, MB_OK);
   end;
 end;
+
 
