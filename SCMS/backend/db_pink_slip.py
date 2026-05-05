@@ -70,3 +70,27 @@ def get_pink_slips(student_number):
     finally:
         if conn:
             conn.close()
+
+
+def delete_pink_slip(stud_num):
+    """Delete a pink slip record for a specific student."""
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM [Pink Slip Record]
+            WHERE studNumber = ?
+        """, (stud_num,))
+        conn.commit()
+        rows_deleted = cursor.rowcount
+        if rows_deleted == 0:
+            raise Exception(f"No pink slip found for student {stud_num}")
+        return rows_deleted
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise Exception(f"Failed to delete pink slip for student {stud_num}: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()

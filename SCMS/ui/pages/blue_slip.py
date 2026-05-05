@@ -655,7 +655,9 @@ class BlueSlipPage(BasePage):
     def _load_blue_tracker_data(self):
         sample = []
         try:
-            for record in (get_blue_slips(None) or []):
+            blue_records = get_blue_slips(None) or []
+            print(f"[DEBUG] Loaded {len(blue_records)} blue slip records from database")
+            for record in blue_records:
                 try:
                     sample.append((
                         str(record[_COL_STUD_NUM])  if len(record) > _COL_STUD_NUM  else "N/A",
@@ -667,12 +669,17 @@ class BlueSlipPage(BasePage):
                         str(record[_COL_ACTION])    if len(record) > _COL_ACTION    else "N/A",
                         str(record[_COL_STATUS])    if len(record) > _COL_STATUS    else "Open / Pending",
                     ))
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    print(f"[ERROR] Failed to parse blue slip record: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+        except Exception as e:
+            print(f"[ERROR] Failed to load blue slips: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
         self._all_blue_records = sample
+        print(f"[DEBUG] Blue tracker showing {len(sample)} records")
         return sample if sample else [
             ("No records", "Add records to see them here",
              "-", "-", "-", "-", "-", "-")
@@ -919,10 +926,12 @@ class BlueSlipPage(BasePage):
         update_btn = QPushButton("  Update Status")
         update_btn.setStyleSheet(btn_blue())
         update_btn.setFixedHeight(38)
+        update_btn.clicked.connect(self._update_blue_status)
 
         del_btn = QPushButton("   Delete ")
         del_btn.setStyleSheet(btn_danger())
         del_btn.setFixedHeight(38)
+        del_btn.clicked.connect(self._delete_blue_record)
 
         action_row.addWidget(view_btn)
         action_row.addWidget(update_btn)
@@ -959,6 +968,147 @@ class BlueSlipPage(BasePage):
         from ui.pages.trackers import RecordDetailDialog
         dlg = RecordDetailDialog(fields, slip_type="blue", parent=self)
         dlg.exec_()
+
+    def _update_blue_status(self):
+        """Update the status of a selected blue slip record."""
+        if self.blue_tracker_table is None:
+            return
+        selected = self.blue_tracker_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a record to update.",
+                success=False, parent=self
+            ).exec_()
+            return
+        
+        row = self.blue_tracker_table.currentRow()
+        stud_num_item = self.blue_tracker_table.item(row, 1)  # Student No. is column 1
+        if not stud_num_item:
+            return
+        
+        stud_num = stud_num_item.text()
+        if stud_num == "No records":
+            return
+        
+        # Show status update dialog
+        from PyQt5.QtWidgets import QComboBox, QDialog, QVBoxLayout, QHBoxLayout, QPushButton
+        from PyQt5.QtCore import Qt
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Update Blue Slip Status")
+        dlg.setFixedWidth(350)
+        dlg.setStyleSheet(f"background: {WHITE};")
+        
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+        
+        lbl = QLabel("Update status for student: " + stud_num)
+        lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        lay.addWidget(lbl)
+        
+        lay.addWidget(QLabel("New Status:"))
+        status_combo = QComboBox()
+        status_combo.addItems([
+            "Open / Pending",
+            "Under Investigation",
+            "Action Taken",
+            "Resolved",
+            "Dismissed"
+        ])
+        lay.addWidget(status_combo)
+        
+        btn_lay = QHBoxLayout()
+        btn_lay.addStretch()
+        
+        ok_btn = QPushButton("Update")
+        ok_btn.setStyleSheet(btn_blue())
+        ok_btn.setFixedHeight(38)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet(btn_outline())
+        cancel_btn.setFixedHeight(38)
+        
+        btn_lay.addWidget(ok_btn)
+        btn_lay.addWidget(cancel_btn)
+        lay.addLayout(btn_lay)
+        
+        def on_update():
+            try:
+                new_status = status_combo.currentText()
+                from backend.db_blue_slip import update_blue_slip_status
+                print(f"[DEBUG] Updating blue slip status for student {stud_num} to {new_status}")
+                update_blue_slip_status(stud_num, new_status)
+                print(f"[DEBUG] Blue slip status updated successfully")
+                dlg.accept()
+                InfoDialog(
+                    "Status Updated",
+                    f"Blue slip status updated to: {new_status}",
+                    success=True, parent=self
+                ).exec_()
+                data_events.slips_changed.emit()
+            except Exception as e:
+                print(f"[ERROR] Failed to update blue slip status: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                InfoDialog(
+                    "Error",
+                    f"Failed to update status: {str(e)}",
+                    success=False, parent=self
+                ).exec_()
+        
+        ok_btn.clicked.connect(on_update)
+        cancel_btn.clicked.connect(dlg.reject)
+        
+        dlg.exec_()
+
+    def _delete_blue_record(self):
+        """Delete selected blue slip record from database."""
+        if self.blue_tracker_table is None:
+            return
+        selected = self.blue_tracker_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a record to delete.",
+                success=False, parent=self
+            ).exec_()
+            return
+        
+        row = self.blue_tracker_table.currentRow()
+        stud_num_item = self.blue_tracker_table.item(row, 1)  # Student No. is column 1
+        if not stud_num_item:
+            return
+        
+        stud_num = stud_num_item.text()
+        if stud_num == "No records":
+            return
+        
+        dlg = ConfirmDialog(
+            "Confirm Delete",
+            f"Delete blue slip record for student {stud_num}?\nThis action cannot be undone.",
+            parent=self
+        )
+        if dlg.exec_():
+            try:
+                from backend.db_blue_slip import delete_blue_slip
+                print(f"[DEBUG] Deleting blue slip for student {stud_num}")
+                delete_blue_slip(stud_num)
+                print(f"[DEBUG] Blue slip deleted successfully")
+                InfoDialog(
+                    "Record Deleted",
+                    "Blue slip record has been deleted.",
+                    success=True, parent=self
+                ).exec_()
+                data_events.slips_changed.emit()
+            except Exception as e:
+                print(f"[ERROR] Failed to delete blue slip: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                InfoDialog(
+                    "Error",
+                    f"Failed to delete record: {str(e)}",
+                    success=False, parent=self
+                ).exec_()
 
     # =========================================================================
     # Violation Progress tab
@@ -1288,14 +1438,17 @@ class BlueSlipPage(BasePage):
     # Event handlers
     # =========================================================================
     def _on_slips_changed(self):
+        print("[DEBUG] Blue slip page: _on_slips_changed() called")
         try:
             self._refresh_blue_tracker()
+            print("[DEBUG] Blue slip tracker refreshed successfully")
         except Exception as e:
             print(f"[ERROR] Failed to refresh blue tracker: {str(e)}")
             import traceback
             traceback.print_exc()
         try:
             self._refresh_blue_summary()
+            print("[DEBUG] Blue slip summary refreshed successfully")
         except Exception as e:
             print(f"[ERROR] Failed to refresh blue summary: {str(e)}")
             import traceback

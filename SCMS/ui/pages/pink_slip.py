@@ -511,16 +511,23 @@ class PinkSlipPage(BasePage):
                 sem          = self.pink_sem.currentText()
                 remarks      = self.pink_remarks.toPlainText().strip()
                 # officer already read above
+                print(f"[DEBUG] Saving pink slip for student {stud_num} ({stud_name})")
                 record_id = add_pink_slip(stud_num, date_issued, violation, action_taken, officer,
                               sem=sem, remarks=remarks, stud_name=stud_name,
                               stud_course=stud_course, stud_year=stud_year)
+                print(f"[DEBUG] Pink slip saved with ID: {record_id}")
                 # Log the action
                 log_slip_created(officer, "Pink", stud_name, record_id=record_id)
                 InfoDialog("Record Saved",
                            "Pink Slip record has been saved successfully!",
                            success=True, parent=self).exec_()
+                print(f"[DEBUG] Emitting slips_changed signal")
                 data_events.slips_changed.emit()
+                print(f"[DEBUG] Signal emitted")
             except Exception as e:
+                print(f"[ERROR] Failed to save pink slip: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 InfoDialog("Error", f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
 
@@ -531,7 +538,9 @@ class PinkSlipPage(BasePage):
         from backend.db_pink_slip import get_pink_slips
         sample = []
         try:
-            for record in (get_pink_slips(None) or []):
+            pink_records = get_pink_slips(None) or []
+            print(f"[DEBUG] Loaded {len(pink_records)} pink slip records from database")
+            for record in pink_records:
                 try:
                     stud_name    = record[0] if len(record) > 0 else "N/A"
                     stud_course  = record[1] if len(record) > 1 else "N/A"
@@ -548,11 +557,16 @@ class PinkSlipPage(BasePage):
                         date_issued[:10] if date_issued != "N/A" else "N/A",
                         violation, action_taken, officer
                     ))
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    print(f"[ERROR] Failed to parse pink slip record: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+        except Exception as e:
+            print(f"[ERROR] Failed to load pink slips: {str(e)}")
+            import traceback
+            traceback.print_exc()
         self._all_pink_records = sample
+        print(f"[DEBUG] Pink tracker showing {len(sample)} records")
         return sample if sample else [
             ("No records", "Add records to see them here",
              "-", "-", "-", "-", "-", "-", "-")
@@ -749,6 +763,7 @@ class PinkSlipPage(BasePage):
         del_btn = QPushButton("   Delete ")
         del_btn.setStyleSheet(btn_danger())
         del_btn.setFixedHeight(38)
+        del_btn.clicked.connect(self._delete_pink_record)
 
         action_row.addWidget(view_btn)
         action_row.addWidget(del_btn)
@@ -779,6 +794,55 @@ class PinkSlipPage(BasePage):
         from ui.pages.trackers import RecordDetailDialog
         dlg = RecordDetailDialog(fields, slip_type="pink", parent=self)
         dlg.exec_()
+
+    def _delete_pink_record(self):
+        """Delete selected pink slip record from database."""
+        if self.pink_tracker_table is None:
+            return
+        selected = self.pink_tracker_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a record to delete.",
+                success=False, parent=self
+            ).exec_()
+            return
+        
+        row = self.pink_tracker_table.currentRow()
+        stud_num_item = self.pink_tracker_table.item(row, 0)
+        if not stud_num_item:
+            return
+        
+        stud_num = stud_num_item.text()
+        if stud_num == "No records":
+            return
+        
+        dlg = ConfirmDialog(
+            "Confirm Delete",
+            f"Delete pink slip record for student {stud_num}?\nThis action cannot be undone.",
+            parent=self
+        )
+        if dlg.exec_():
+            try:
+                from backend.db_pink_slip import delete_pink_slip
+                print(f"[DEBUG] Deleting pink slip for student {stud_num}")
+                delete_pink_slip(stud_num)
+                print(f"[DEBUG] Pink slip deleted successfully")
+                InfoDialog(
+                    "Record Deleted",
+                    "Pink slip record has been deleted.",
+                    success=True, parent=self
+                ).exec_()
+                data_events.slips_changed.emit()
+            except Exception as e:
+                print(f"[ERROR] Failed to delete pink slip: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                InfoDialog(
+                    "Error",
+                    f"Failed to delete record: {str(e)}",
+                    success=False, parent=self
+                ).exec_()
 
     # =========================================================================
     # Summary tab
@@ -886,14 +950,17 @@ class PinkSlipPage(BasePage):
     # Event handlers
     # =========================================================================
     def _on_slips_changed(self):
+        print("[DEBUG] Pink slip page: _on_slips_changed() called")
         try:
             self._refresh_pink_tracker()
+            print("[DEBUG] Pink slip tracker refreshed successfully")
         except Exception as e:
             print(f"[ERROR] Failed to refresh pink tracker: {str(e)}")
             import traceback
             traceback.print_exc()
         try:
             self._refresh_pink_summary()
+            print("[DEBUG] Pink slip summary refreshed successfully")
         except Exception as e:
             print(f"[ERROR] Failed to refresh pink summary: {str(e)}")
             import traceback

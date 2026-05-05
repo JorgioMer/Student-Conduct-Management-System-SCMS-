@@ -7,7 +7,10 @@ a = Analysis(
     ['SCMS/main.py'],
     pathex=[],
     binaries=[],
-    datas=[('SCMS/backend/database', 'backend/database')],
+    datas=[
+        ('SCMS/backend/database', 'backend/database'),
+        ('SCMS/assets', 'assets'),
+    ],
     hiddenimports=[
         'PyQt5',
         'PyQt5.QtCore',

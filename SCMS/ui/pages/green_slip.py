@@ -841,7 +841,9 @@ class GreenSlipPage(BasePage):
         from backend.db_green_slip import get_green_slips
         sample = []
         try:
-            for record in (get_green_slips(None) or []):
+            green_records = get_green_slips(None) or []
+            print(f"[DEBUG] Loaded {len(green_records)} green slip records from database")
+            for record in green_records:
                 try:
                     stud_name    = record[0] if len(record) > 0 else "N/A"
                     stud_course  = record[1] if len(record) > 1 else "N/A"
@@ -860,11 +862,16 @@ class GreenSlipPage(BasePage):
                         expiry[:10]    if expiry    != "N/A" else "N/A",
                         status
                     ))
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    print(f"[ERROR] Failed to parse green slip record: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+        except Exception as e:
+            print(f"[ERROR] Failed to load green slips: {str(e)}")
+            import traceback
+            traceback.print_exc()
         self._all_green_records = sample
+        print(f"[DEBUG] Green tracker showing {len(sample)} records")
         return sample if sample else [
             ("No records", "Add records to see them here",
              "-", "-", "-", "-", "-", "-", "-")
@@ -1084,6 +1091,7 @@ class GreenSlipPage(BasePage):
         delete_btn = QPushButton("   Delete ")
         delete_btn.setStyleSheet(btn_danger())
         delete_btn.setFixedHeight(38)
+        delete_btn.clicked.connect(self._delete_green_record)
 
         action_row.addWidget(view_btn)
         action_row.addWidget(delete_btn)
@@ -1114,6 +1122,55 @@ class GreenSlipPage(BasePage):
         from ui.pages.trackers import RecordDetailDialog
         dlg = RecordDetailDialog(fields, slip_type="green", parent=self)
         dlg.exec_()
+
+    def _delete_green_record(self):
+        """Delete selected green slip record from database."""
+        if self.green_tracker_table is None:
+            return
+        selected = self.green_tracker_table.selectedItems()
+        if not selected:
+            InfoDialog(
+                "No Record Selected",
+                "Please select a record to delete.",
+                success=False, parent=self
+            ).exec_()
+            return
+        
+        row = self.green_tracker_table.currentRow()
+        stud_num_item = self.green_tracker_table.item(row, 0)
+        if not stud_num_item:
+            return
+        
+        stud_num = stud_num_item.text()
+        if stud_num == "No records":
+            return
+        
+        dlg = ConfirmDialog(
+            "Confirm Delete",
+            f"Delete green slip record for student {stud_num}?\nThis action cannot be undone.",
+            parent=self
+        )
+        if dlg.exec_():
+            try:
+                from backend.db_green_slip import delete_green_slip
+                print(f"[DEBUG] Deleting green slip for student {stud_num}")
+                delete_green_slip(stud_num)
+                print(f"[DEBUG] Green slip deleted successfully")
+                InfoDialog(
+                    "Record Deleted",
+                    "Green slip record has been deleted.",
+                    success=True, parent=self
+                ).exec_()
+                data_events.slips_changed.emit()
+            except Exception as e:
+                print(f"[ERROR] Failed to delete green slip: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                InfoDialog(
+                    "Error",
+                    f"Failed to delete record: {str(e)}",
+                    success=False, parent=self
+                ).exec_()
 
     # =========================================================================
     # Summary tab
@@ -1222,14 +1279,17 @@ class GreenSlipPage(BasePage):
     # Event handlers
     # =========================================================================
     def _on_slips_changed(self):
+        print("[DEBUG] Green slip page: _on_slips_changed() called")
         try:
             self._refresh_green_tracker()
+            print("[DEBUG] Green slip tracker refreshed successfully")
         except Exception as e:
             print(f"[ERROR] Failed to refresh green tracker: {str(e)}")
             import traceback
             traceback.print_exc()
         try:
             self._refresh_green_summary()
+            print("[DEBUG] Green slip summary refreshed successfully")
         except Exception as e:
             print(f"[ERROR] Failed to refresh green summary: {str(e)}")
             import traceback

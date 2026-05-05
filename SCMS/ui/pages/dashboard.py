@@ -61,6 +61,9 @@ class DashboardPage(QWidget):
         self.refresh_timer.timeout.connect(self._check_month_change)
         self.refresh_timer.start(60000)
         
+        # Connect to slip data changes for instant refresh
+        data_events.slips_changed.connect(self._on_slips_changed)
+        
         self._build()
     
     def _check_month_change(self):
@@ -71,6 +74,23 @@ class DashboardPage(QWidget):
             self.current_month = today.month()
             self.current_year = today.year()
             self._refresh_dashboard()
+    
+    def _on_slips_changed(self):
+        """Refresh dashboard when slips data changes - called whenever a slip is added."""
+        try:
+            self._refresh_dashboard()
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh dashboard on slip change: {str(e)}")
+    
+    def closeEvent(self, event):
+        """Clean up signal connections when page is closed"""
+        try:
+            data_events.slips_changed.disconnect(self._on_slips_changed)
+        except Exception:
+            pass
+        if self.refresh_timer:
+            self.refresh_timer.stop()
+        super().closeEvent(event)
     
     def _refresh_dashboard(self):
         """Refresh dashboard data (called on month change)"""

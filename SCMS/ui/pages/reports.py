@@ -246,7 +246,7 @@ class ReportsPage(BasePage):
 
         # Get all slips and filter by selected period
         green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
-        pink_slips  = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
+        pink_slips  = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=5)
         blue_slips  = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
 
         green_count   = len(green_slips)
@@ -423,7 +423,7 @@ class ReportsPage(BasePage):
     def _build_pink_report(self) -> QWidget:
         from backend.db_pink_slip import get_pink_slips
 
-        pink_records = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
+        pink_records = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=5)
         rows = []
         for record in pink_records[:5]:
             try:
@@ -431,8 +431,8 @@ class ReportsPage(BasePage):
                 stud_num  = record[4] if len(record) > 4 else "N/A"
                 year      = record[2] if len(record) > 2 else "N/A"
                 course    = record[1] if len(record) > 1 else "N/A"
-                violation = record[5] if len(record) > 5 else "N/A"
-                date      = str(record[6])[:10] if len(record) > 6 else "N/A"
+                date      = str(record[5])[:10] if len(record) > 5 else "N/A"
+                violation = record[6] if len(record) > 6 else "N/A"
                 rows.append((stud_num, stud_name, year, course, violation, date))
             except:
                 pass
@@ -565,7 +565,7 @@ class ReportsPage(BasePage):
 
         # Get and filter all slips by period
         green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
-        pink_slips = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
+        pink_slips = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=5)
         blue_slips = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
         all_slips = green_slips + pink_slips + blue_slips
 
@@ -958,7 +958,7 @@ class ReportsPage(BasePage):
             
             # Filter records by the selected period
             green_filtered = self._filter_records_by_period(all_green, date_field_index=6)
-            pink_filtered = self._filter_records_by_period(all_pink, date_field_index=6)
+            pink_filtered = self._filter_records_by_period(all_pink, date_field_index=5)
             blue_filtered = self._filter_records_by_period(all_blue, date_field_index=6)
             
             # Collect filtered data
@@ -1046,7 +1046,7 @@ class ReportsPage(BasePage):
             
             # Filter records by the selected period
             green_slips_filtered = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
-            pink_slips_filtered = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=6)
+            pink_slips_filtered = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=5)
             blue_slips_filtered = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
             
             total_records = len(green_slips_filtered) + len(pink_slips_filtered) + len(blue_slips_filtered)
@@ -1060,36 +1060,41 @@ class ReportsPage(BasePage):
 
     def _on_slips_changed(self):
         """Refresh reports when slips data changes - called whenever a slip is added."""
+        print("[DEBUG] Reports page: _on_slips_changed() called")
         try:
             if self._tabs is None:
+                print("[WARNING] Reports tabs not initialized yet")
                 return
             
             # Update the print preview button state based on current period data
             self._update_print_button_state()
             
-            # Refresh all visible/built tabs
+            # Store current tab index
             current_idx = self._tabs.currentIndex()
+            print(f"[DEBUG] Currently on tab {current_idx}")
             
-            # Always rebuild overview and college tabs as they're important
-            try:
-                self._tabs.removeTab(0)  # Overview
-                self._tabs.insertTab(0, self._build_overview_tab(), "   Overview ")
-            except Exception as e:
-                print(f"[ERROR] Failed to refresh overview tab: {str(e)}")
+            # Rebuild all slip report tabs with fresh data
+            tab_configs = [
+                (0, self._build_overview_tab(), "   Overview "),
+                (1, self._build_green_report(), "   Green Slips "),
+                (2, self._build_pink_report(), "   Pink Slips "),
+                (3, self._build_blue_report(), "   Blue Slips "),
+                (4, self._build_college_report(), "   By College "),
+            ]
             
-            try:
-                # Find and refresh college report tab
-                for i in range(self._tabs.count()):
-                    if "College" in self._tabs.tabText(i):
-                        self._tabs.removeTab(i)
-                        self._tabs.insertTab(i, self._build_college_report(), "   By College ")
-                        break
-            except Exception as e:
-                print(f"[ERROR] Failed to refresh college tab: {str(e)}")
+            for idx, widget, label in tab_configs:
+                try:
+                    if idx < self._tabs.count():
+                        self._tabs.removeTab(idx)
+                    self._tabs.insertTab(idx, widget, label)
+                    print(f"[DEBUG] Refreshed tab {idx}: {label}")
+                except Exception as e:
+                    print(f"[ERROR] Failed to refresh tab at index {idx}: {str(e)}")
             
             # Reset to previously viewed tab if it still exists
             if current_idx < self._tabs.count():
                 self._tabs.setCurrentIndex(current_idx)
+                print(f"[DEBUG] Restored tab index to {current_idx}")
         except Exception as e:
             print(f"[ERROR] Failed to refresh reports: {str(e)}")
             import traceback

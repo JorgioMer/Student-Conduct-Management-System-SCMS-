@@ -1075,11 +1075,13 @@ class TrackersPage(BasePage):
         lbl.setStyleSheet("border: none; background: transparent;")
         period_row.addWidget(lbl)
 
-        period = QComboBox()
-        period.addItems(["December 2026","November 2026", "October 2026", "September 2026", "August 2026", "July 2026", "June 2026","May 2026","April 2026", "March 2026", "February 2026", "January 2026"])
-        period.setFixedHeight(36)
-        period.setFixedWidth(200)
-        period_row.addWidget(period)
+        self._monthly_period_cb = QComboBox()
+        self._monthly_period_cb.addItems(["December 2026","November 2026", "October 2026", "September 2026", "August 2026", "July 2026", "June 2026","May 2026","April 2026", "March 2026", "February 2026", "January 2026"])
+        self._monthly_period_cb.setCurrentText("May 2026")  # Set current month as default
+        self._monthly_period_cb.setFixedHeight(36)
+        self._monthly_period_cb.setFixedWidth(200)
+        self._monthly_period_cb.currentTextChanged.connect(self._on_monthly_period_changed)
+        period_row.addWidget(self._monthly_period_cb)
         period_row.addStretch()
 
         export_btn = QPushButton("   Export Monthly Report ")
@@ -1133,9 +1135,13 @@ class TrackersPage(BasePage):
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip import get_pink_slips
 
-        green_slips = get_green_slips(None) or []
-        pink_slips  = get_pink_slips(None)  or []
-        blue_slips  = get_blue_slips(None)  or []
+        # Get selected period
+        selected_period = self._monthly_period_cb.currentText() if hasattr(self, '_monthly_period_cb') else "May 2026"
+        
+        # Get all records and filter by selected period
+        green_slips = self._filter_monthly_records(get_green_slips(None) or [], date_field_index=6, period=selected_period)
+        pink_slips  = self._filter_monthly_records(get_pink_slips(None) or [], date_field_index=5, period=selected_period)
+        blue_slips  = self._filter_monthly_records(get_blue_slips(None) or [], date_field_index=6, period=selected_period)
 
         if self._monthly_tiles:
             self._monthly_tiles["Green Slips"].set_value(len(green_slips))
@@ -1145,6 +1151,46 @@ class TrackersPage(BasePage):
 
         if self._monthly_chart:
             self._monthly_chart.update_data(len(green_slips), len(pink_slips), len(blue_slips))
+
+    def _filter_monthly_records(self, records, date_field_index=6, period="May 2026"):
+        """Filter records to show only those from the selected month."""
+        if not records or not period:
+            return []
+        
+        filtered = []
+        for record in records:
+            try:
+                if len(record) <= date_field_index:
+                    continue
+                
+                date_str = str(record[date_field_index]).strip()
+                if not date_str or date_str == "N/A":
+                    continue
+                
+                # Parse date (handle DD/MM/YYYY and YYYY-MM-DD formats)
+                try:
+                    if "/" in date_str:
+                        date_obj = datetime.strptime(date_str.split()[0], "%d/%m/%Y")
+                    else:
+                        date_obj = datetime.strptime(date_str.split()[0], "%Y-%m-%d")
+                except ValueError:
+                    continue
+                
+                # Check if date matches the selected period (month and year)
+                try:
+                    period_date = datetime.strptime(period, "%B %Y")
+                    if date_obj.month == period_date.month and date_obj.year == period_date.year:
+                        filtered.append(record)
+                except ValueError:
+                    continue
+            except Exception:
+                continue
+        
+        return filtered
+
+    def _on_monthly_period_changed(self):
+        """Handle changes to the monthly period dropdown."""
+        self._refresh_monthly_summary()
 
     def _on_slips_changed(self):
         try:

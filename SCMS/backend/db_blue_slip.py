@@ -73,3 +73,52 @@ def get_blue_slips(student_number):
     finally:
         if conn:
             conn.close()
+
+
+def update_blue_slip_status(stud_num, new_status):
+    """Update the status of a blue slip record for a specific student."""
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE [Blue Slip Record]
+            SET status_blue = ?
+            WHERE studNumber = ?
+        """, (new_status, stud_num))
+        conn.commit()
+        rows_updated = cursor.rowcount
+        if rows_updated == 0:
+            raise Exception(f"No blue slip found for student {stud_num}")
+        return rows_updated
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise Exception(f"Failed to update blue slip status for student {stud_num}: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()
+
+
+def delete_blue_slip(stud_num):
+    """Delete a blue slip record for a specific student."""
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM [Blue Slip Record]
+            WHERE studNumber = ?
+        """, (stud_num,))
+        conn.commit()
+        rows_deleted = cursor.rowcount
+        if rows_deleted == 0:
+            raise Exception(f"No blue slip found for student {stud_num}")
+        return rows_deleted
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise Exception(f"Failed to delete blue slip for student {stud_num}: {str(e)}") from e
+    finally:
+        if conn:
+            conn.close()
