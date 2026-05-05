@@ -56,9 +56,10 @@ jobs:
       
       - name: List build artifacts
         run: |
-          Write-Host "Build artifacts:"
-          Get-ChildItem *.exe
-          Get-ChildItem dist -Recurse -Include "*.exe" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+          Write-Host "=== Root .exe files ==="
+          Get-ChildItem *.exe -ErrorAction SilentlyContinue
+          Write-Host "=== dist folder ==="
+          Get-ChildItem dist -Recurse -Include "*.exe" -ErrorAction SilentlyContinue
         shell: powershell
       
       - name: Create Release
@@ -81,7 +82,7 @@ jobs:
           name: build-artifacts
           path: |
             SCMS-Setup-v*.exe
-            dist/SCMS.exe
+            dist/SCMS/SCMS.exe
           retention-days: 30
 
   test:

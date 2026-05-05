@@ -193,14 +193,21 @@ function Build-Executable {
         return $false
     }
     
-    $exePath = Join-Path $DIST_DIR "SCMS" "SCMS.exe"
-    if (-not (Test-Path $exePath)) {
+    # After pyinstaller runs, check both possible output locations
+    $exeInFolder = Join-Path $DIST_DIR "SCMS\SCMS.exe"   # from COLLECT
+    $exeSingleFile = Join-Path $DIST_DIR "SCMS.exe"        # intermediate
+
+    if (Test-Path $exeInFolder) {
+        $exePath = $exeInFolder
+    } elseif (Test-Path $exeSingleFile) {
+        $exePath = $exeSingleFile
+    } else {
         Write-CustomError "SCMS.exe not found after build"
-        return $false
-    }
-    
+    return $false
+}
+
     $exeSize = [Math]::Round((Get-Item $exePath).Length / 1MB, 2)
-    Write-Success "Executable created: SCMS.exe ($exeSize MB)"
+    Write-Success "Executable created: $exePath ($exeSize MB)"
     return $true
 }
 
@@ -226,13 +233,13 @@ function Build-Installer {
     Set-Content $ISS_SCRIPT -Value $issContent -Force
     
     Set-Location $projectRoot
-    & $ISCC_PATH $ISS_SCRIPT 2>&1 | ForEach-Object {
-        if ($_ -match "Error|error|ERROR") {
-            Write-CustomError $_
-        } elseif ($_ -match "Successful compile") {
-            Write-Success "Inno Setup compilation successful"
-        }
+    & $ISCC_PATH $ISS_SCRIPT
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        Write-CustomError "Inno Setup compilation failed (exit code $exitCode)"
+        return $false
     }
+    Write-Success "Inno Setup compilation successful"
     
     if ($LASTEXITCODE -ne 0) {
         Write-CustomError "Inno Setup compilation failed"
