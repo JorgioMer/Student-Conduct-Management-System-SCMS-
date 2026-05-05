@@ -32,10 +32,25 @@ from matplotlib.figure import Figure
 from collections import Counter
 
 # ── Image paths ───────────────────────────────────────────────────────────────
-# Resolve relative to this file's directory so imports from anywhere work.
-_HERE = Path(__file__).parent
-HEADER_BANNER_PATH = str(_HERE / "header_banner.jpg")   # full-width ISO banner
-FOOTER_LOGO_PATH   = str(_HERE / "footer_logo.png")     # CCIS square logo
+# Resolve image paths: look in backend directory first (development), then in 
+# assets directory (PyInstaller bundle). Works both from source and built executable.
+def _get_asset_path(filename):
+    """Resolve asset path, checking multiple locations for flexibility."""
+    # Check in backend directory first (development setup)
+    backend_path = Path(__file__).parent / filename
+    if backend_path.exists():
+        return str(backend_path)
+    
+    # Check in assets directory (PyInstaller bundle and project structure)
+    assets_path = Path(__file__).parent.parent / "assets" / filename
+    if assets_path.exists():
+        return str(assets_path)
+    
+    # Fallback to assets for runtime warning purposes
+    return str(assets_path)
+
+HEADER_BANNER_PATH = _get_asset_path("header_banner.jpg")   # full-width ISO banner
+FOOTER_LOGO_PATH   = _get_asset_path("footer_logo.png")     # CCIS square logo
 
 # ── Document Styling Constants ────────────────────────────────────────────────
 NAVY             = HexColor("#1a3a52")
