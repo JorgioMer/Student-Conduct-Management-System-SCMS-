@@ -983,7 +983,7 @@ class BlueSlipPage(BasePage):
             return
         
         row = self.blue_tracker_table.currentRow()
-        stud_num_item = self.blue_tracker_table.item(row, 1)  # Student No. is column 1
+        stud_num_item = self.blue_tracker_table.item(row, 0)  # Student No. is column 0
         if not stud_num_item:
             return
         
@@ -1075,7 +1075,7 @@ class BlueSlipPage(BasePage):
             return
         
         row = self.blue_tracker_table.currentRow()
-        stud_num_item = self.blue_tracker_table.item(row, 1)  # Student No. is column 1
+        stud_num_item = self.blue_tracker_table.item(row, 0)  # Student No. is column 0
         if not stud_num_item:
             return
         

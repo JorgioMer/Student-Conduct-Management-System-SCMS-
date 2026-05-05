@@ -67,7 +67,15 @@ def _safe(text):
     """Encode to latin-1, replacing unmappable chars (e.g. em-dash). Never returns None."""
     if text is None:
         return '-'
-    return str(text).encode('latin-1', errors='replace').decode('latin-1')
+    text = str(text)
+    # Replace Unicode characters that can't be encoded in latin-1 with ASCII equivalents
+    text = text.replace('—', '-')  # Em-dash → hyphen
+    text = text.replace('–', '-')  # En-dash → hyphen
+    text = text.replace('"', '"')  # Left double quote → regular quote
+    text = text.replace('"', '"')  # Right double quote → regular quote
+    text = text.replace(''', "'")  # Left single quote → apostrophe
+    text = text.replace(''', "'")  # Right single quote → apostrophe
+    return text.encode('latin-1', errors='replace').decode('latin-1')
 
 
 def _wrap_text_for_table(text, is_header=False):
@@ -425,7 +433,7 @@ def generate_overview_report(output_path, records_data, period=None):
     ]
     # Wrap header and data rows for text wrapping support
     stats_data = [_wrap_table_row(stats_data[0], is_header=True)] + [_wrap_table_row(row) for row in stats_data[1:]]
-    stats_table = Table(stats_data, colWidths=[3.5 * inch, 1.5 * inch])
+    stats_table = Table(stats_data, colWidths=[3.5 * inch, 1.5 * inch], splitByRow=True)
     stats_table.setStyle(create_table_style('mixed'))
     story.append(Paragraph("<b>Summary Statistics</b>", styles['section']))
     story.append(stats_table)
@@ -447,7 +455,7 @@ def generate_overview_report(output_path, records_data, period=None):
         ]
         # Wrap header and data rows for text wrapping support
         green_data = [_wrap_table_row(green_data[0], is_header=True)] + [_wrap_table_row(row) for row in green_data[1:]]
-        t = Table(green_data, colWidths=[1.2*inch, 1.5*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch])
+        t = Table(green_data, colWidths=[1.2*inch, 1.5*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch], splitByRow=True)
         t.setStyle(create_table_style('green'))
         story.append(t)
         story.append(Spacer(1, 0.2 * inch))
@@ -463,14 +471,14 @@ def generate_overview_report(output_path, records_data, period=None):
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
                 _safe(r[1] if len(r) > 1 else None),
-                _safe(r[5] if len(r) > 5 else None),
-                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _safe(r[6] if len(r) > 6 else None),
+                _safe(str(r[5])[:10] if len(r) > 5 else None),
             ]
             for r in records_data['pink'][:10]
         ]
         # Wrap header and data rows for text wrapping support
         pink_data = [_wrap_table_row(pink_data[0], is_header=True)] + [_wrap_table_row(row) for row in pink_data[1:]]
-        t = Table(pink_data, colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 1.2*inch, 0.9*inch])
+        t = Table(pink_data, colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 1.2*inch, 0.9*inch], splitByRow=True)
         t.setStyle(create_table_style('pink'))
         story.append(t)
         story.append(Spacer(1, 0.4 * inch))
@@ -494,7 +502,7 @@ def generate_overview_report(output_path, records_data, period=None):
         ]
         # Wrap header and data rows for text wrapping support
         blue_data = [_wrap_table_row(blue_data[0], is_header=True)] + [_wrap_table_row(row) for row in blue_data[1:]]
-        t = Table(blue_data, colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch, 0.8*inch])
+        t = Table(blue_data, colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch, 0.8*inch], splitByRow=True)
         t.setStyle(create_table_style('blue'))
         story.append(t)
         story.append(Spacer(1, 0.4 * inch))
@@ -569,7 +577,7 @@ def generate_overview_report(output_path, records_data, period=None):
         
         # Wrap header and data rows
         college_summary = [_wrap_table_row(college_summary[0], is_header=True)] + [_wrap_table_row(row) for row in college_summary[1:]]
-        college_table = Table(college_summary, colWidths=[2.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
+        college_table = Table(college_summary, colWidths=[2.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch], splitByRow=True)
         college_table.setStyle(create_table_style('mixed'))
         story.append(college_table)
 
@@ -629,8 +637,8 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle="", peri
                 _safe(r[0] if len(r) > 0 else None),
                 _safe(r[2] if len(r) > 2 else None),
                 _safe(r[1] if len(r) > 1 else None),
-                _safe(r[5] if len(r) > 5 else None),
-                _safe(str(r[6])[:10] if len(r) > 6 else None),
+                _safe(r[6] if len(r) > 6 else None),
+                _safe(str(r[5])[:10] if len(r) > 5 else None),
             ]
             for r in records_data[:20]
         ]
@@ -653,7 +661,7 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle="", peri
 
     # Wrap header and data rows for text wrapping support
     table_data = [_wrap_table_row(table_data[0], is_header=True)] + [_wrap_table_row(row) for row in table_data[1:]]
-    t = Table(table_data, colWidths=col_widths)
+    t = Table(table_data, colWidths=col_widths, splitByRow=True)
     t.setStyle(create_table_style(slip_type))
     story.append(t)
     story.append(Spacer(1, 0.25 * inch))
@@ -691,7 +699,8 @@ def generate_student_conduct_summary(output_path, student_data):
     
     t = Table(table_data,
               colWidths=[0.6*inch, 1.0*inch, 1.8*inch, 0.7*inch,
-                         0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch])
+                         0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch],
+              splitByRow=True)
     t.setStyle(create_table_style('mixed'))
     story.append(t)
     story.append(Spacer(1, 0.25 * inch))
@@ -810,7 +819,7 @@ def generate_individual_student_report(output_path, student_number,
     ]
     # Wrap header and data rows for text wrapping support
     summary_rows = [_wrap_table_row(summary_rows[0], is_header=True)] + [_wrap_table_row(row) for row in summary_rows[1:]]
-    summary_table = Table(summary_rows, colWidths=[3.5 * inch, 1.5 * inch])
+    summary_table = Table(summary_rows, colWidths=[3.5 * inch, 1.5 * inch], splitByRow=True)
     summary_table.setStyle(create_table_style('mixed'))
     story.append(summary_table)
     story.append(Spacer(1, 0.30 * inch))
@@ -893,7 +902,7 @@ def generate_individual_student_report(output_path, student_number,
             ])
         # Wrap header and data rows for text wrapping support
         g_rows = [_wrap_table_row(g_rows[0], is_header=True)] + [_wrap_table_row(row) for row in g_rows[1:]]
-        g_table = Table(g_rows, colWidths=g_col_w)
+        g_table = Table(g_rows, colWidths=g_col_w, splitByRow=True)
         g_table.setStyle(create_table_style('green'))
         g_table.setStyle(TableStyle([
             ('ALIGN', (3, 1), (3, -1), 'LEFT'),
@@ -926,7 +935,7 @@ def generate_individual_student_report(output_path, student_number,
             ])
         # Wrap header and data rows for text wrapping support
         p_rows = [_wrap_table_row(p_rows[0], is_header=True)] + [_wrap_table_row(row) for row in p_rows[1:]]
-        p_table = Table(p_rows, colWidths=p_col_w)
+        p_table = Table(p_rows, colWidths=p_col_w, splitByRow=True)
         p_table.setStyle(create_table_style('pink'))
         p_table.setStyle(TableStyle([
             ('ALIGN', (2, 1), (3, -1), 'LEFT'),
@@ -961,7 +970,7 @@ def generate_individual_student_report(output_path, student_number,
             ])
         # Wrap header and data rows for text wrapping support
         b_rows = [_wrap_table_row(b_rows[0], is_header=True)] + [_wrap_table_row(row) for row in b_rows[1:]]
-        b_table = Table(b_rows, colWidths=b_col_w)
+        b_table = Table(b_rows, colWidths=b_col_w, splitByRow=True)
         b_table.setStyle(create_table_style('blue'))
         b_table.setStyle(TableStyle([
             ('ALIGN', (2, 1), (2, -1), 'LEFT'),

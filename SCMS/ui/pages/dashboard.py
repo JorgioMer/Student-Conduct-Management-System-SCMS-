@@ -92,6 +92,14 @@ class DashboardPage(QWidget):
             self.refresh_timer.stop()
         super().closeEvent(event)
     
+    def showEvent(self, event):
+        """Refresh dashboard whenever the page is shown (tab clicked)"""
+        super().showEvent(event)
+        try:
+            self._refresh_dashboard()
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh dashboard on show: {str(e)}")
+    
     def _refresh_dashboard(self):
         """Refresh dashboard data (called on month change)"""
         # Clear and rebuild the scroll area content
