@@ -179,18 +179,14 @@ function Build-Executable {
     
     Set-Location $projectRoot
     python -m pip install pyinstaller --quiet
-    
     if ($LASTEXITCODE -ne 0) {
         Write-CustomError "Failed to install PyInstaller"
         return $false
     }
     
-    # Capture stderr separately so you actually see the real error
-    $pyiOutput = pyinstaller $SPEC_FILE 2>&1
+    # Let PyInstaller output flow directly — don't pipe/filter it
+    pyinstaller $SPEC_FILE
     $exitCode = $LASTEXITCODE
-    
-    # Print all output for CI logs
-    $pyiOutput | ForEach-Object { Write-Host "  $_" }
     
     if ($exitCode -ne 0) {
         Write-CustomError "PyInstaller build failed (exit code $exitCode)"
