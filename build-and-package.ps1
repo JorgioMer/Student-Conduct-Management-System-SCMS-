@@ -185,16 +185,15 @@ function Build-Executable {
         return $false
     }
     
-    pyinstaller $SPEC_FILE 2>&1 | ForEach-Object {
-        if ($_ -match "error|Error|ERROR") {
-            Write-CustomError $_
-        } elseif ($_ -match "completed successfully") {
-            Write-Success "PyInstaller build completed"
-        }
-    }
+    # Capture stderr separately so you actually see the real error
+    $pyiOutput = pyinstaller $SPEC_FILE 2>&1
+    $exitCode = $LASTEXITCODE
     
-    if ($LASTEXITCODE -ne 0) {
-        Write-CustomError "PyInstaller build failed"
+    # Print all output for CI logs
+    $pyiOutput | ForEach-Object { Write-Host "  $_" }
+    
+    if ($exitCode -ne 0) {
+        Write-CustomError "PyInstaller build failed (exit code $exitCode)"
         return $false
     }
     
@@ -206,7 +205,6 @@ function Build-Executable {
     
     $exeSize = [Math]::Round((Get-Item $exePath).Length / 1MB, 2)
     Write-Success "Executable created: SCMS.exe ($exeSize MB)"
-    
     return $true
 }
 
