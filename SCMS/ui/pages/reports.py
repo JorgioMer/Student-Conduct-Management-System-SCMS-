@@ -220,6 +220,14 @@ class ReportsPage(BasePage):
         except Exception:
             pass
         super().closeEvent(event)
+    
+    def showEvent(self, event):
+        """Refresh reports whenever the page is shown (tab clicked)"""
+        super().showEvent(event)
+        try:
+            self._on_slips_changed()
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh reports on show: {str(e)}")
 
     def _build_overview_tab(self) -> QWidget:
         from PyQt5.QtWidgets import QScrollArea
@@ -1080,6 +1088,7 @@ class ReportsPage(BasePage):
                 (2, self._build_pink_report(), "   Pink Slips "),
                 (3, self._build_blue_report(), "   Blue Slips "),
                 (4, self._build_college_report(), "   By College "),
+                (5, self._build_toplist_tab(), "   Student Records "),
             ]
             
             for idx, widget, label in tab_configs:
@@ -1119,6 +1128,7 @@ class ReportsPage(BasePage):
                 (2, self._build_pink_report(), "   Pink Slips "),
                 (3, self._build_blue_report(), "   Blue Slips "),
                 (4, self._build_college_report(), "   By College "),
+                (5, self._build_toplist_tab(), "   Student Records "),
             ]
             
             for idx, widget, label in tab_configs:
