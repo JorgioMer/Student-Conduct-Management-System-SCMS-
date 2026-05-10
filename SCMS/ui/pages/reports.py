@@ -409,7 +409,8 @@ class ReportsPage(BasePage):
                 stud_name = record[0] if len(record) > 0 else "Unknown"
                 stud_num  = record[4] if len(record) > 4 else "N/A"
                 year      = record[2] if len(record) > 2 else "N/A"
-                slip_type = "Dispensation" if (record[5] == False if len(record) > 5 else False) else "Excuse"
+                is_dispensation = record[5] if len(record) > 5 else False
+                slip_type = "Dispensation" if is_dispensation else "Excuse"
                 date      = str(record[6])[:10] if len(record) > 6 else "N/A"
                 days      = str(record[7]) if len(record) > 7 else "N/A"
                 status    = record[8] if len(record) > 8 else "Active"
@@ -1091,11 +1092,14 @@ class ReportsPage(BasePage):
                 (5, self._build_toplist_tab(), "   Student Records "),
             ]
             
+            # Remove tabs in reverse order to avoid index shifting issues
+            for idx in range(self._tabs.count() - 1, -1, -1):
+                self._tabs.removeTab(idx)
+            
+            # Add all tabs back with fresh data
             for idx, widget, label in tab_configs:
                 try:
-                    if idx < self._tabs.count():
-                        self._tabs.removeTab(idx)
-                    self._tabs.insertTab(idx, widget, label)
+                    self._tabs.addTab(widget, label)
                     print(f"[DEBUG] Refreshed tab {idx}: {label}")
                 except Exception as e:
                     print(f"[ERROR] Failed to refresh tab at index {idx}: {str(e)}")
@@ -1131,11 +1135,14 @@ class ReportsPage(BasePage):
                 (5, self._build_toplist_tab(), "   Student Records "),
             ]
             
+            # Remove tabs in reverse order to avoid index shifting issues
+            for idx in range(self._tabs.count() - 1, -1, -1):
+                self._tabs.removeTab(idx)
+            
+            # Add all tabs back with fresh data
             for idx, widget, label in tab_configs:
                 try:
-                    if idx < self._tabs.count():
-                        self._tabs.removeTab(idx)
-                    self._tabs.insertTab(idx, widget, label)
+                    self._tabs.addTab(widget, label)
                 except Exception as e:
                     print(f"[ERROR] Failed to refresh tab {label}: {str(e)}")
             
