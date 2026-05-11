@@ -4,7 +4,8 @@
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy,
-    QApplication, QDesktopWidget, QProgressBar, QDialog
+    QApplication, QDesktopWidget, QProgressBar, QDialog,
+    QMessageBox
 )
 from PyQt5.QtCore import (
     Qt, QPropertyAnimation, QEasingCurve, QRect,
@@ -226,15 +227,32 @@ class LoadingScreen(QDialog):
         """
         self._on_progress(95, "Building interface...")
 
-        # Create MainWindow here — main thread only
-        from ui.main_window import MainWindow
-        self.main_win = MainWindow(full_name=full_name, role=role,username=self._username)
+        try:
+            # Create MainWindow here — main thread only
+            from ui.main_window import MainWindow
+            self.main_win = MainWindow(full_name=full_name, role=role,username=self._username)
 
-        self._on_progress(100, "Ready!")
+            self._on_progress(100, "Ready!")
 
-        # Show main window, then fade out loading screen after a short pause
-        self.main_win.show()
-        QTimer.singleShot(800, self._fadeout_loading)
+            # Show main window, then fade out loading screen after a short pause
+            self.main_win.show()
+            QTimer.singleShot(800, self._fadeout_loading)
+        except RuntimeError as e:
+            # System configuration error (e.g., missing database driver)
+            self.reject()
+            QMessageBox.critical(
+                self,
+                "System Configuration Error",
+                str(e)
+            )
+        except Exception as e:
+            # Other initialization errors
+            self.reject()
+            QMessageBox.critical(
+                self,
+                "Application Initialization Error",
+                f"Failed to initialize the application:\n\n{str(e)}"
+            )
 
     def _fadeout_loading(self):
         """Smoothly fade out the loading screen."""
@@ -557,8 +575,16 @@ class LoginWindow(QWidget):
 
         try:
             result = validate_login(username, password)
+        except RuntimeError as e:
+            # Missing Microsoft Access Driver or database initialization error
+            self._show_critical_error(
+                "System Configuration Error",
+                str(e)
+            )
+            return
         except Exception as e:
-            self._show_error(f"Database error: {str(e)}")
+            error_msg = str(e)
+            self._show_error(f"Database error: {error_msg}")
             return
 
         if result:
@@ -571,6 +597,15 @@ class LoginWindow(QWidget):
         self._show_error("Incorrect username or password. Please try again.")
         self.password_edit.clear()
         self.password_edit.setFocus()
+
+    def _show_critical_error(self, title: str, message: str):
+        """Show a critical error dialog for system configuration issues."""
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        dlg.setText(message)
+        dlg.setIcon(QMessageBox.Critical)
+        dlg.setStandardButtons(QMessageBox.Ok)
+        dlg.exec_()
 
     def _show_login_loading(self):
         self.login_btn.setEnabled(False)

@@ -69,6 +69,15 @@ def main():
         success = create_activity_log_table()
         if not success:
             print("⚠ Warning: Activity log table initialization failed. Logging may not work.")
+    except RuntimeError as e:
+        # System configuration error (e.g., missing database driver)
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.critical(
+            None,
+            "System Configuration Error",
+            f"Cannot start SCMS:\n\n{str(e)}"
+        )
+        sys.exit(1)
     except Exception as e:
         print(f"⚠ Error during activity log initialization: {str(e)}")
 
