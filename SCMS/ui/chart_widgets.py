@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 from PyQt5.QtCore import Qt
 
@@ -88,6 +89,7 @@ class GreenSlipChart(MatplotlibChart):
         ax2.set_ylabel('Count', fontsize=10, fontweight='bold')
         ax2.set_title('Green Slips by Status', fontsize=11, fontweight='bold', pad=15)
         ax2.set_ylim(0, max(counts) * 1.15 if counts else 1)
+        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.grid(axis='y', alpha=0.3, linestyle='--')
         
         self.figure.tight_layout()
@@ -133,6 +135,7 @@ class BlueSlipChart(MatplotlibChart):
             ax1.set_xticklabels(types, rotation=45, ha='right', fontsize=9)
             ax1.set_ylabel('Count', fontsize=10, fontweight='bold')
             ax1.set_title('Violations by Type', fontsize=11, fontweight='bold', pad=15)
+            ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax1.grid(axis='y', alpha=0.3, linestyle='--')
             ax1.set_ylim(0, max(counts) * 1.15 if counts else 1)
         else:
@@ -211,6 +214,7 @@ class PinkSlipChart(MatplotlibChart):
             ax1.set_xticklabels(types, rotation=45, ha='right', fontsize=9)
             ax1.set_ylabel('Count', fontsize=10, fontweight='bold')
             ax1.set_title('Pink Slips by Violation Type', fontsize=11, fontweight='bold', pad=15)
+            ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax1.grid(axis='y', alpha=0.3, linestyle='--')
             ax1.set_ylim(0, max(counts) * 1.15 if counts else 1)
         else:
@@ -307,6 +311,7 @@ class CombinedAllSlipsChart(MatplotlibChart):
         ax2.set_ylabel('Count', fontsize=10, fontweight='bold')
         ax2.set_title('Total Monthly Records by Type', fontsize=11, fontweight='bold', pad=15)
         ax2.set_ylim(0, max(counts) * 1.15 if counts else 1)
+        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.grid(axis='y', alpha=0.3, linestyle='--')
         
         self.figure.tight_layout()

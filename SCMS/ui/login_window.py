@@ -258,6 +258,12 @@ class LoginWindow(QWidget):
         self.setMinimumSize(960, 600)
         self.setStyleSheet(f"background: {NAVY_DARK};")
         self._db_error = None
+        # ── Set window icon ──────────────────────────────────────────────────
+        _base_dir = os.path.dirname(os.path.abspath(__file__))
+        _icon_path = os.path.join(_base_dir, '..', 'assets', 'final-cjc-logo.png')
+        if os.path.exists(_icon_path):
+            self.setWindowIcon(QIcon(_icon_path))
+        # ──────────────────────────────────────────────────────────────────────
         self._ensure_default_accounts()
         self._build_ui()
         self._center_on_screen()

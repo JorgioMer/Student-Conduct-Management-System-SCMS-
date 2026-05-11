@@ -238,7 +238,26 @@ class HeaderBar(QWidget):
         lay.setContentsMargins(20, 0, 20, 0)
         lay.setSpacing(12)
 
+        # ── Logo ──────────────────────────────────────────────────────────────
+        import os
+        logo_lbl = QLabel()
+        logo_lbl.setStyleSheet("background: transparent;")
+        logo_lbl.setFixedSize(40, 40)
+        _logo_path = os.path.join(
+            os.path.dirname(__file__), '..', 'assets', 'cjc logo.png'
+        )
+        _pixmap = QPixmap(_logo_path)
+        if not _pixmap.isNull():
+            logo_lbl.setPixmap(
+                _pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
+        else:
+            # Fallback: show a placeholder text if image not found
+            logo_lbl.setText("🏫")
+            logo_lbl.setFont(QFont("Segoe UI", 20))
+            logo_lbl.setStyleSheet(f"color: {GOLD}; background: transparent;")
 
+        lay.addWidget(logo_lbl)
 
         sys_lbl = QLabel("Office of the Prefect — SCMS")
         sys_lbl.setFont(QFont("Segoe UI", 14, QFont.Bold))
@@ -505,15 +524,20 @@ class AutoCompleteLineEdit(QWidget):
 
     def _on_text_changed(self, text):
         self.textChanged.emit(text)
-        suggestions = self._get_matching_courses(text.strip())
-        if suggestions:
-            self._show_popup(suggestions)
+        text_stripped = text.strip()
+        # Only show popup if there's actual text to filter
+        if text_stripped:
+            suggestions = self._get_matching_courses(text_stripped)
+            if suggestions:
+                self._show_popup(suggestions)
+            else:
+                self._hide_popup()
         else:
             self._hide_popup()
 
     def _get_matching_courses(self, query):
         if not query:
-            return self.ALL_COURSES
+            return []
         q = query.upper()
         starts   = [c for c in self.ALL_COURSES if c.startswith(q)]
         contains = [c for c in self.ALL_COURSES if q in c and c not in starts]
@@ -527,7 +551,9 @@ class AutoCompleteLineEdit(QWidget):
 
     def text(self):              return self.line_edit.text()
     def setText(self, t):        self.line_edit.setText(t)
-    def clear(self):             self.line_edit.clear()
+    def clear(self):
+        self.line_edit.clear()
+        self._hide_popup()
     def setPlaceholderText(self, t): self.line_edit.setPlaceholderText(t)
     def setFixedHeight(self, h): self.line_edit.setFixedHeight(h)
 

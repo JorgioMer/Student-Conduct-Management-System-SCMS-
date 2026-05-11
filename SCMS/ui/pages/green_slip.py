@@ -852,7 +852,13 @@ class GreenSlipPage(BasePage):
                     is_disp      = record[5] if len(record) > 5 else False
                     slip_type    = "Dispensation" if is_disp else "Excuse"
                     date_avail   = str(record[6]) if len(record) > 6 else "N/A"
-                    days_absence = str(record[7]) if len(record) > 7 else "N/A"
+                    # ── For Dispensation: use days (record[7])
+                    # ── For Excuse: use dates of absence (record[13])
+                    if is_disp:
+                        days_absence = str(record[7]) if len(record) > 7 else "N/A"
+                    else:
+                        # Excuse slip — show the dates of absence from record[13]
+                        days_absence = str(record[13]) if len(record) > 13 else "N/A"
                     status       = record[8]      if len(record) > 8 else "Active"
                     expiry       = str(record[9]) if len(record) > 9 else "N/A"
                     sample.append((
@@ -924,8 +930,8 @@ class GreenSlipPage(BasePage):
             print("[WARNING] Tracker layout not initialized yet")
             return
         headers = ["Student No.", "Student Name", "Year", "Course",
-                   "Slip Type", "Date Availed", "Days / Absence Type",
-                   "Expiry / Date", "Status"]
+                   "Slip Type", "Date Availed", "Days / Dates of Absence",
+                   "Expiry", "Status"]
         # Remove old table if it exists
         if self.green_tracker_table is not None:
             for i in range(self.green_tracker_layout.count()):
