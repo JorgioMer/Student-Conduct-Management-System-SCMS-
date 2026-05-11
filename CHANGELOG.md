@@ -1,3 +1,10 @@
+## [1.0.16] - 2026-05-12
+
+### Changed
+- Updated build and packaging process
+
+### Fixed
+- Various improvements and fixes
 ## [1.0.15] - 2026-05-11
 
 ### Changed
@@ -113,6 +120,7 @@
 
 ### Fixed
 - Various bug fixes
+
 
 
 

@@ -124,6 +124,28 @@ function Build-Quick {
     Write-Success "PyInstaller ready"
     Write-Host ""
 
+    # Copy database
+    Write-Section "Copying database..."
+    $distDir = "$projectRoot\dist\SCMS"
+    $dbDestDir = "$distDir\backend\database"
+    $dbSource = "$projectRoot\SCMS\backend\database\SCMSDatabase.accdb"
+    $dbDest = "$dbDestDir\SCMSDatabase.accdb"
+
+    if (Test-Path $dbSource) {
+        New-Item -ItemType Directory -Force -Path $dbDestDir | Out-Null
+        Copy-Item -Force $dbSource $dbDest
+        Write-Success "Database copied to dist"
+    } else {
+        Write-Error-Custom "Database source not found: $dbSource"
+        exit 1
+    }
+    
+    if (-not (Test-Path $dbDest)) {
+        Write-Error-Custom "Database copy failed"
+        exit 1
+    }
+    Write-Host ""
+
     # Build executable
     Write-Section "Building executable with PyInstaller..."
     Set-Location $projectRoot
@@ -160,30 +182,35 @@ function Build-Quick {
 
     # Create RAR package
     Write-Section "Creating RAR package..."
-    $rarCmd = Get-Command rar -ErrorAction SilentlyContinue
-    if (-not $rarCmd) {
+    $rarCmd = $null
+    $rarCmdObj = Get-Command rar -ErrorAction SilentlyContinue
+    if ($rarCmdObj) {
+        $rarCmd = $rarCmdObj.Source
+    } else {
         foreach ($candidate in @(
             "C:\Program Files\WinRAR\rar.exe",
             "C:\Program Files (x86)\WinRAR\rar.exe"
         )) {
             if (Test-Path $candidate) { $rarCmd = $candidate; break }
         }
-    } else {
-        $rarCmd = $rarCmd.Source
     }
 
-    if ($rarCmd) {
+    if ($rarCmd -and (Test-Path $rarCmd)) {
         $rarOut = "$projectRoot\dist\SCMS.rar"
         if (Test-Path $rarOut) { Remove-Item -Force $rarOut }
 
-        Push-Location "$projectRoot\dist"
-        & $rarCmd a -r "$rarOut" "SCMS\" | Out-Null
-        Pop-Location
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "RAR package created: dist\SCMS.rar"
-        } else {
-            Write-Warning-Custom "RAR packaging failed (exit code $LASTEXITCODE)"
+        try {
+            Push-Location "$projectRoot\dist"
+            & $rarCmd a -r "$rarOut" "SCMS\" | Out-Null
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $rarOut)) {
+                Write-Success "RAR package created: dist\SCMS.rar"
+            } else {
+                Write-Warning-Custom "RAR packaging failed (exit code $LASTEXITCODE)"
+            }
+        } catch {
+            Write-Warning-Custom "Error executing RAR: $_"
+        } finally {
+            Pop-Location
         }
     } else {
         Write-Warning-Custom "WinRAR not found. Install to create RAR packages."
@@ -355,6 +382,27 @@ function Build-Full {
 
         $exeSize = [Math]::Round((Get-Item $exePath).Length / 1MB, 2)
         Write-Success "Executable created: $exePath ($exeSize MB)"
+
+        # Copy database
+        Write-Section "Copying database..."
+        $distDir = "$projectRoot\dist\SCMS"
+        $dbDestDir = "$distDir\backend\database"
+        $dbSource = "$projectRoot\SCMS\backend\database\SCMSDatabase.accdb"
+        $dbDest = "$dbDestDir\SCMSDatabase.accdb"
+
+        if (Test-Path $dbSource) {
+            New-Item -ItemType Directory -Force -Path $dbDestDir | Out-Null
+            Copy-Item -Force $dbSource $dbDest
+            Write-Success "Database copied to dist"
+        } else {
+            Write-Error-Custom "Database source not found: $dbSource"
+            exit 1
+        }
+        
+        if (-not (Test-Path $dbDest)) {
+            Write-Error-Custom "Database copy failed"
+            exit 1
+        }
     }
     Write-Host ""
 
