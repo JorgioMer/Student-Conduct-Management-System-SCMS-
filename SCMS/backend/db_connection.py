@@ -78,7 +78,7 @@ def _template_db_candidates() -> list[str]:
 
 
 def ensure_local_database() -> str:
-    """
+    r"""
     Copies the blank template database into AppData\SCMS\ on first run.
     Subsequent runs skip the copy and return the existing path.
     Returns the path to the user's writable database.
@@ -119,7 +119,7 @@ def get_connection() -> pyodbc.Connection:
         error_msg = (
             "Microsoft Access Driver is not installed on this system.\n\n"
             "SOLUTION:\n"
-            "1. Download 'Microsoft Access Database Engine 2016' (32-bit or 64-bit, matching your Office/Windows)\n"
+            "1. Download 'Microsoft Access Database Engine 2016' (32-bit or 64-bit, matching your Office or Windows)\n"
             "   From: https://www.microsoft.com/download/details.aspx?id=54920\n\n"
             "2. Or install Microsoft Office (which includes Access drivers)\n\n"
             "3. Restart the application after installation\n"
