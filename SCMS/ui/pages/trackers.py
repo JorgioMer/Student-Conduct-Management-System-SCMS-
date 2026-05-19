@@ -1,6 +1,7 @@
 # =============================================================================
 #  SCMS — Record Trackers Page  (Combined Monthly Overview)
 # =============================================================================
+import logging
 from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
     QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
@@ -9,6 +10,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QFont, QColor
+
+logger = logging.getLogger(__name__)
 
 from ui.styles import (
     NAVY, GOLD, WHITE, OFF_WHITE, LIGHT_GRAY,
@@ -313,17 +316,34 @@ def _view_selected_row(table: QTableWidget, slip_type: str, parent=None,
 # =============================================================================
 class TrackersPage(BasePage):
     def __init__(self, current_user=None, parent=None):
-        super().__init__(parent)
-        self.current_user = current_user or {}
-        self.staff_id = self.current_user.get("username", "UNKNOWN")
-        self._combined_tiles = {}
-        self._combined_table = None
-        self._combined_layout = None
-        self._combined_table_index = 2
-        self._monthly_tiles = {}
-        self._monthly_chart = None
-        data_events.slips_changed.connect(self._on_slips_changed)
-        self._build()
+        logger.debug("TrackersPage.__init__ starting...")
+        try:
+            super().__init__(parent)
+            logger.debug("  BasePage initialized")
+            
+            self.current_user = current_user or {}
+            self.staff_id = self.current_user.get("username", "UNKNOWN")
+            logger.debug(f"  Set staff_id: {self.staff_id}")
+            
+            self._combined_tiles = {}
+            self._combined_table = None
+            self._combined_layout = None
+            self._combined_table_index = 2
+            self._monthly_tiles = {}
+            self._monthly_chart = None
+            logger.debug("  Initialized instance variables")
+            
+            logger.debug("  Connecting data_events signal...")
+            data_events.slips_changed.connect(self._on_slips_changed)
+            
+            logger.debug("  Calling _build()...")
+            self._build()
+            logger.debug("  _build() completed")
+            
+            logger.info("TrackersPage.__init__ completed successfully")
+        except Exception as e:
+            logger.error(f"Error in TrackersPage.__init__: {str(e)}", exc_info=True)
+            raise
 
     def closeEvent(self, event):
         """Clean up signal connections when page is closed"""
@@ -334,45 +354,63 @@ class TrackersPage(BasePage):
         super().closeEvent(event)
 
     def _build(self):
-        header = QFrame()
-        header.setFixedHeight(82)
-        header.setStyleSheet(f"""
-            QFrame {{
-                background: #FFF8E1;
-                border-radius: 12px;
-                border: 1px solid {GOLD}40;
-                border-left: 6px solid {GOLD};
-            }}
-        """)
-        add_shadow(header, blur=12, y=3, color=(0, 0, 0, 18))
+        logger.debug("_build() starting...")
+        try:
+            logger.debug("  Creating header frame...")
+            header = QFrame()
+            header.setFixedHeight(82)
+            header.setStyleSheet(f"""
+                QFrame {{
+                    background: #FFF8E1;
+                    border-radius: 12px;
+                    border: 1px solid {GOLD}40;
+                    border-left: 6px solid {GOLD};
+                }}
+            """)
+            add_shadow(header, blur=12, y=3, color=(0, 0, 0, 18))
 
-        h_lay = QHBoxLayout(header)
-        h_lay.setContentsMargins(24, 12, 24, 12)
+            h_lay = QHBoxLayout(header)
+            h_lay.setContentsMargins(24, 12, 24, 12)
 
-        h_left = QVBoxLayout()
-        h_left.setSpacing(2)
+            h_left = QVBoxLayout()
+            h_left.setSpacing(2)
 
-        t_lbl = QLabel("   Record Trackers — Monthly Overview")
-        t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none; padding: 0;")
+            t_lbl = QLabel("   Record Trackers — Monthly Overview")
+            t_lbl.setFont(QFont("Segoe UI", 17, QFont.Bold))
+            t_lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none; padding: 0;")
 
-        s_lbl = QLabel("View and filter all slip records — Green, Pink, and Blue — in one place")
-        s_lbl.setFont(QFont("Segoe UI", 11))
-        s_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none; padding: 0;")
+            s_lbl = QLabel("View and filter all slip records — Green, Pink, and Blue — in one place")
+            s_lbl.setFont(QFont("Segoe UI", 11))
+            s_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none; padding: 0;")
 
-        h_left.addWidget(t_lbl)
-        h_left.addWidget(s_lbl)
-        h_lay.addLayout(h_left)
-        h_lay.addStretch()
+            h_left.addWidget(t_lbl)
+            h_left.addWidget(s_lbl)
+            h_lay.addLayout(h_left)
+            h_lay.addStretch()
 
-        self.main_layout.addWidget(header)
+            self.main_layout.addWidget(header)
 
-        tabs = QTabWidget()
-        tabs.addTab(self._build_combined_tab(), "   All Records ")
-        tabs.addTab(self._build_student_tab(),  "   Student Lookup ")
-        tabs.addTab(self._build_monthly_tab(),  "   Monthly Summary ")
+            logger.debug("  Creating tabs...")
+            tabs = QTabWidget()
+            
+            logger.debug("  Building combined tab...")
+            tabs.addTab(self._build_combined_tab(), "   All Records ")
+            logger.debug("  Combined tab added")
+            
+            logger.debug("  Building student tab...")
+            tabs.addTab(self._build_student_tab(),  "   Student Lookup ")
+            logger.debug("  Student tab added")
+            
+            logger.debug("  Building monthly tab...")
+            tabs.addTab(self._build_monthly_tab(),  "   Monthly Summary ")
+            logger.debug("  Monthly tab added")
 
-        self.main_layout.addWidget(tabs)
+            self.main_layout.addWidget(tabs)
+            self.main_layout.addStretch()
+            logger.debug("_build() completed successfully")
+        except Exception as e:
+            logger.error(f"Error in TrackersPage._build(): {str(e)}", exc_info=True)
+            raise
         self.main_layout.addStretch()
 
     # ── Combined Records tab ──────────────────────────────────────────────────
@@ -1112,12 +1150,29 @@ class TrackersPage(BasePage):
             self._monthly_tiles[label] = tile
         lay.addLayout(tiles_row)
 
-        from ui.chart_widgets import CombinedAllSlipsChart
-        self._monthly_chart = CombinedAllSlipsChart(w)
-        self._monthly_chart.setMinimumHeight(380)
-        lay.addWidget(self._monthly_chart)
+        logger.debug("  Creating CombinedAllSlipsChart...")
+        self._monthly_chart = None
+        try:
+            from ui.chart_widgets import CombinedAllSlipsChart
+            logger.debug("    CombinedAllSlipsChart imported")
+            self._monthly_chart = CombinedAllSlipsChart(w)
+            logger.debug("    CombinedAllSlipsChart created")
+            self._monthly_chart.setMinimumHeight(380)
+        except Exception as e:
+            logger.error(f"Error creating CombinedAllSlipsChart: {str(e)}", exc_info=True)
+            # Graceful fallback — show a placeholder so the page still loads
+            from PyQt5.QtCore import Qt
+            self._monthly_chart = QLabel("Chart unavailable")
+            self._monthly_chart.setAlignment(Qt.AlignCenter)
+            self._monthly_chart.setMinimumHeight(380)
+            self._monthly_chart.setStyleSheet(
+                "color: #9E9E9E; border: 1px dashed #BDBDBD; border-radius: 8px;"
+            )
 
+
+        logger.debug("  Refreshing monthly summary...")
         self._refresh_monthly_summary()
+        lay.addWidget(self._monthly_chart)
         lay.addStretch()
         return w
 
@@ -1149,7 +1204,7 @@ class TrackersPage(BasePage):
             self._monthly_tiles["Blue Slips"].set_value(len(blue_slips))
             self._monthly_tiles["Total"].set_value(len(green_slips) + len(pink_slips) + len(blue_slips))
 
-        if self._monthly_chart:
+        if self._monthly_chart and hasattr(self._monthly_chart, 'update_data'):
             self._monthly_chart.update_data(len(green_slips), len(pink_slips), len(blue_slips))
 
     def _filter_monthly_records(self, records, date_field_index=6, period="May 2026"):

@@ -58,16 +58,23 @@ def ensure_local_database() -> str:
 
     for candidate in _template_db_candidates():
         if os.path.exists(candidate):
-            shutil.copy2(candidate, LOCAL_DB_PATH)
-            print(f"[SCMS] Database initialised from: {candidate}")
-            return LOCAL_DB_PATH
+            try:
+                shutil.copy2(candidate, LOCAL_DB_PATH)
+                print(f"[OK] Database initialised from: {candidate}")
+                return LOCAL_DB_PATH
+            except Exception as e:
+                print(f"[ERROR] Failed to copy database template: {str(e)}")
+                raise
 
     # Nothing found — give the developer a useful error with all paths checked
     checked = "\n  ".join(_template_db_candidates())
-    raise FileNotFoundError(
-        f"Database template not found. Locations checked:\n  {checked}\n"
-        f"BASE_PATH resolved to: {BASE_PATH}"
+    error_msg = (
+        f"[ERROR] Database template not found. Locations checked:\n  {checked}\n"
+        f"BASE_PATH resolved to: {BASE_PATH}\n"
+        f"LOCAL_DB_PATH would be: {LOCAL_DB_PATH}"
     )
+    print(error_msg)
+    raise FileNotFoundError(error_msg)
 
 
 DB_PATH = ensure_local_database()

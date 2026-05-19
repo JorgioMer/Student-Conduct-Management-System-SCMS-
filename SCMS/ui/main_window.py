@@ -1,6 +1,7 @@
 # =============================================================================
 #  SCMS — Main Window  (Sidebar + Stacked Pages)
 # =============================================================================
+import logging
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QFrame, QStackedWidget, QSizePolicy,
@@ -10,19 +11,27 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QDateTime, QSize
 from PyQt5.QtGui import QFont, QIcon
 
+logger = logging.getLogger(__name__)
+
 from ui.styles import (
     NAVY, NAVY_DARK, NAVY_MID, GOLD, WHITE,
     OFF_WHITE, LIGHT_GRAY, MID_GRAY
 )
 from ui.components import HeaderBar, NavButton, add_shadow, ConfirmDialog
-from ui.pages.dashboard      import DashboardPage
-from ui.pages.green_slip     import GreenSlipPage
-from ui.pages.pink_slip      import PinkSlipPage
-from ui.pages.blue_slip      import BlueSlipPage
-from ui.pages.trackers       import TrackersPage
-from ui.pages.reports        import ReportsPage
-from ui.pages.activity_logs  import ActivityLogsPage
-from ui.pages.settings       import SettingsPage
+
+# ── Import only DashboardPage immediately (shown on startup) ─────────────────
+logger.debug("  Importing DashboardPage...")
+try:
+    from ui.pages.dashboard import DashboardPage
+    logger.debug("  DashboardPage imported successfully")
+except Exception as e:
+    logger.error(f"Failed to import DashboardPage: {str(e)}", exc_info=True)
+    raise
+
+# ── Lazy-load other pages (imported only when user navigates to them) ─────────
+# This prevents startup from blocking on heavy page dependencies like ReportsPage
+logger.debug("Page imports deferred to lazy-loading (will import on first access)")
+
 
 
 def _sp_icon(sp_enum: int) -> QIcon:
@@ -86,107 +95,170 @@ def _slip_icon(color: str, size: int = 18) -> QIcon:
 
 class MainWindow(QMainWindow):
     def __init__(self, full_name: str = "Admin", role: str = "Admin", username: str = "admin"):
+        logger.debug("MainWindow.__init__ called...")
         super().__init__()
+        
+        logger.debug("Setting MainWindow properties...")
         self.full_name = full_name
         self.role = role
         self.username = username
         self.setWindowTitle("Office of the Prefect — Student Conduct Management System")
         self.setMinimumSize(1200, 720)
         self.resize(1350, 800)
+        
+        logger.debug("Building UI...")
         self._build_ui()
+        
+        logger.debug("Centering window...")
         self._center()
+        
+        logger.info(f"MainWindow initialized successfully for {full_name}")
 
     def _center(self):
-        from PyQt5.QtWidgets import QDesktopWidget
-        screen = QDesktopWidget().screenGeometry()
+        from PyQt5.QtGui import QGuiApplication
+        screen = QGuiApplication.primaryScreen().geometry()
         self.move(
             (screen.width()  - self.width())  // 2,
             (screen.height() - self.height()) // 2
         )
 
     def _build_ui(self):
-        central = QWidget()
-        self.setCentralWidget(central)
-        root = QVBoxLayout(central)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        logger.debug("_build_ui starting...")
+        try:
+            central = QWidget()
+            self.setCentralWidget(central)
+            root = QVBoxLayout(central)
+            root.setContentsMargins(0, 0, 0, 0)
+            root.setSpacing(0)
 
-        # ── Top header bar ────────────────────────────────────────────────────
-        self.header = HeaderBar(user_name=self.full_name)
-        self.header.logout_requested.connect(self._on_logout)
-        root.addWidget(self.header)
+            # ── Top header bar ────────────────────────────────────────────────────
+            logger.debug("Creating HeaderBar...")
+            self.header = HeaderBar(user_name=self.full_name)
+            self.header.logout_requested.connect(self._on_logout)
+            root.addWidget(self.header)
 
-        # ── Body (sidebar + content) ──────────────────────────────────────────
-        body = QWidget()
-        body_lay = QHBoxLayout(body)
-        body_lay.setContentsMargins(0, 0, 0, 0)
-        body_lay.setSpacing(0)
-        root.addWidget(body, 1)
+            # ── Body (sidebar + content) ──────────────────────────────────────────
+            body = QWidget()
+            body_lay = QHBoxLayout(body)
+            body_lay.setContentsMargins(0, 0, 0, 0)
+            body_lay.setSpacing(0)
+            root.addWidget(body, 1)
 
-        # Sidebar
-        self.sidebar = self._build_sidebar()
-        body_lay.addWidget(self.sidebar)
+            # Sidebar
+            logger.debug("Building sidebar...")
+            self.sidebar = self._build_sidebar()
+            body_lay.addWidget(self.sidebar)
 
-        # Stacked content area
-        self.stack = QStackedWidget()
-        self.stack.setStyleSheet(f"background: {OFF_WHITE};")
+            # Stacked content area
+            logger.debug("Creating stacked widget...")
+            self.stack = QStackedWidget()
+            self.stack.setStyleSheet(f"background: {OFF_WHITE};")
 
-        # Pages (order matches nav buttons) — lazy-load heavy pages
-        self.page_dashboard = DashboardPage(role=self.role)
-        self.page_green = None
-        self.page_pink = None
-        self.page_blue = None
-        self.page_trackers = None
-        self.page_reports = None
-        self.page_logs = None
-        self.page_settings = None
+            # Pages (order matches nav buttons) — lazy-load heavy pages
+            logger.debug("Creating DashboardPage...")
+            self.page_dashboard = DashboardPage(role=self.role)
+            logger.debug("DashboardPage created successfully")
+            
+            self.page_green = None
+            self.page_pink = None
+            self.page_blue = None
+            self.page_trackers = None
+            self.page_reports = None
+            self.page_logs = None
+            self.page_settings = None
 
-        self._pages = {0: self.page_dashboard}
-        self._page_factories = {
-            1: lambda: GreenSlipPage(),
-            2: lambda: PinkSlipPage(),
-            3: lambda: BlueSlipPage(),
-            4: lambda: TrackersPage(current_user={
-                "username":  self.username,
-                "full_name": self.full_name,
-                "role":      self.role,
-            }),
-            5: lambda: ReportsPage(current_user={
-                "username":  self.username,
-                "full_name": self.full_name,
-                "role":      self.role,
-            }),
-            6: lambda: ActivityLogsPage(),
-            7: lambda: SettingsPage(current_user={
-                "username":  self.username,
-                "full_name": self.full_name,
-                "role":      self.role,
-            }),
-        }
+            self._pages = {0: self.page_dashboard}
+            
+            # Page factory functions for lazy-loading (import only when user navigates)
+            def _make_green_slip():
+                logger.debug("    Lazy-loading GreenSlipPage...")
+                from ui.pages.green_slip import GreenSlipPage
+                return GreenSlipPage()
+            
+            def _make_pink_slip():
+                logger.debug("    Lazy-loading PinkSlipPage...")
+                from ui.pages.pink_slip import PinkSlipPage
+                return PinkSlipPage()
+            
+            def _make_blue_slip():
+                logger.debug("    Lazy-loading BlueSlipPage...")
+                from ui.pages.blue_slip import BlueSlipPage
+                return BlueSlipPage()
+            
+            def _make_trackers():
+                logger.debug("    Lazy-loading TrackersPage...")
+                from ui.pages.trackers import TrackersPage
+                return TrackersPage(current_user={
+                    "username":  self.username,
+                    "full_name": self.full_name,
+                    "role":      self.role,
+                })
+            
+            def _make_reports():
+                logger.debug("    Lazy-loading ReportsPage...")
+                from ui.pages.reports import ReportsPage
+                return ReportsPage(current_user={
+                    "username":  self.username,
+                    "full_name": self.full_name,
+                    "role":      self.role,
+                })
+            
+            def _make_activity_logs():
+                logger.debug("    Lazy-loading ActivityLogsPage...")
+                from ui.pages.activity_logs import ActivityLogsPage
+                return ActivityLogsPage()
+            
+            def _make_settings():
+                logger.debug("    Lazy-loading SettingsPage...")
+                from ui.pages.settings import SettingsPage
+                return SettingsPage(current_user={
+                    "username":  self.username,
+                    "full_name": self.full_name,
+                    "role":      self.role,
+                })
+            
+            self._page_factories = {
+                1: _make_green_slip,
+                2: _make_pink_slip,
+                3: _make_blue_slip,
+                4: _make_trackers,
+                5: _make_reports,
+                6: _make_activity_logs,
+                7: _make_settings,
+            }
 
-        self.stack.addWidget(self.page_dashboard)
-        # placeholders to preserve indices
-        for _ in range(7):
-            self.stack.addWidget(QWidget())
+            logger.debug("Adding pages to stacked widget...")
+            self.stack.addWidget(self.page_dashboard)
+            # placeholders to preserve indices
+            for _ in range(7):
+                self.stack.addWidget(QWidget())
 
-        body_lay.addWidget(self.stack, 1)
+            body_lay.addWidget(self.stack, 1)
 
-        # Wire dashboard quick-action signals
-        self.page_dashboard.navigate_to.connect(self._navigate_from_dashboard)
+            # Wire dashboard quick-action signals
+            logger.debug("Connecting dashboard navigation signal...")
+            self.page_dashboard.navigate_to.connect(self._navigate_from_dashboard)
 
-        # ── Status bar ────────────────────────────────────────────────────────
-        sb = QStatusBar()
-        sb.setStyleSheet(f"""
-            QStatusBar {{
-                background: {NAVY_DARK};
-                color: rgba(255,255,255,0.6);
-                font-size: 11px;
-                padding: 2px 12px;
-            }}
-        """)
-        self.setStatusBar(sb)
-        now = QDateTime.currentDateTime().toString("dddd, MMMM d, yyyy  |  hh:mm AP")
-        sb.showMessage(f"  Logged in as: {self.full_name}  [{self.role}]    {now}")
+            # ── Status bar ────────────────────────────────────────────────────────
+            logger.debug("Creating status bar...")
+            sb = QStatusBar()
+            sb.setStyleSheet(f"""
+                QStatusBar {{
+                    background: {NAVY_DARK};
+                    color: rgba(255,255,255,0.6);
+                    font-size: 11px;
+                    padding: 2px 12px;
+                }}
+            """)
+            self.setStatusBar(sb)
+            now = QDateTime.currentDateTime().toString("dddd, MMMM d, yyyy  |  hh:mm AP")
+            sb.showMessage(f"  Logged in as: {self.full_name}  [{self.role}]    {now}")
+            
+            logger.debug("_build_ui completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Error in _build_ui: {str(e)}", exc_info=True)
+            raise
 
     # ── Build sidebar ─────────────────────────────────────────────────────────
     def _build_sidebar(self) -> QFrame:
@@ -296,39 +368,59 @@ class MainWindow(QMainWindow):
         self._show_page(idx)
 
     def _ensure_page(self, idx: int):
+        logger.debug(f"_ensure_page({idx}) called...")
         if idx in self._pages:
+            logger.debug(f"  Page {idx} already loaded")
             return
+        
         factory = self._page_factories.get(idx)
         if not factory:
+            logger.warning(f"  No factory for page {idx}")
             return
-        page = factory()
-        self._pages[idx] = page
-        # keep attribute handles
-        if idx == 1:
-            self.page_green = page
-        elif idx == 2:
-            self.page_pink = page
-        elif idx == 3:
-            self.page_blue = page
-        elif idx == 4:
-            self.page_trackers = page
-        elif idx == 5:
-            self.page_reports = page
-        elif idx == 6:
-            self.page_settings = page
+        
+        try:
+            logger.debug(f"  Creating page {idx}...")
+            page = factory()
+            logger.debug(f"  Page {idx} created successfully")
+            self._pages[idx] = page
+            
+            # keep attribute handles
+            if idx == 1:
+                self.page_green = page
+            elif idx == 2:
+                self.page_pink = page
+            elif idx == 3:
+                self.page_blue = page
+            elif idx == 4:
+                self.page_trackers = page
+            elif idx == 5:
+                self.page_reports = page
+            elif idx == 6:
+                self.page_logs = page
+            elif idx == 7:
+                self.page_settings = page
 
-        old = self.stack.widget(idx)
-        self.stack.removeWidget(old)
-        if old:
-            old.deleteLater()
-        self.stack.insertWidget(idx, page)
+            old = self.stack.widget(idx)
+            self.stack.removeWidget(old)
+            if old:
+                old.deleteLater()
+            self.stack.insertWidget(idx, page)
+            logger.debug(f"  Page {idx} inserted into stack")
+            
+        except Exception as e:
+            logger.error(f"Error loading page {idx}: {str(e)}", exc_info=True)
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error Loading Page", 
+                f"Failed to load page {idx}:\n\n{str(e)}")
 
     def _show_page(self, idx: int):
+        logger.debug(f"_show_page({idx}) called...")
         self._ensure_page(idx)
         self.stack.setCurrentIndex(idx)
         btn = self.btn_group.button(idx)
         if btn:
             btn.setChecked(True)
+        logger.debug(f"  Page {idx} now displayed")
 
     # ── Logout ────────────────────────────────────────────────────────────────
     def _on_logout(self):
