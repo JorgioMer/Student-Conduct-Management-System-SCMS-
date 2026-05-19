@@ -51,9 +51,9 @@ def create_activity_log_table():
             cursor.execute("CREATE INDEX idx_record_id ON ActivityLog (RecordID)")
             
             conn.commit()
-            print("✓ ActivityLog table created with indexes")
+            print("[OK] ActivityLog table created with indexes")
         else:
-            print("✓ ActivityLog table already exists")
+            print("[OK] ActivityLog table already exists")
         
         return True
         
@@ -63,7 +63,7 @@ def create_activity_log_table():
                 conn.rollback()
             except Exception:
                 pass
-        print(f"✗ Error creating ActivityLog table: {str(e)}")
+        print(f"[ERROR] Error creating ActivityLog table: {str(e)}")
         return False
     finally:
         if conn:

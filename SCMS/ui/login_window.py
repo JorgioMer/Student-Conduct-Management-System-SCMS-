@@ -1,12 +1,13 @@
 # =============================================================================
 #  SCMS — Login Window
 # =============================================================================
+import logging
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy,
-    QApplication, QDesktopWidget, QProgressBar, QDialog,
-    QMessageBox
+    QApplication, QProgressBar, QDialog
 )
+from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import (
     Qt, QPropertyAnimation, QEasingCurve, QRect,
     pyqtSignal, QTimer, QThread, pyqtSlot, QSize
@@ -148,7 +149,7 @@ class LoadingScreen(QDialog):
         self._thread    = None
 
     def _center_on_screen(self):
-        screen = QDesktopWidget().screenGeometry()
+        screen = QGuiApplication.primaryScreen().geometry()
         size   = self.geometry()
         self.move(
             (screen.width()  - size.width())  // 2,
@@ -225,34 +226,38 @@ class LoadingScreen(QDialog):
         Called on the MAIN thread when the background thread finishes.
         Now safe to create Qt widgets.
         """
+        logger = logging.getLogger(__name__)
+        
         self._on_progress(95, "Building interface...")
+        logger.debug(f"Building interface for user: {full_name} ({role})")
 
         try:
             # Create MainWindow here — main thread only
+            logger.debug("Importing MainWindow...")
             from ui.main_window import MainWindow
+            
+            logger.debug("Creating MainWindow instance...")
             self.main_win = MainWindow(full_name=full_name, role=role,username=self._username)
+            logger.info(f"MainWindow created successfully for {full_name}")
 
             self._on_progress(100, "Ready!")
 
             # Show main window, then fade out loading screen after a short pause
+            logger.debug("Displaying MainWindow...")
             self.main_win.show()
             QTimer.singleShot(800, self._fadeout_loading)
-        except RuntimeError as e:
-            # System configuration error (e.g., missing database driver)
-            self.reject()
-            QMessageBox.critical(
-                self,
-                "System Configuration Error",
-                str(e)
-            )
+            logger.info("Application dashboard loaded successfully")
+            
         except Exception as e:
-            # Other initialization errors
+            import traceback
+            error_msg = f"Failed to initialize dashboard:\n\n{str(e)}\n\n{traceback.format_exc()}"
+            logger.error(f"Dashboard initialization failed: {error_msg}", exc_info=True)
+            print(f"[ERROR] {error_msg}")
+            
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Dashboard Error", error_msg)
             self.reject()
-            QMessageBox.critical(
-                self,
-                "Application Initialization Error",
-                f"Failed to initialize the application:\n\n{str(e)}"
-            )
+            return
 
     def _fadeout_loading(self):
         """Smoothly fade out the loading screen."""
@@ -276,12 +281,6 @@ class LoginWindow(QWidget):
         self.setMinimumSize(960, 600)
         self.setStyleSheet(f"background: {NAVY_DARK};")
         self._db_error = None
-        # ── Set window icon ──────────────────────────────────────────────────
-        _base_dir = os.path.dirname(os.path.abspath(__file__))
-        _icon_path = os.path.join(_base_dir, '..', 'assets', 'final-cjc-logo.png')
-        if os.path.exists(_icon_path):
-            self.setWindowIcon(QIcon(_icon_path))
-        # ──────────────────────────────────────────────────────────────────────
         self._ensure_default_accounts()
         self._build_ui()
         self._center_on_screen()
@@ -293,7 +292,7 @@ class LoginWindow(QWidget):
             self._db_error = str(e)
 
     def _center_on_screen(self):
-        screen = QDesktopWidget().screenGeometry()
+        screen = QGuiApplication.primaryScreen().geometry()
         size   = self.geometry()
         self.move(
             (screen.width()  - size.width())  // 2,
@@ -609,12 +608,12 @@ class LoginWindow(QWidget):
 
     def _show_login_loading(self):
         self.login_btn.setEnabled(False)
-        self.login_btn.setText("  ⟳ Authenticating...")
+        self.login_btn.setText("  > Authenticating...")
         self.username_edit.setEnabled(False)
         self.password_edit.setEnabled(False)
 
     def _show_error(self, msg: str):
-        self.error_lbl.setText(f"⚠  {msg}")
+        self.error_lbl.setText(f"[ERROR] {msg}")
         self.error_lbl.setVisible(True)
         anim = QPropertyAnimation(self.login_btn, b"geometry")
         anim.setDuration(120)
