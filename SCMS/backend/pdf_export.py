@@ -29,7 +29,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from matplotlib.ticker import MaxNLocator
 from collections import Counter
 
 # ── Image paths ───────────────────────────────────────────────────────────────
@@ -187,7 +186,6 @@ def _create_college_distribution_chart(college_data):
         bars3 = ax.bar([i + width for i in x], blue_counts, width, label='Blue Slips', color='#2196F3', edgecolor='black', linewidth=0.5)
         
         ax.set_ylabel('Number of Slips', fontsize=10, fontweight='bold')
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax.set_xlabel('College', fontsize=10, fontweight='bold')
         ax.set_xticks(x)
         ax.set_xticklabels(colleges, fontsize=9)

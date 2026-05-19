@@ -49,12 +49,8 @@ def main():
     # ── App-wide icon (window + taskbar) ─────────────────────────────────────────
     _base_dir = os.path.dirname(os.path.abspath(__file__))
     _icon_path = os.path.join(_base_dir, "assets", "final-cjc-logo.png")
-    _app_icon = None
     if os.path.exists(_icon_path):
-      _app_icon = QIcon(_icon_path)
-      app.setWindowIcon(_app_icon)
-      # Store icon as app property to prevent garbage collection
-      app._app_icon = _app_icon
+      app.setWindowIcon(QIcon(_icon_path))
       app.setApplicationName("SCMS — Office of the Prefect")
       app.setOrganizationName("CJC")
 
@@ -74,9 +70,6 @@ def main():
 
     # Show login window
     login = LoginWindow()
-    # Set icon on login window
-    if _app_icon:
-        login.setWindowIcon(_app_icon)
     login.show()
 
     sys.exit(app.exec_())

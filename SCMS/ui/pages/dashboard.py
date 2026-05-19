@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QScrollArea, QFrame, QGridLayout, QSizePolicy, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView
 )
-from PyQt5.QtCore import Qt, QDate, pyqtSignal, QTimer, QThread
+from PyQt5.QtCore import Qt, QDate, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QColor
 
 import qtawesome as qta  # pip install qtawesome
@@ -27,23 +27,6 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from backend.db_green_slip import check_and_update_expired_green_slips
-
-
-# ---------------------------------------------------------------------------
-# Background worker thread for database operations
-# ---------------------------------------------------------------------------
-class DBWorkerThread(QThread):
-    """Worker thread to run database operations in background without blocking UI"""
-    def __init__(self):
-        super().__init__()
-        self.daemon = True
-    
-    def run(self):
-        """Execute expensive database operations"""
-        try:
-            check_and_update_expired_green_slips()
-        except Exception as e:
-            print(f"[WARNING] Failed to check for expired green slips in background: {str(e)}")
 
 
 # ---------------------------------------------------------------------------
@@ -73,10 +56,6 @@ class DashboardPage(QWidget):
         self.main_layout = None
         self.scroll_widget = None
         
-        # Caching flags
-        self._is_built = False
-        self._pending_refresh = False
-        
         # Timer to check for month changes (every minute)
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._check_month_change)
@@ -86,7 +65,6 @@ class DashboardPage(QWidget):
         data_events.slips_changed.connect(self._on_slips_changed)
         
         self._build()
-        self._is_built = True
     
     def _check_month_change(self):
         """Check if the month has changed and refresh dashboard if needed"""
@@ -98,8 +76,11 @@ class DashboardPage(QWidget):
             self._refresh_dashboard()
     
     def _on_slips_changed(self):
-        """Mark dashboard as needing refresh but don't rebuild immediately"""
-        self._pending_refresh = True
+        """Refresh dashboard when slips data changes - called whenever a slip is added."""
+        try:
+            self._refresh_dashboard()
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh dashboard on slip change: {str(e)}")
     
     def closeEvent(self, event):
         """Clean up signal connections when page is closed"""
@@ -112,14 +93,12 @@ class DashboardPage(QWidget):
         super().closeEvent(event)
     
     def showEvent(self, event):
-        """Only refresh if needed (on actual page show)"""
+        """Refresh dashboard whenever the page is shown (tab clicked)"""
         super().showEvent(event)
-        if self._pending_refresh:
-            try:
-                self._refresh_dashboard()
-                self._pending_refresh = False
-            except Exception as e:
-                print(f"[ERROR] Failed to refresh dashboard on show: {str(e)}")
+        try:
+            self._refresh_dashboard()
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh dashboard on show: {str(e)}")
     
     def _refresh_dashboard(self):
         """Refresh dashboard data (called on month change)"""
@@ -137,9 +116,11 @@ class DashboardPage(QWidget):
         self._build()
 
     def _build(self):
-        # Start background thread for database operations (non-blocking)
-        self._db_worker = DBWorkerThread()
-        self._db_worker.start()
+        # First, check and update any expired green slips
+        try:
+            check_and_update_expired_green_slips()
+        except Exception as e:
+            print(f"[WARNING] Failed to check for expired green slips: {str(e)}")
         
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)

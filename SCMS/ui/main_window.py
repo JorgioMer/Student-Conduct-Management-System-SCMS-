@@ -1,7 +1,6 @@
 # =============================================================================
 #  SCMS — Main Window  (Sidebar + Stacked Pages)
 # =============================================================================
-import os
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QFrame, QStackedWidget, QSizePolicy,
@@ -94,12 +93,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Office of the Prefect — Student Conduct Management System")
         self.setMinimumSize(1200, 720)
         self.resize(1350, 800)
-        # ── Set window icon ──────────────────────────────────────────────────
-        _base_dir = os.path.dirname(os.path.abspath(__file__))
-        _icon_path = os.path.join(_base_dir, '..', 'assets', 'final-cjc-logo.png')
-        if os.path.exists(_icon_path):
-            self.setWindowIcon(QIcon(_icon_path))
-        # ──────────────────────────────────────────────────────────────────────
         self._build_ui()
         self._center()
 
@@ -138,7 +131,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setStyleSheet(f"background: {OFF_WHITE};")
 
-        # Pages (order matches nav buttons) — lazy-load & cache pages
+        # Pages (order matches nav buttons) — lazy-load heavy pages
         self.page_dashboard = DashboardPage(role=self.role)
         self.page_green = None
         self.page_pink = None
@@ -303,19 +296,14 @@ class MainWindow(QMainWindow):
         self._show_page(idx)
 
     def _ensure_page(self, idx: int):
-        """Lazy-load page only once and cache it for reuse"""
         if idx in self._pages:
-            return  # Already created, reuse it
-        
+            return
         factory = self._page_factories.get(idx)
         if not factory:
             return
-        
-        # Create page only once
         page = factory()
         self._pages[idx] = page
-        
-        # Keep attribute handles for direct access
+        # keep attribute handles
         if idx == 1:
             self.page_green = page
         elif idx == 2:
@@ -327,19 +315,15 @@ class MainWindow(QMainWindow):
         elif idx == 5:
             self.page_reports = page
         elif idx == 6:
-            self.page_logs = page
-        elif idx == 7:
             self.page_settings = page
 
-        # Replace placeholder with actual page
         old = self.stack.widget(idx)
         self.stack.removeWidget(old)
-        if old and isinstance(old, QWidget):
+        if old:
             old.deleteLater()
         self.stack.insertWidget(idx, page)
 
     def _show_page(self, idx: int):
-        """Show page (cached and reused, not recreated)"""
         self._ensure_page(idx)
         self.stack.setCurrentIndex(idx)
         btn = self.btn_group.button(idx)

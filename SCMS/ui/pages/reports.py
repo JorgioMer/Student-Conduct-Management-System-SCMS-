@@ -10,7 +10,6 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib.ticker import MaxNLocator
 import matplotlib.pyplot as plt
 from collections import Counter
 from datetime import datetime
@@ -45,7 +44,6 @@ class ReportsPage(BasePage):
         self.staff_id = self.current_user.get("username", "UNKNOWN")
         self._tabs = None  # Store tab widget reference
         self._built_tabs = set()  # Track which tabs have been built
-        self._pending_refresh = False  # Cache whether refresh is needed
         self._build()
         # Connect to data changes
         data_events.slips_changed.connect(self._on_slips_changed)
@@ -224,14 +222,12 @@ class ReportsPage(BasePage):
         super().closeEvent(event)
     
     def showEvent(self, event):
-        """Only refresh reports if needed (when data has changed)"""
+        """Refresh reports whenever the page is shown (tab clicked)"""
         super().showEvent(event)
-        if self._pending_refresh:
-            try:
-                self._refresh_reports()
-                self._pending_refresh = False
-            except Exception as e:
-                print(f"[ERROR] Failed to refresh reports on show: {str(e)}")
+        try:
+            self._on_slips_changed()
+        except Exception as e:
+            print(f"[ERROR] Failed to refresh reports on show: {str(e)}")
 
     def _build_overview_tab(self) -> QWidget:
         from PyQt5.QtWidgets import QScrollArea
@@ -416,12 +412,7 @@ class ReportsPage(BasePage):
                 is_dispensation = record[5] if len(record) > 5 else False
                 slip_type = "Dispensation" if is_dispensation else "Excuse"
                 date      = str(record[6])[:10] if len(record) > 6 else "N/A"
-                # ── For Dispensation: use days (record[7])
-                # ── For Excuse: use dates of absence (record[13])
-                if is_dispensation:
-                    days      = str(record[7]) if len(record) > 7 else "N/A"
-                else:
-                    days      = str(record[13]) if len(record) > 13 else "N/A"
+                days      = str(record[7]) if len(record) > 7 else "N/A"
                 status    = record[8] if len(record) > 8 else "Active"
                 rows.append((stud_num, stud_name, year, slip_type, date, days, status))
             except:
@@ -434,7 +425,7 @@ class ReportsPage(BasePage):
             "green", "Green Slip Monthly Report",
             "Dispensation and Excuse slips issued this month",
             GREEN_SLIP, "#E8F5E9",
-            ["Student No.", "Student Name", "Year", "Type", "Date", "Days/Dates", "Status"],
+            ["Student No.", "Student Name", "Year", "Type", "Date", "Days/Reason", "Status"],
             rows
         )
 
@@ -856,7 +847,6 @@ class ReportsPage(BasePage):
             bars = ax.bar(years, counts, color=bar_colors, edgecolor='black', linewidth=0.5)
             ax.set_ylabel('Count', fontsize=9)
             ax.set_xlabel('Year Level', fontsize=9)
-            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
             
             # Add value labels on bars
             for bar in bars:
@@ -895,7 +885,6 @@ class ReportsPage(BasePage):
             
             bars = ax.barh(names, counts, color='#FF9800', edgecolor='black', linewidth=0.5)
             ax.set_xlabel('Slip Count', fontsize=9)
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             
             # Add value labels on bars
             for i, bar in enumerate(bars):
@@ -940,7 +929,6 @@ class ReportsPage(BasePage):
             x_pos = range(len(colleges))
             bars = ax.bar(x_pos, totals, color=colors, edgecolor='black', linewidth=0.5)
             ax.set_ylabel('Total Records', fontsize=9)
-            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax.set_xlabel('College', fontsize=9)
             ax.set_xticks(x_pos)
             ax.set_xticklabels(colleges, fontsize=8)
@@ -1080,14 +1068,8 @@ class ReportsPage(BasePage):
             print(f"[ERROR] Failed to update print button state: {str(e)}")
 
     def _on_slips_changed(self):
-        """Mark reports as needing refresh - actual refresh deferred to showEvent"""
-        print("[DEBUG] Reports page: _on_slips_changed() called - marking for refresh")
-        # Just mark as pending, actual refresh happens on next showEvent
-        self._pending_refresh = True
-    
-    def _refresh_reports(self):
-        """Actually refresh reports (called from showEvent)"""
-        print("[DEBUG] Reports page: _refresh_reports() called")
+        """Refresh reports when slips data changes - called whenever a slip is added."""
+        print("[DEBUG] Reports page: _on_slips_changed() called")
         try:
             if self._tabs is None:
                 print("[WARNING] Reports tabs not initialized yet")

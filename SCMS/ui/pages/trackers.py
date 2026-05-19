@@ -772,14 +772,9 @@ class TrackersPage(BasePage):
                     date       = str(record[6])[:10] if len(record) > 6 else "N/A"
                     status     = record[10] if len(record) > 10 else "Open / Pending"
                 elif slip_type == "green":
-                    is_disp    = record[5] if len(record) > 5 else False
+                    is_disp    = record[5] == False if len(record) > 5 else False
                     slip_label = "🟢 Green (Disp.)" if is_disp else "🟢 Green (Excuse)"
-                    # ── For Dispensation: use days (record[7])
-                    # ── For Excuse: use dates of absence (record[13])
-                    if is_disp:
-                        details    = str(record[7]) if len(record) > 7 else "N/A"
-                    else:
-                        details    = str(record[13]) if len(record) > 13 else "N/A"
+                    details    = str(record[7]) if len(record) > 7 else "N/A"
                     date       = str(record[6])[:10] if len(record) > 6 else "N/A"
                     status     = record[8] if len(record) > 8 else "Active"
                 else:

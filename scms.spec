@@ -40,8 +40,6 @@ a = Analysis(
         'pyodbc',
         'ctypes',
         'ctypes.wintypes',
-        'qtawesome',
-        'qtawesome.iconic',
     ],
     hookspath=[],
     hooksconfig={},
