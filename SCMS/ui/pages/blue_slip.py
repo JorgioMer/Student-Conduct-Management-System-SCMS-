@@ -552,7 +552,7 @@ class BlueSlipPage(BasePage):
                 success=False, parent=self
             ).exec_()
             return
-
+        
         try:
             all_records = get_blue_slips(None) or []
         except Exception:
@@ -573,7 +573,8 @@ class BlueSlipPage(BasePage):
                 "Violation History Check",
                 f"Student: {stud_name or stud_num}\n\n"
                 "No prior violations found for this student.\n"
-                "This would be their first recorded offense.",
+                "This would be their first recorded offense.\n\n"
+                "No escalation will be triggered.",
                 success=True, parent=self
             ).exec_()
             return
@@ -593,17 +594,40 @@ class BlueSlipPage(BasePage):
             if current_vtype and current_vtype in vtype:
                 same_type_count += 1
 
-        if same_type_count > 0:
+        lines.append("")  # blank line for spacing
+        
+        if same_type_count >= 2:
             lines.append(
-                f"\n⚠  This student has {same_type_count} prior violation(s) "
-                f"of the same type ({current_vtype}).\n"
-                "Consider flagging this record as ESCALATED."
+                f"🔴 AUTOMATIC ESCALATION TRIGGERED:\n"
+                f"This student has {same_type_count} prior violation(s) of:\n"
+                f"{current_vtype}\n\n"
+                f"Per escalation policy, this record will automatically\n"
+                f"be marked as ESCALATED when saved."
             )
+            self.blue_escalate_chk.setChecked(True)  # Auto-check the escalation box
+            success = False  # Show as warning
+        elif same_type_count == 1:
+            lines.append(
+                f"⚠ ESCALATION AVAILABLE:\n"
+                f"This student has {same_type_count} prior violation of:\n"
+                f"{current_vtype}\n\n"
+                f"You may manually flag this as ESCALATED if you believe\n"
+                f"this warrants higher disciplinary action."
+            )
+            success = False  # Show as warning
+        else:
+            lines.append(
+                f"✓ No prior violations of type: {current_vtype}\n"
+                f"This will be a first offense of this type.\n"
+                f"No escalation will be triggered."
+            )
+            self.blue_escalate_chk.setChecked(False)  # Uncheck escalation
+            success = True
 
         InfoDialog(
-            "Violation History Check",
+            "Violation History & Escalation Check",
             "\n".join(lines),
-            success=(same_type_count == 0), parent=self
+            success=success, parent=self
         ).exec_()
 
     def closeEvent(self, event):
@@ -635,17 +659,44 @@ class BlueSlipPage(BasePage):
                 status            = self.blue_status.currentText()
                 violation_desc    = self.blue_desc.toPlainText().strip()
                 witnesses         = self.blue_witnesses.text().strip()
+                is_manual_escalation = self.blue_escalate_chk.isChecked()
+                
+                # ── Determine if this should be escalated ────────────────────
+                from backend.db_blue_slip import should_escalate_violation
+                should_escalate = should_escalate_violation(stud_num, violation_type, is_manual_escalation)
+                
+                # ── If escalation detected, update status ────────────────────
+                if should_escalate and status not in ("Escalated", "Resolved"):
+                    status = "Escalated"
+                
                 record_id = add_blue_slip(stud_num, violation_type, date_of_violation, severity,
                               action_taken, status=status, violation_desc=violation_desc,
                               witnesses=witnesses, stud_name=stud_name,
                               stud_course=stud_course, stud_year=stud_year)
                 # Log the action
                 log_slip_created("SYSTEM", "Blue", stud_name, record_id=record_id)
-                InfoDialog("Record Saved",
-                           "Blue Slip violation record has been saved successfully!",
-                           success=True, parent=self).exec_()
+                
+                # ── Show escalation warning if applicable ────────────────────
+                if should_escalate and not is_manual_escalation:
+                    from backend.db_blue_slip import count_violations_by_type
+                    prior_count = count_violations_by_type(stud_num, violation_type)
+                    InfoDialog("Record Saved & Escalated",
+                               f"Blue Slip violation record has been saved.\n\n"
+                               f"⚠ ESCALATION TRIGGERED:\n"
+                               f"Student has {prior_count} prior violations of type:\n"
+                               f"{violation_type}\n\n"
+                               f"This record has been marked as ESCALATED for higher disciplinary action.",
+                               success=True, parent=self).exec_()
+                else:
+                    InfoDialog("Record Saved",
+                               "Blue Slip violation record has been saved successfully!",
+                               success=True, parent=self).exec_()
                 data_events.slips_changed.emit()
+                self._clear_blue_form()
             except Exception as e:
+                print(f"[ERROR] Failed to save blue slip: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 InfoDialog("Error", f"Failed to save record: {str(e)}",
                            success=False, parent=self).exec_()
 

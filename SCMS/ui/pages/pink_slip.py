@@ -496,8 +496,24 @@ class PinkSlipPage(BasePage):
                        success=False, parent=self).exec_()
             return
 
+        # ── Check for existing Pink Slip in this semester ────────────────────
+        stud_num = self.pink_no.text().strip()
+        sem = self.pink_sem.currentText()
+        
+        try:
+            from backend.db_pink_slip import has_pink_slip_for_semester
+            if has_pink_slip_for_semester(stud_num, sem):
+                InfoDialog("Constraint Violation",
+                           f"Student {stud_num} already has a Pink Slip for {sem} semester.\n\n"
+                           "Policy: Only ONE Pink Slip per student per semester.\n"
+                           "Please check the student's record in the Tracker tab.",
+                           success=False, parent=self).exec_()
+                return
+        except Exception as e:
+            print(f"[WARNING] Could not check for duplicate pink slip: {str(e)}")
+
         dlg = ConfirmDialog("Confirm Save",
-                            "Save this Pink Slip record?\nPlease confirm the student has not already\nreceived a Pink Slip this semester.",
+                            "Save this Pink Slip record?",
                             parent=self)
         if dlg.exec_():
             try:
@@ -524,6 +540,7 @@ class PinkSlipPage(BasePage):
                 print(f"[DEBUG] Emitting slips_changed signal")
                 data_events.slips_changed.emit()
                 print(f"[DEBUG] Signal emitted")
+                self._clear_pink_form()
             except Exception as e:
                 print(f"[ERROR] Failed to save pink slip: {str(e)}")
                 import traceback
