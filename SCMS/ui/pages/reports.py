@@ -36,9 +36,13 @@ from backend.pdf_export import (
     generate_student_conduct_summary
 )
 from backend.db_activity_log import log_export, log_report_generated
-from backend.config import get_course_college, get_college_name, get_all_colleges
+from backend.config import (
+    get_course_college, get_college_name, get_all_colleges,
+    get_period_options
+)
 import tempfile
 import os
+
 
 
 # ---------------------------------------------------------------------------
@@ -93,8 +97,9 @@ class ReportsPage(BasePage):
             self._build()
             logger.debug("  _build() completed")
 
-            logger.debug("  Connecting data_events signal...")
+            logger.debug("  Connecting data_events signals...")
             data_events.slips_changed.connect(self._on_slips_changed)
+            data_events.settings_changed.connect(self._on_settings_changed)
             logger.info("ReportsPage.__init__ completed successfully")
         except Exception as e:
             logger.error(f"Error in ReportsPage.__init__: {str(e)}", exc_info=True)
@@ -125,7 +130,8 @@ class ReportsPage(BasePage):
                     continue
                 if self._date_in_period(date_obj, period):
                     filtered.append(record)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Error filtering record: {e}")
                 continue
         return filtered
 
@@ -200,14 +206,11 @@ class ReportsPage(BasePage):
             period_lbl.setStyleSheet("border: none; background: transparent;")
             period_row.addWidget(period_lbl)
             self.period_cb = QComboBox()
-            self.period_cb.addItems([
-                "January 2026", "February 2026", "March 2026", "April 2026",
-                "May 2026", "June 2026", "July 2026", "August 2026",
-                "September 2026", "October 2026", "December 2026",
-                "1st Semester S.Y. 2025–2026",
-                "2ND Semester S.Y. 2025–2026",
-                "S.Y. 2025–2026 (Full Year)",
-            ])
+            
+            # Generate period options dynamically based on current year
+            period_options = get_period_options()
+            self.period_cb.addItems(period_options)
+            
             current_month = datetime.now().strftime("%B %Y")
             idx = self.period_cb.findText(current_month)
             if idx >= 0:
@@ -251,8 +254,9 @@ class ReportsPage(BasePage):
     def closeEvent(self, event):
         try:
             data_events.slips_changed.disconnect(self._on_slips_changed)
-        except Exception:
-            pass
+            data_events.settings_changed.disconnect(self._on_settings_changed)
+        except Exception as e:
+            logger.debug(f"Error disconnecting signal: {e}")
         super().closeEvent(event)
 
     def showEvent(self, event):
@@ -385,9 +389,17 @@ class ReportsPage(BasePage):
     # ------------------------------------------------------------------
     def _build_green_report(self) -> QWidget:
         from backend.db_green_slip import get_green_slips
-        green_records = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
+        try:
+            green_raw = get_green_slips(None)
+            logger.debug(f"Green slips raw count: {len(green_raw) if green_raw else 0}")
+            green_records = self._filter_records_by_period(green_raw or [], date_field_index=6)
+            logger.debug(f"Green slips after period filter: {len(green_records)}")
+        except Exception as e:
+            logger.error(f"Failed to retrieve green slips: {e}", exc_info=True)
+            green_records = []
+        
         rows = []
-        for record in green_records[:5]:
+        for i, record in enumerate(green_records[:5]):
             try:
                 stud_name = record[0] if len(record) > 0 else "Unknown"
                 stud_num  = record[4] if len(record) > 4 else "N/A"
@@ -398,8 +410,8 @@ class ReportsPage(BasePage):
                 days      = str(record[7]) if len(record) > 7 else "N/A"
                 status    = record[8] if len(record) > 8 else "Active"
                 rows.append((stud_num, stud_name, year, slip_type, date, days, status))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error processing green slip record {i}: {e}", exc_info=True)
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
         return self._build_slip_report_tab(
@@ -412,9 +424,17 @@ class ReportsPage(BasePage):
 
     def _build_pink_report(self) -> QWidget:
         from backend.db_pink_slip import get_pink_slips
-        pink_records = self._filter_records_by_period(get_pink_slips(None) or [], date_field_index=5)
+        try:
+            pink_raw = get_pink_slips(None)
+            logger.debug(f"Pink slips raw count: {len(pink_raw) if pink_raw else 0}")
+            pink_records = self._filter_records_by_period(pink_raw or [], date_field_index=5)
+            logger.debug(f"Pink slips after period filter: {len(pink_records)}")
+        except Exception as e:
+            logger.error(f"Failed to retrieve pink slips: {e}", exc_info=True)
+            pink_records = []
+        
         rows = []
-        for record in pink_records[:5]:
+        for i, record in enumerate(pink_records[:5]):
             try:
                 stud_name = record[0] if len(record) > 0 else "Unknown"
                 stud_num  = record[4] if len(record) > 4 else "N/A"
@@ -423,8 +443,8 @@ class ReportsPage(BasePage):
                 date      = str(record[5])[:10] if len(record) > 5 else "N/A"
                 violation = record[6] if len(record) > 6 else "N/A"
                 rows.append((stud_num, stud_name, year, course, violation, date))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error processing pink slip record {i}: {e}", exc_info=True)
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-")]
         return self._build_slip_report_tab(
@@ -437,9 +457,17 @@ class ReportsPage(BasePage):
 
     def _build_blue_report(self) -> QWidget:
         from backend.db_blue_slip import get_blue_slips
-        blue_records = self._filter_records_by_period(get_blue_slips(None) or [], date_field_index=6)
+        try:
+            blue_raw = get_blue_slips(None)
+            logger.debug(f"Blue slips raw count: {len(blue_raw) if blue_raw else 0}")
+            blue_records = self._filter_records_by_period(blue_raw or [], date_field_index=6)
+            logger.debug(f"Blue slips after period filter: {len(blue_records)}")
+        except Exception as e:
+            logger.error(f"Failed to retrieve blue slips: {e}", exc_info=True)
+            blue_records = []
+        
         rows = []
-        for record in blue_records[:5]:
+        for i, record in enumerate(blue_records[:5]):
             try:
                 stud_name = record[0] if len(record) > 0 else "Unknown"
                 stud_num  = record[4] if len(record) > 4 else "N/A"
@@ -449,8 +477,8 @@ class ReportsPage(BasePage):
                 date      = str(record[6])[:10] if len(record) > 6 else "N/A"
                 status    = record[10] if len(record) > 10 else "Open"
                 rows.append((stud_num, stud_name, year, violation, severity, date, status))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error processing blue slip record {i}: {e}", exc_info=True)
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
         return self._build_slip_report_tab(
@@ -555,8 +583,8 @@ class ReportsPage(BasePage):
                 elif slip in blue_slips:
                     college_data[college_code]["blue"] += 1
                 college_data[college_code]["total"] += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error building college data: {e}")
         return college_data
 
     def _build_college_report(self) -> QWidget:
@@ -708,8 +736,8 @@ class ReportsPage(BasePage):
                     student_counts[sn]["blue"] += 1
                     if not student_counts[sn]["info"]:
                         student_counts[sn]["info"] = get_student(sn)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error counting students: {e}")
 
         sorted_students = sorted(
             student_counts.items(),
@@ -727,8 +755,8 @@ class ReportsPage(BasePage):
                 sample.append((str(rank), sn, stud_name, year,
                                str(counts["green"]), str(counts["pink"]),
                                str(counts["blue"]), str(total)))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error building top student record: {e}", exc_info=True)
 
         if not sample:
             sample = [("1", "No records", "Add records to see them here",
@@ -993,6 +1021,50 @@ class ReportsPage(BasePage):
             self._rebuild_tabs()
         except Exception as e:
             logger.error(f"Failed to refresh reports: {e}", exc_info=True)
+
+    def _on_settings_changed(self):
+        """Handle system settings changes (e.g., school year change)"""
+        logger.debug("Reports page: _on_settings_changed() called")
+        try:
+            # Rebuild period selector with new year
+            self._rebuild_period_selector()
+            # Rebuild tabs with new period filters
+            self._rebuild_tabs()
+        except Exception as e:
+            logger.error(f"Failed to refresh reports on settings change: {e}", exc_info=True)
+
+    def _rebuild_period_selector(self):
+        """Rebuild the period combo box with updated year"""
+        if not hasattr(self, 'period_cb'):
+            return
+        
+        logger.debug("Rebuilding period selector...")
+        try:
+            # Save current selection
+            current_period = self.period_cb.currentText()
+            
+            # Clear and repopulate with new period options
+            self.period_cb.blockSignals(True)
+            self.period_cb.clear()
+            period_options = get_period_options()
+            self.period_cb.addItems(period_options)
+            
+            # Try to restore selection, or use current month
+            idx = self.period_cb.findText(current_period)
+            if idx < 0:
+                # Period name changed (different year), try current month
+                current_month = datetime.now().strftime("%B %Y")
+                idx = self.period_cb.findText(current_month)
+            
+            if idx >= 0:
+                self.period_cb.setCurrentIndex(idx)
+            else:
+                self.period_cb.setCurrentIndex(0)
+            
+            self.period_cb.blockSignals(False)
+            logger.debug("Period selector rebuilt successfully")
+        except Exception as e:
+            logger.error(f"Error rebuilding period selector: {e}", exc_info=True)
 
     def _on_period_changed(self):
         try:

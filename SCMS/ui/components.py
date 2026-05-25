@@ -353,24 +353,26 @@ class NavButton(QPushButton):
 
 # ── Auto-Complete Line Edit with Course Suggestions ──────────────────────────
 class AutoCompleteLineEdit(QWidget):
-    COURSES_BY_COLLEGE = {
-        "CEDAS": ["BSP", "BS CRIM", "BS MATH", "AB ELS", "BECED", "BEED", "BPED",
-                  "BSED ENG", "BSED FIL", "BSED MATH", "BSED SCI", "BTV-TED"],
-        "CABE": ["BSA", "BSMA", "BSAIS", "BPA", "BSTM", "BSHM", "BSBA-FM",
-                 "BSBA-MM", "BSBA-HRDM", "DHTT"],
-        "CCIS": ["BSCS", "BSIT", "BLIS"],
-        "COE":  ["BSCE", "BSECE", "BSCPE"],
-        "CHS":  ["BSN", "BSRT", "BSMLS"],
-        "CSP":  ["CSP"],
-    }
-    ALL_COURSES = sorted(
-        [c for courses in COURSES_BY_COLLEGE.values() for c in courses]
-    )
-
     textChanged = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Load courses dynamically to include custom courses
+        from backend.config import get_all_courses
+        try:
+            self.ALL_COURSES = get_all_courses()
+        except Exception:
+            # Fallback to built-in courses if config fails
+            self.ALL_COURSES = [
+                "BSP", "BS CRIM", "BS MATH", "AB ELS", "BECED", "BEED", "BPED",
+                "BSED ENG", "BSED FIL", "BSED MATH", "BSED SCI", "BTV-TED",
+                "BSA", "BSMA", "BSAIS", "BPA", "BSTM", "BSHM", "BSBA-FM",
+                "BSBA-MM", "BSBA-HRDM", "DHTT",
+                "BSCS", "BSIT", "BLIS",
+                "BSCE", "BSECE", "BSCPE",
+                "BSN", "BSRT", "BSMLS",
+                "CSP"
+            ]
         self._build()
 
     def _build(self):

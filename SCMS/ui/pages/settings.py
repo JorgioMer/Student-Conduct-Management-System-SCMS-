@@ -20,6 +20,7 @@ from ui.components import (
     FieldLabel, add_shadow, ConfirmDialog, InfoDialog
 )
 from ui.pages.base_page import BasePage
+from ui.data_events import data_events
 
 # Backend imports for config
 import sys
@@ -715,6 +716,63 @@ class SettingsPage(BasePage):
         sem_outer.addLayout(s_lay)
         lay.addWidget(sem_frame)
 
+        # ── Course Management ─────────────────────────────────────────────────
+        course_frame = QFrame()
+        course_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {WHITE};
+                border: 1.5px solid {LIGHT_GRAY};
+                border-radius: 8px;
+            }}
+        """)
+        course_outer = QVBoxLayout(course_frame)
+        course_outer.setContentsMargins(20, 14, 20, 14)
+        course_outer.setSpacing(12)
+
+        course_title = QLabel("Add New Course")
+        course_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        course_title.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+        course_outer.addWidget(course_title)
+
+        course_subtitle = QLabel("Add new courses to the system")
+        course_subtitle.setFont(QFont("Segoe UI", 10))
+        course_subtitle.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
+        course_outer.addWidget(course_subtitle)
+
+        # Form for adding course
+        c_lay = QGridLayout()
+        c_lay.setSpacing(10)
+        c_lay.setColumnStretch(1, 1)
+
+        c_lay.addWidget(FieldLabel("Course Code/Name", required=True), 0, 0)
+        self.course_input = QLineEdit()
+        self.course_input.setPlaceholderText("e.g., BSMA-NEW, BS PSYCH")
+        self.course_input.setFixedHeight(36)
+        c_lay.addWidget(self.course_input, 0, 1)
+
+        c_lay.addWidget(FieldLabel("College/Department", required=True), 1, 0)
+        self.college_combo = QComboBox()
+        
+        from backend.config import get_all_colleges, COLLEGES
+        college_codes = get_all_colleges()
+        college_displays = [f"{code} — {COLLEGES[code]['name']}" for code in college_codes]
+        self.college_combo.addItems(college_displays)
+        self.college_combo.setFixedHeight(36)
+        c_lay.addWidget(self.college_combo, 1, 1)
+
+        course_outer.addLayout(c_lay)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        add_course_btn = QPushButton("  Add Course ")
+        add_course_btn.setStyleSheet(btn_primary())
+        add_course_btn.setFixedHeight(36)
+        add_course_btn.clicked.connect(self._add_custom_course)
+        btn_row.addWidget(add_course_btn)
+        course_outer.addLayout(btn_row)
+
+        lay.addWidget(course_frame)
+
         notif_frame = QFrame()
         notif_frame.setStyleSheet(f"""
             QFrame {{
@@ -805,6 +863,10 @@ class SettingsPage(BasePage):
                 notif_config[key] = checkbox.isChecked()
             config["notifications"] = notif_config
             save_config(config)
+            
+            # Notify all other pages that settings have changed
+            data_events.settings_changed.emit()
+            
             InfoDialog("Settings Saved",
                       "System settings have been saved successfully!\n\n"
                       "The school year will be applied to NEW student records.",
@@ -831,6 +893,37 @@ class SettingsPage(BasePage):
         else:
             InfoDialog("Error",
                       "Failed to add school year.",
+                      success=False, parent=self).exec_()
+
+    def _add_custom_course(self):
+        """Add a new custom course to the system"""
+        from backend.config import add_custom_course, COLLEGES
+        
+        course_code = self.course_input.text().strip()
+        if not course_code:
+            InfoDialog("Input Required",
+                      "Please enter a course code or name.",
+                      success=False, parent=self).exec_()
+            return
+        
+        # Extract college code from combo display text (format: "CODE — Full Name")
+        combo_display = self.college_combo.currentText()
+        college_code = combo_display.split("—")[0].strip() if "—" in combo_display else combo_display
+        
+        # Try to add the course
+        if add_custom_course(course_code, college_code):
+            self.course_input.clear()
+            self.college_combo.setCurrentIndex(0)
+            
+            # Update the AutoCompleteLineEdit in other pages with new courses
+            data_events.slips_changed.emit()
+            
+            InfoDialog("Success",
+                      f"Course '{course_code}' has been added to {COLLEGES[college_code]['name']}.",
+                      success=True, parent=self).exec_()
+        else:
+            InfoDialog("Error",
+                      f"Failed to add course. It may already exist.",
                       success=False, parent=self).exec_()
 
     # ── About tab ─────────────────────────────────────────────────────────────

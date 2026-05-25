@@ -20,7 +20,8 @@ DEFAULT_CONFIG = {
         "pink_slip_warn": True,
         "auto_escalate": True,
         "monthly_summary": True,
-    }
+    },
+    "custom_courses": {}  # Format: {"COURSE_CODE": "COLLEGE_CODE", ...}
 }
 
 
@@ -158,4 +159,100 @@ def get_all_courses():
     courses = []
     for college_info in COLLEGES.values():
         courses.extend(college_info["courses"])
+    
+    # Add custom courses
+    config = load_config()
+    custom_courses = config.get("custom_courses", {})
+    courses.extend(custom_courses.keys())
+    
     return sorted(courses)
+
+
+def get_current_year():
+    """Extract the starting year from school year string (e.g., '2024–2025' → 2024)"""
+    school_year = get_school_year()
+    try:
+        # Extract first year from format like "2024–2025"
+        year_part = school_year.split("–")[0].strip() if "–" in school_year else school_year.split("-")[0].strip()
+        return int(year_part)
+    except (ValueError, IndexError):
+        # Fallback to current year
+        from datetime import datetime
+        return datetime.now().year
+
+
+def get_custom_courses():
+    """Get dictionary of all custom courses: {course_code: college_code}"""
+    config = load_config()
+    return config.get("custom_courses", {})
+
+
+def add_custom_course(course_code, college_code):
+    """Add a new custom course under a college
+    
+    Args:
+        course_code: The course code/name (e.g., "BSMA-CUSTOM")
+        college_code: The college code where this course belongs
+    
+    Returns:
+        True if added successfully, False if course already exists
+    """
+    course_code = course_code.strip().upper()
+    if not course_code:
+        return False
+    
+    config = load_config()
+    custom_courses = config.get("custom_courses", {})
+    
+    # Check if course already exists (custom or built-in)
+    if course_code in custom_courses or course_code in get_all_courses():
+        return False
+    
+    custom_courses[course_code] = college_code
+    config["custom_courses"] = custom_courses
+    return save_config(config)
+
+
+def remove_custom_course(course_code):
+    """Remove a custom course
+    
+    Args:
+        course_code: The course code to remove
+    
+    Returns:
+        True if removed successfully, False if not found or is built-in
+    """
+    course_code = course_code.strip().upper()
+    config = load_config()
+    custom_courses = config.get("custom_courses", {})
+    
+    if course_code in custom_courses:
+        del custom_courses[course_code]
+        config["custom_courses"] = custom_courses
+        return save_config(config)
+    
+    return False
+
+
+def get_period_options():
+    """Generate period options for report filtering based on current year
+    
+    Returns:
+        List of period strings in format:
+        - "January 2024", "February 2024", ..., "December 2024"
+        - "1st Semester S.Y. 2024–2025"
+        - "2ND Semester S.Y. 2024–2025"
+        - "S.Y. 2024–2025 (Full Year)"
+    """
+    year = get_current_year()
+    months = ["January", "February", "March", "April", "May", "June",
+              "July", "August", "September", "October", "November", "December"]
+    
+    options = [f"{month} {year}" for month in months]
+    options.extend([
+        f"1st Semester S.Y. {year}–{year+1}",
+        f"2ND Semester S.Y. {year}–{year+1}",
+        f"S.Y. {year}–{year+1} (Full Year)",
+    ])
+    return options
+
