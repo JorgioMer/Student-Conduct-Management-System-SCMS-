@@ -584,7 +584,9 @@ class GreenSlipPage(BasePage):
         self.exc_stud_no.clear()
         self.exc_stud_name.clear()
         self.exc_course.clear()
-        self.exc_abs_date.clear()
+        self.exc_abs_date_from.setDate(QDate.currentDate())
+        self.exc_abs_date_to.setDate(QDate.currentDate())
+        self.exc_days_calculated.setText("0 days")
         self.exc_remarks.clear()
         self.exc_auth.setCurrentIndex(0)           # ← CHANGED (was .clear())
         self.exc_type.setCurrentIndex(0)
@@ -604,6 +606,15 @@ class GreenSlipPage(BasePage):
                        "Please select an Authorized By officer.",
                        success=False, parent=self).exec_()
             return
+        
+        # ── Validate date range ────────────────────────────────────────
+        date_from = self.exc_abs_date_from.date().toPyDate()
+        date_to = self.exc_abs_date_to.date().toPyDate()
+        if date_to < date_from:
+            InfoDialog("Invalid Date Range",
+                       "The 'To' date must be on or after the 'From' date.",
+                       success=False, parent=self).exec_()
+            return
 
         dlg = ConfirmDialog("Confirm Save",
                             "Save this Excuse Green Slip record?", parent=self)
@@ -615,13 +626,19 @@ class GreenSlipPage(BasePage):
                 stud_year     = self.exc_year.currentText()
                 slip_type     = "Excuse"
                 date_avail    = self.exc_date.date().toPyDate()
-                days          = 0
+                
+                # Calculate days from date range
+                from datetime import timedelta
+                days_diff = (date_to - date_from).days + 1  # +1 to include both start and end dates
+                days          = days_diff
+                
                 status        = "Active"
                 expiry        = self.exc_date.date().toPyDate()
                 purpose       = ""
                 remarks       = self.exc_remarks.toPlainText().strip()
                 absence_type  = self.exc_type.currentText()
-                dates_absence = self.exc_abs_date.text().strip()
+                # Store date range as "YYYY-MM-DD to YYYY-MM-DD" format
+                dates_absence = f"{date_from} to {date_to}"
                 supp_doc      = self.exc_doc.currentText()
                 semester      = self.exc_semester.currentText()
                 # auth_by already read above
@@ -736,34 +753,95 @@ class GreenSlipPage(BasePage):
         self.exc_type.setStyleSheet(_combo_style(GREEN_SLIP))
         form_lay.addWidget(self.exc_type, 2, 1)
 
-        form_lay.addWidget(lbl("Date(s) of Absence", True), 2, 2)
-        self.exc_abs_date = QLineEdit()
-        self.exc_abs_date.setPlaceholderText("e.g. Nov 18–19, 2024")
-        self.exc_abs_date.setFixedHeight(38)
-        form_lay.addWidget(self.exc_abs_date, 2, 3)
+        # ── Date(s) of Absence — own full row (row 3) ────────────────────────
+        form_lay.addWidget(lbl("Date(s) of Absence", True), 3, 0)
+
+        date_range_widget = QWidget()
+        date_range_widget.setStyleSheet("background: transparent;")
+        date_range_layout = QHBoxLayout(date_range_widget)
+        date_range_layout.setContentsMargins(0, 0, 0, 0)
+        date_range_layout.setSpacing(16)
+
+        # From date
+        from_lbl = QLabel("From:")
+        from_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; font-size: 12px; font-weight: 600;")
+        self.exc_abs_date_from = CalendarDateEdit(QDate.currentDate())
+        self.exc_abs_date_from.setFixedHeight(38)
+        self.exc_abs_date_from.setDisplayFormat("MMMM d, yyyy")
+        self.exc_abs_date_from.apply_icon_style(_date_edit_style(GREEN_SLIP))
+
+        # To date
+        to_lbl = QLabel("To:")
+        to_lbl.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; font-size: 12px; font-weight: 600;")
+        self.exc_abs_date_to = CalendarDateEdit(QDate.currentDate())
+        self.exc_abs_date_to.setFixedHeight(38)
+        self.exc_abs_date_to.setDisplayFormat("MMMM d, yyyy")
+        self.exc_abs_date_to.apply_icon_style(_date_edit_style(GREEN_SLIP))
+
+        # Calculated days badge
+        self.exc_days_calculated = QLabel("1 day")
+        self.exc_days_calculated.setStyleSheet(f"""
+            color: {WHITE}; background: {GREEN_SLIP};
+            border-radius: 10px; padding: 4px 12px;
+            font-weight: bold; font-size: 12px;
+        """)
+        self.exc_days_calculated.setFixedHeight(34)
+
+        date_range_layout.addWidget(from_lbl)
+        date_range_layout.addWidget(self.exc_abs_date_from, 1)
+        date_range_layout.addWidget(to_lbl)
+        date_range_layout.addWidget(self.exc_abs_date_to, 1)
+        date_range_layout.addWidget(self.exc_days_calculated)
+        date_range_layout.addStretch()
+
+        form_lay.addWidget(date_range_widget, 3, 1, 1, 3)
+
+        # Connect date changes to calculate days
+        def update_days_calculated():
+            from_date = self.exc_abs_date_from.date().toPyDate()
+            to_date = self.exc_abs_date_to.date().toPyDate()
+            if to_date >= from_date:
+                days_diff = (to_date - from_date).days + 1
+                self.exc_days_calculated.setText(f"{days_diff} day{'s' if days_diff != 1 else ''}")
+                self.exc_days_calculated.setStyleSheet(f"""
+                    color: {WHITE}; background: {GREEN_SLIP};
+                    border-radius: 10px; padding: 4px 12px;
+                    font-weight: bold; font-size: 12px;
+                """)
+            else:
+                self.exc_days_calculated.setText("Invalid range")
+                self.exc_days_calculated.setStyleSheet(f"""
+                    color: {WHITE}; background: #D32F2F;
+                    border-radius: 10px; padding: 4px 12px;
+                    font-weight: bold; font-size: 12px;
+                """)
+
+        self.exc_abs_date_from.dateChanged.connect(update_days_calculated)
+        self.exc_abs_date_to.dateChanged.connect(update_days_calculated)
+        update_days_calculated()  # Initial calculation
 
         _lbl_rd = lbl("Remarks / Details")
         _lbl_rd.setContentsMargins(0, 8, 0, 0)
-        form_lay.addWidget(_lbl_rd, 3, 0, Qt.AlignTop)
+        form_lay.addWidget(_lbl_rd, 4, 0, Qt.AlignTop)
         self.exc_remarks = QTextEdit()
         self.exc_remarks.setPlaceholderText("Additional details about the absence...")
         self.exc_remarks.setFixedHeight(70)
-        form_lay.addWidget(self.exc_remarks, 3, 1, 1, 3)
+        form_lay.addWidget(self.exc_remarks, 4, 1, 1, 3)
 
         # ── Authorized By — QComboBox populated from Accounts ────────────────
-        form_lay.addWidget(lbl("Authorized By", True), 4, 0)
-        self.exc_auth = _build_officer_combo(GREEN_SLIP)    # ← CHANGED (was QLineEdit)
-        form_lay.addWidget(self.exc_auth, 4, 1)
+        form_lay.addWidget(lbl("Authorized By", True), 5, 0)
+        self.exc_auth = _build_officer_combo(GREEN_SLIP)
+        form_lay.addWidget(self.exc_auth, 5, 1)
 
-        form_lay.addWidget(lbl("Supporting Document"), 4, 2)
+        form_lay.addWidget(lbl("Supporting Document"), 5, 2)
         self.exc_doc = QComboBox()
         self.exc_doc.addItems(["Medical Certificate", "Parent Letter",
                                "Official Document", "None"])
         self.exc_doc.setFixedHeight(38)
         self.exc_doc.setStyleSheet(_combo_style(GREEN_SLIP))
-        form_lay.addWidget(self.exc_doc, 4, 3)
+        form_lay.addWidget(self.exc_doc, 5, 3)
 
-        form_lay.addWidget(lbl("Semester", True), 5, 0)
+        form_lay.addWidget(lbl("Semester", True), 6, 0)
         self.exc_semester = QComboBox()
         self.exc_semester.addItems(["1st", "2nd", "Summer"])
         self.exc_semester.setFixedHeight(38)
@@ -773,7 +851,7 @@ class GreenSlipPage(BasePage):
             self.exc_semester.setCurrentIndex(0)
         elif "2nd" in current_sem:
             self.exc_semester.setCurrentIndex(1)
-        form_lay.addWidget(self.exc_semester, 5, 1)
+        form_lay.addWidget(self.exc_semester, 6, 1)
 
         lay.addWidget(form_group)
 
@@ -828,6 +906,31 @@ class GreenSlipPage(BasePage):
     # =========================================================================
     # Tracker tab
     # =========================================================================
+    def _calculate_absence_days(self, dates_str, days_val, slip_type):
+        """
+        Calculate number of days from date range string or days value.
+        For Excuse slips, parse "YYYY-MM-DD to YYYY-MM-DD" format.
+        For Dispensation slips, use the days value directly.
+        """
+        try:
+            if slip_type.lower() == "excuse" and dates_str and "to" in str(dates_str):
+                # Parse date range like "2026-05-20 to 2026-05-25"
+                parts = str(dates_str).split(" to ")
+                if len(parts) == 2:
+                    from datetime import datetime
+                    try:
+                        date_from = datetime.strptime(parts[0].strip(), "%Y-%m-%d").date()
+                        date_to = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
+                        days_diff = (date_to - date_from).days + 1
+                        return str(days_diff)
+                    except:
+                        pass
+            # Fallback to days value
+            return str(days_val) if days_val else "0"
+        except Exception as e:
+            print(f"[WARNING] Failed to calculate absence days: {e}")
+            return str(days_val) if days_val else "0"
+    
     def _load_green_tracker_data(self):
         # First, check and update any expired green slips
         try:
@@ -846,7 +949,7 @@ class GreenSlipPage(BasePage):
             for record in green_records:
                 try:
                     # Query returns: ID(0), studNumber(1), studName(2), studYear(3), studCourse(4),
-                    #                slipType(5), dateAvail(6), days(7), exprDate(8), status(9)
+                    #                slipType(5), dateAvail(6), days(7), exprDate(8), status(9), datesOfAbs(10)
                     slip_id      = record[0]   # ID for deletion
                     stud_num     = record[1]   # Student Number
                     stud_name    = record[2]   # Student Name
@@ -857,12 +960,18 @@ class GreenSlipPage(BasePage):
                     days_absence = str(record[7]) if len(record) > 7 else "N/A"
                     expiry       = str(record[8]) if len(record) > 8 else "N/A"
                     status       = record[9]   if len(record) > 9 else "Active"
+                    dates_of_abs = record[10] if len(record) > 10 else None  # datesOfAbs_greenExc for Excuse
+                    
                     slip_type    = "Dispensation" if is_disp else "Excuse"
+                    
+                    # Calculate days from date range for Excuse slips
+                    calculated_days = self._calculate_absence_days(dates_of_abs, days_absence, slip_type)
+                    
                     sample.append((
-                        slip_id,  # Hidden ID for deletion
+                        str(slip_id),  # Record ID for display
                         stud_num, stud_name, stud_year, stud_course, slip_type,
                         date_avail[:10] if date_avail != "N/A" else "N/A",
-                        days_absence,
+                        calculated_days,  # Use calculated days
                         expiry[:10]    if expiry    != "N/A" else "N/A",
                         status
                     ))
@@ -927,7 +1036,7 @@ class GreenSlipPage(BasePage):
         if self.green_tracker_layout is None:
             print("[WARNING] Tracker layout not initialized yet")
             return
-        headers = ["Student No.", "Student Name", "Year", "Course",
+        headers = ["Record ID","Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Availed", "Days / Absence Type",
                    "Expiry / Date", "Status"]
         # Remove old table if it exists
@@ -941,8 +1050,8 @@ class GreenSlipPage(BasePage):
         # Strip the ID from each row before passing to build_record_table
         display_data = []
         for row in data:
-            # row[0] is slip_id, row[1:] is the display data
-            display_data.append(row[1:])
+            # row[0] is slip_id, include all columns for display
+            display_data.append(row)
         # Create and add new table
         self.green_tracker_table = build_record_table(headers, display_data)
         _apply_table_selection_style(self.green_tracker_table, GREEN_SLIP)
@@ -1076,7 +1185,7 @@ class GreenSlipPage(BasePage):
 
         lay.addWidget(filter_panel)
 
-        headers = ["Student No.", "Student Name", "Year", "Course",
+        headers = ["Record ID", "Student No.", "Student Name", "Year", "Course",
                    "Slip Type", "Date Availed", "Days / Absence Type",
                    "Expiry / Date", "Status"]
         sample = self._load_green_tracker_data()

@@ -723,7 +723,7 @@ class BlueSlipPage(BasePage):
                     action       = str(record[7]) if len(record) > 7 else "N/A"
                     status       = str(record[8]) if len(record) > 8 else "Open / Pending"
                     sample.append((
-                        slip_id,  # Hidden ID for deletion
+                        str(slip_id),  # Record ID for display
                         stud_num, stud_name, stud_year, vtype, severity,
                         date_str, action, status,
                     ))
@@ -800,7 +800,7 @@ class BlueSlipPage(BasePage):
         if self.blue_tracker_layout is None:
             print("[WARNING] Blue tracker layout not initialized yet")
             return
-        headers = ["Student No.", "Student Name", "Year", "Violation Type",
+        headers = ["Record ID","Student No.", "Student Name", "Year", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
         # Remove old table if it exists
         if self.blue_tracker_table is not None:
@@ -813,14 +813,14 @@ class BlueSlipPage(BasePage):
         # Strip the ID from each row before passing to build_record_table
         display_data = []
         for row in data:
-            # row[0] is slip_id, row[1:] is the display data
-            display_data.append(row[1:])
+            # row[0] is slip_id, include all columns for display
+            display_data.append(row)
         # Create and add new table
         self.blue_tracker_table = build_record_table(headers, display_data)
         _apply_table_selection_style(self.blue_tracker_table, BLUE_SLIP)
         self.blue_tracker_table.setMinimumHeight(260)
         for r in range(self.blue_tracker_table.rowCount()):
-            cell = self.blue_tracker_table.item(r, 7)
+            cell = self.blue_tracker_table.item(r, 8)
             if cell and cell.text() in self.STATUS_COLORS:
                 bg, fg = self.STATUS_COLORS[cell.text()]
                 cell.setBackground(QColor(bg))
@@ -959,13 +959,13 @@ class BlueSlipPage(BasePage):
 
         lay.addWidget(filter_panel)
 
-        headers = ["Student No.", "Student Name", "Year", "Violation Type",
+        headers = ["Record ID", "Student No.", "Student Name", "Year", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
         sample = self._load_blue_tracker_data()
         self.blue_tracker_table = build_record_table(headers, sample)
         _apply_table_selection_style(self.blue_tracker_table, BLUE_SLIP)
         for r in range(self.blue_tracker_table.rowCount()):
-            cell = self.blue_tracker_table.item(r, 7)
+            cell = self.blue_tracker_table.item(r, 8)
             if cell and cell.text() in self.STATUS_COLORS:
                 bg, fg = self.STATUS_COLORS[cell.text()]
                 cell.setBackground(QColor(bg))
@@ -1046,7 +1046,7 @@ class BlueSlipPage(BasePage):
             return
         
         row = self.blue_tracker_table.currentRow()
-        stud_num_item = self.blue_tracker_table.item(row, 0)  # Student No. is column 0
+        stud_num_item = self.blue_tracker_table.item(row, 1)  # Student No. is column 1 (Record ID is column 0)
         if not stud_num_item:
             return
         

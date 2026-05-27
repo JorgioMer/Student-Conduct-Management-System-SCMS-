@@ -140,21 +140,21 @@ def get_green_slips(student_number):
         cursor = conn.cursor()
         
         if student_number is None:
-            # Return ALL green slips with ID first for deletion
+            # Return ALL green slips with ID first for deletion, including datesOfAbs for Excuse slips
             cursor.execute("""
                 SELECT g.[ID], g.[studNumber], s.[studName], s.[studYrLvl], s.[studCourse],
                        g.[slipType_green], g.[dateAvail_green], g.[daysOfAbs_greenDisp],
-                       g.[exprDate_greenDisp], g.[status_green]
+                       g.[exprDate_greenDisp], g.[status_green], g.[datesOfAbs_greenExc]
                 FROM Students s
                 INNER JOIN [Green Slip Record] g 
                        ON s.[studNumber] = g.[studNumber]
             """)
         else:
-            # Return slips for specific student
+            # Return slips for specific student, including datesOfAbs for Excuse slips
             cursor.execute("""
                 SELECT g.[ID], g.[studNumber], s.[studName], s.[studYrLvl], s.[studCourse],
                        g.[slipType_green], g.[dateAvail_green], g.[daysOfAbs_greenDisp],
-                       g.[exprDate_greenDisp], g.[status_green]
+                       g.[exprDate_greenDisp], g.[status_green], g.[datesOfAbs_greenExc]
                 FROM Students s
                 INNER JOIN [Green Slip Record] g 
                        ON s.[studNumber] = g.[studNumber]

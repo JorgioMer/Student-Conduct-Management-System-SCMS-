@@ -418,7 +418,7 @@ class ReportsPage(BasePage):
         rows = []
         for i, record in enumerate(green_records[:5]):
             try:
-                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), slipType(5), dateAvail(6), days(7), exprDate(8), status(9)
+                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), slipType(5), dateAvail(6), days(7), exprDate(8), status(9), datesOfAbs(10)
                 stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
@@ -426,7 +426,22 @@ class ReportsPage(BasePage):
                 slip_type = "Dispensation" if is_dispensation else "Excuse"
                 date      = str(record[6])[:10] if len(record) > 6 else "N/A"
                 days      = str(record[7]) if len(record) > 7 else "N/A"
+                dates_of_abs = record[10] if len(record) > 10 else None  # datesOfAbs_greenExc for Excuse
                 status    = record[9] if len(record) > 9 else "Active"
+                
+                # Calculate days from date range for Excuse slips
+                if slip_type.lower() == "excuse" and dates_of_abs and "to" in str(dates_of_abs):
+                    try:
+                        parts = str(dates_of_abs).split(" to ")
+                        if len(parts) == 2:
+                            from datetime import datetime
+                            date_from = datetime.strptime(parts[0].strip(), "%Y-%m-%d").date()
+                            date_to = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
+                            days_diff = (date_to - date_from).days + 1
+                            days = str(days_diff)
+                    except:
+                        pass  # Use original days value
+                
                 rows.append((stud_num, stud_name, year, slip_type, date, days, status))
             except Exception as e:
                 logger.error(f"Error processing green slip record {i}: {e}", exc_info=True)
@@ -874,9 +889,10 @@ class ReportsPage(BasePage):
 
         student_counts = Counter()
         for record in all_records:
-            if len(record) > 0:
-                name = record[0]
-                if name and name != "Unknown":
+            # Records have: ID(0), studNumber(1), studName(2), ...
+            if len(record) > 2:
+                name = record[2]  # studName is at index 2
+                if name and name not in ("Unknown", "N/A", None, ""):
                     student_counts[name] += 1
 
         if student_counts:

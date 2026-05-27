@@ -572,7 +572,7 @@ class PinkSlipPage(BasePage):
                     officer      = record[8] if len(record) > 8 else "N/A"
                     semester     = record[9] if len(record) > 9 else "N/A"
                     sample.append((
-                        slip_id,  # Hidden ID for deletion
+                        str(slip_id),  # Record ID for display
                         stud_num, stud_name, stud_year, stud_course,
                         semester,
                         date_issued[:10] if date_issued != "N/A" else "N/A",
@@ -634,7 +634,7 @@ class PinkSlipPage(BasePage):
         if self.pink_tracker_layout is None:
             print("[WARNING] Pink tracker layout not initialized yet")
             return
-        headers = ["Student No.", "Student Name", "Year", "Course",
+        headers = ["Record ID","Student No.", "Student Name", "Year", "Course",
                    "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
         # Remove old table if it exists
         if self.pink_tracker_table is not None:
@@ -647,8 +647,8 @@ class PinkSlipPage(BasePage):
         # Strip the ID from each row before passing to build_record_table
         display_data = []
         for row in data:
-            # row[0] is slip_id, row[1:] is the display data
-            display_data.append(row[1:])
+            # row[0] is slip_id, include all columns for display
+            display_data.append(row)
         # Create and add new table
         self.pink_tracker_table = build_record_table(headers, display_data)
         _apply_table_selection_style(self.pink_tracker_table, PINK_SLIP)
@@ -766,7 +766,7 @@ class PinkSlipPage(BasePage):
 
         lay.addWidget(filter_panel)
 
-        headers = ["Student No.", "Student Name", "Year", "Course",
+        headers = ["Record ID", "Student No.", "Student Name", "Year", "Course",
                    "Semester", "Date Issued", "Violation", "Action Taken", "Officer"]
         sample = self._load_pink_tracker_data()
         self.pink_tracker_table = build_record_table(headers, sample)
