@@ -559,16 +559,20 @@ class PinkSlipPage(BasePage):
             print(f"[DEBUG] Loaded {len(pink_records)} pink slip records from database")
             for record in pink_records:
                 try:
-                    stud_name    = record[0] if len(record) > 0 else "N/A"
-                    stud_course  = record[1] if len(record) > 1 else "N/A"
-                    stud_year    = record[2] if len(record) > 2 else "N/A"
-                    stud_num     = record[4] if len(record) > 4 else "N/A"
+                    # Query returns: ID(0), studNumber(1), studName(2), studYear(3), studCourse(4),
+                    #                dateIssued(5), violation(6), actionTaken(7), officer(8), semester(9)
+                    slip_id      = record[0]   # ID for deletion
+                    stud_num     = record[1]   # Student Number
+                    stud_name    = record[2]   # Student Name
+                    stud_year    = record[3]   # Year
+                    stud_course  = record[4]   # Course
                     date_issued  = str(record[5]) if len(record) > 5 else "N/A"
                     violation    = record[6] if len(record) > 6 else "N/A"
                     action_taken = record[7] if len(record) > 7 else "N/A"
                     officer      = record[8] if len(record) > 8 else "N/A"
                     semester     = record[9] if len(record) > 9 else "N/A"
                     sample.append((
+                        slip_id,  # Hidden ID for deletion
                         stud_num, stud_name, stud_year, stud_course,
                         semester,
                         date_issued[:10] if date_issued != "N/A" else "N/A",
@@ -585,7 +589,7 @@ class PinkSlipPage(BasePage):
         self._all_pink_records = sample
         print(f"[DEBUG] Pink tracker showing {len(sample)} records")
         return sample if sample else [
-            ("No records", "Add records to see them here",
+            (None, "No records", "Add records to see them here",
              "-", "-", "-", "-", "-", "-", "-")
         ]
 
@@ -598,7 +602,7 @@ class PinkSlipPage(BasePage):
 
         filtered = []
         for row in self._all_pink_records:
-            stud_num, stud_name, year, course, semester, date_str, violation, action, officer = row
+            slip_id, stud_num, stud_name, year, course, semester, date_str, violation, action, officer = row
 
             if search_text and (
                     search_text not in stud_num.lower()
@@ -621,7 +625,7 @@ class PinkSlipPage(BasePage):
             filtered.append(row)
 
         if not filtered:
-            filtered = [("No results",
+            filtered = [(None, "No results",
                          "No records match the selected filters",
                          "-", "-", "-", "-", "-", "-", "-")]
         self._rebuild_pink_table(filtered)
@@ -640,8 +644,13 @@ class PinkSlipPage(BasePage):
                     self.pink_tracker_layout.removeWidget(self.pink_tracker_table)
                     self.pink_tracker_table.deleteLater()
                     break
+        # Strip the ID from each row before passing to build_record_table
+        display_data = []
+        for row in data:
+            # row[0] is slip_id, row[1:] is the display data
+            display_data.append(row[1:])
         # Create and add new table
-        self.pink_tracker_table = build_record_table(headers, data)
+        self.pink_tracker_table = build_record_table(headers, display_data)
         _apply_table_selection_style(self.pink_tracker_table, PINK_SLIP)
         self.pink_tracker_table.setMinimumHeight(260)
         self.pink_tracker_layout.insertWidget(self._pink_table_index,
@@ -826,12 +835,16 @@ class PinkSlipPage(BasePage):
             return
         
         row = self.pink_tracker_table.currentRow()
-        stud_num_item = self.pink_tracker_table.item(row, 0)
-        if not stud_num_item:
+        
+        # Get the row data from _all_pink_records (which includes the ID)
+        if row < 0 or row >= len(self._all_pink_records):
             return
         
-        stud_num = stud_num_item.text()
-        if stud_num == "No records":
+        row_data = self._all_pink_records[row]
+        slip_id = row_data[0]  # First element is the ID
+        stud_num = row_data[1]  # Second element is the student number
+        
+        if slip_id is None or stud_num == "No records":
             return
         
         dlg = ConfirmDialog(
@@ -842,8 +855,8 @@ class PinkSlipPage(BasePage):
         if dlg.exec_():
             try:
                 from backend.db_pink_slip import delete_pink_slip
-                print(f"[DEBUG] Deleting pink slip for student {stud_num}")
-                delete_pink_slip(stud_num)
+                print(f"[DEBUG] Deleting pink slip ID {slip_id} for student {stud_num}")
+                delete_pink_slip(slip_id)
                 print(f"[DEBUG] Pink slip deleted successfully")
                 InfoDialog(
                     "Record Deleted",

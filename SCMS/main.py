@@ -94,7 +94,9 @@ from ui.login_window import LoginWindow
 
 # Backend modules available for import
 from backend import db_connection, db_students, db_green_slip, db_blue_slip, db_pink_slip
+from backend.db_connection import close_connection_pool
 from backend.db_init_activity_log import create_activity_log_table
+from backend.db_init_students import initialize_student_constraints
 
 
 def main():
@@ -147,6 +149,17 @@ def main():
         except Exception as e:
             logger.error(f"Error during activity log initialization: {str(e)}", exc_info=True)
 
+        # Initialize student table constraints (prevent deletion, prevent duplicates)
+        logger.debug("Initializing student table constraints...")
+        try:
+            success = initialize_student_constraints()
+            if not success:
+                logger.warning("Student constraints initialization failed. Duplicates may be possible.")
+            else:
+                logger.info("Student constraints initialized successfully.")
+        except Exception as e:
+            logger.error(f"Error during student constraints initialization: {str(e)}", exc_info=True)
+
         # Show login window
         logger.debug("Creating and showing login window...")
         login = LoginWindow()
@@ -156,11 +169,13 @@ def main():
         logger.debug("Starting application event loop...")
         exit_code = app.exec_()
         logger.info(f"Application exited with code: {exit_code}")
+        close_connection_pool()
         sys.exit(exit_code)
         
     except Exception as e:
         logger.critical(f"FATAL ERROR in main(): {str(e)}", exc_info=True)
         print(f"\n[FATAL ERROR] Application crashed. Debug log: {debug_log}\n{traceback.format_exc()}", file=sys.stderr)
+        close_connection_pool()
         raise
 
 

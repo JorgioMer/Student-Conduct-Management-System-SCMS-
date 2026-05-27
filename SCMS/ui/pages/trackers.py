@@ -27,6 +27,7 @@ from ui.data_events import data_events
 from ui.pdf_preview_dialog import PDFPreviewDialog
 from backend.pdf_export import generate_slip_report, generate_individual_student_report
 from backend.db_activity_log import log_export, log_report_generated, log_batch_operation
+from backend.db_students import get_student
 import tempfile
 import os
 from datetime import datetime
@@ -799,23 +800,36 @@ class TrackersPage(BasePage):
 
         for i, (slip_type, record) in enumerate(all_records[:8], 1):
             try:
-                stud_name = record[0] if len(record) > 0 else "Unknown"
-                stud_num  = record[4] if len(record) > 4 else "N/A"
-                year      = record[2] if len(record) > 2 else "N/A"
-                course    = record[1] if len(record) > 1 else "N/A"
+                # Database queries return: ID(0), studNumber(1), studName(2), studYrLvl(3), ...
+                stud_num  = record[1] if len(record) > 1 else "N/A"
+                stud_name = record[2] if len(record) > 2 else "Unknown"
+                year      = record[3] if len(record) > 3 else "N/A"
 
                 if slip_type == "blue":
+                    # Blue slip: fetch course from Students table
+                    course = "N/A"
+                    try:
+                        student_rec = get_student(stud_num)
+                        if student_rec and len(student_rec) > 2:
+                            course = student_rec[2] if student_rec[2] else "N/A"
+                    except Exception:
+                        pass
+                    
                     slip_label = "🔵 Blue Slip"
-                    details    = record[5] if len(record) > 5 else "N/A"
+                    details    = record[4] if len(record) > 4 else "N/A"  # violationType_blue
                     date       = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status     = record[10] if len(record) > 10 else "Open / Pending"
+                    status     = record[8] if len(record) > 8 else "Open / Pending"
                 elif slip_type == "green":
-                    is_disp    = record[5] == False if len(record) > 5 else False
+                    # Green slip: record[4] is studCourse
+                    course     = record[4] if len(record) > 4 else "N/A"
+                    is_disp    = record[5] == True if len(record) > 5 else False
                     slip_label = "🟢 Green (Disp.)" if is_disp else "🟢 Green (Excuse)"
                     details    = str(record[7]) if len(record) > 7 else "N/A"
                     date       = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status     = record[8] if len(record) > 8 else "Active"
+                    status     = record[9] if len(record) > 9 else "Active"
                 else:
+                    # Pink slip: record[4] is studCourse
+                    course     = record[4] if len(record) > 4 else "N/A"
                     slip_label = "🔴 Pink Slip"
                     details    = record[6] if len(record) > 6 else "N/A"
                     date       = str(record[5])[:10] if len(record) > 5 else "N/A"

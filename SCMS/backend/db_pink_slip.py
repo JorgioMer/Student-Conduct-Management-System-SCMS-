@@ -44,21 +44,23 @@ def get_pink_slips(student_number):
         cursor = conn.cursor()
         
         if student_number is None:
-            # Return ALL pink slips
+            # Return ALL pink slips with ID first for deletion
             cursor.execute("""
-                SELECT s.studName, s.studCourse,
-                       s.studYrLvl, p.*
+                SELECT p.ID, p.studNumber, s.studName, s.studYrLvl, s.studCourse,
+                       p.dateIssued_pink, p.violation_pink, p.actionTaken_pink,
+                       p.offcInCharge_pink, p.sem_pink
                 FROM Students s
-                INNER JOIN [Pink Slip Record] p 
+                INNER JOIN [Pink Slip Record] p
                        ON s.studNumber = p.studNumber
             """)
         else:
             # Return slips for specific student
             cursor.execute("""
-                SELECT s.studName, s.studCourse,
-                       s.studYrLvl, p.*
+                SELECT p.ID, p.studNumber, s.studName, s.studYrLvl, s.studCourse,
+                       p.dateIssued_pink, p.violation_pink, p.actionTaken_pink,
+                       p.offcInCharge_pink, p.sem_pink
                 FROM Students s
-                INNER JOIN [Pink Slip Record] p 
+                INNER JOIN [Pink Slip Record] p
                        ON s.studNumber = p.studNumber
                 WHERE p.studNumber = ?
             """, (student_number,))
@@ -90,7 +92,7 @@ def has_pink_slip_for_semester(stud_num, semester):
         cursor.execute("""
             SELECT COUNT(*) as cnt
             FROM [Pink Slip Record]
-            WHERE studNumber = ? AND sem_pink = ?
+            WHERE [studNumber] = ? AND [sem_pink] = ?
         """, (stud_num, semester))
         
         result = cursor.fetchone()
@@ -119,12 +121,12 @@ def get_pink_slips_for_semester(stud_num, semester):
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT s.studName, s.studCourse,
-                   s.studYrLvl, p.*
+            SELECT s.[studName], s.[studCourse],
+                   s.[studYrLvl], p.*
             FROM Students s
             INNER JOIN [Pink Slip Record] p 
-                   ON s.studNumber = p.studNumber
-            WHERE p.studNumber = ? AND p.sem_pink = ?
+                   ON s.[studNumber] = p.[studNumber]
+            WHERE p.[studNumber] = ? AND p.[sem_pink] = ?
         """, (stud_num, semester))
         
         rows = cursor.fetchall()
@@ -136,25 +138,25 @@ def get_pink_slips_for_semester(stud_num, semester):
             conn.close()
 
 
-def delete_pink_slip(stud_num):
-    """Delete a pink slip record for a specific student."""
+def delete_pink_slip(slip_id):
+    """Delete a specific pink slip record by ID."""
     conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             DELETE FROM [Pink Slip Record]
-            WHERE studNumber = ?
-        """, (stud_num,))
+            WHERE ID = ?
+        """, (slip_id,))
         conn.commit()
         rows_deleted = cursor.rowcount
         if rows_deleted == 0:
-            raise Exception(f"No pink slip found for student {stud_num}")
+            raise Exception(f"No pink slip found with ID {slip_id}")
         return rows_deleted
     except Exception as e:
         if conn:
             conn.rollback()
-        raise Exception(f"Failed to delete pink slip for student {stud_num}: {str(e)}") from e
+        raise Exception(f"Failed to delete pink slip with ID {slip_id}: {str(e)}") from e
     finally:
         if conn:
             conn.close()

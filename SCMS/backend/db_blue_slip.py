@@ -47,23 +47,25 @@ def get_blue_slips(student_number):
         cursor = conn.cursor()
         
         if student_number is None:
-            # Return ALL blue slips
+            # Return ALL blue slips with ID first for deletion
             cursor.execute("""
-                SELECT s.studName, s.studCourse,
-                       s.studYrLvl, b.*
+                SELECT b.[ID], b.[studNumber], s.[studName], s.[studYrLvl],
+                       b.[violationType_blue], b.[severityLvl_blue], b.[dateOfViolation_blue],
+                       b.[actionTaken_blue], b.[status_blue]
                 FROM Students s
                 INNER JOIN [Blue Slip Record] b
-                       ON s.studNumber = b.studNumber
+                       ON s.[studNumber] = b.[studNumber]
             """)
         else:
             # Return slips for specific student
             cursor.execute("""
-                SELECT s.studName, s.studCourse,
-                       s.studYrLvl, b.*
+                SELECT b.[ID], b.[studNumber], s.[studName], s.[studYrLvl],
+                       b.[violationType_blue], b.[severityLvl_blue], b.[dateOfViolation_blue],
+                       b.[actionTaken_blue], b.[status_blue]
                 FROM Students s
                 INNER JOIN [Blue Slip Record] b
-                       ON s.studNumber = b.studNumber
-                WHERE b.studNumber = ?
+                       ON s.[studNumber] = b.[studNumber]
+                WHERE b.[studNumber] = ?
             """, (student_number,))
         
         rows = cursor.fetchall()
@@ -83,8 +85,8 @@ def update_blue_slip_status(stud_num, new_status):
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE [Blue Slip Record]
-            SET status_blue = ?
-            WHERE studNumber = ?
+            SET [status_blue] = ?
+            WHERE [studNumber] = ?
         """, (new_status, stud_num))
         conn.commit()
         rows_updated = cursor.rowcount
@@ -100,25 +102,25 @@ def update_blue_slip_status(stud_num, new_status):
             conn.close()
 
 
-def delete_blue_slip(stud_num):
-    """Delete a blue slip record for a specific student."""
+def delete_blue_slip(slip_id):
+    """Delete a specific blue slip record by ID."""
     conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             DELETE FROM [Blue Slip Record]
-            WHERE studNumber = ?
-        """, (stud_num,))
+            WHERE ID = ?
+        """, (slip_id,))
         conn.commit()
         rows_deleted = cursor.rowcount
         if rows_deleted == 0:
-            raise Exception(f"No blue slip found for student {stud_num}")
+            raise Exception(f"No blue slip found with ID {slip_id}")
         return rows_deleted
     except Exception as e:
         if conn:
             conn.rollback()
-        raise Exception(f"Failed to delete blue slip for student {stud_num}: {str(e)}") from e
+        raise Exception(f"Failed to delete blue slip with ID {slip_id}: {str(e)}") from e
     finally:
         if conn:
             conn.close()
@@ -181,23 +183,23 @@ def get_violation_history(stud_num, violation_type=None):
         
         if violation_type:
             cursor.execute("""
-                SELECT s.studName, s.studCourse,
-                       s.studYrLvl, b.*
+                SELECT s.[studName], s.[studCourse],
+                       s.[studYrLvl], b.*
                 FROM Students s
                 INNER JOIN [Blue Slip Record] b
-                       ON s.studNumber = b.studNumber
-                WHERE b.studNumber = ? AND b.violationType_blue = ?
-                ORDER BY b.dateOfViolation_blue ASC
+                       ON s.[studNumber] = b.[studNumber]
+                WHERE b.[studNumber] = ? AND b.[violationType_blue] = ?
+                ORDER BY b.[dateOfViolation_blue] ASC
             """, (stud_num, violation_type))
         else:
             cursor.execute("""
-                SELECT s.studName, s.studCourse,
-                       s.studYrLvl, b.*
+                SELECT s.[studName], s.[studCourse],
+                       s.[studYrLvl], b.*
                 FROM Students s
                 INNER JOIN [Blue Slip Record] b
-                       ON s.studNumber = b.studNumber
-                WHERE b.studNumber = ?
-                ORDER BY b.dateOfViolation_blue ASC
+                       ON s.[studNumber] = b.[studNumber]
+                WHERE b.[studNumber] = ?
+                ORDER BY b.[dateOfViolation_blue] ASC
             """, (stud_num,))
         
         rows = cursor.fetchall()
@@ -252,8 +254,8 @@ def update_blue_slip_escalation(record_id, is_escalated):
         
         cursor.execute("""
             UPDATE [Blue Slip Record]
-            SET status_blue = ?
-            WHERE ID = ?
+            SET [status_blue] = ?
+            WHERE [ID] = ?
         """, (new_status, record_id))
         conn.commit()
         return True

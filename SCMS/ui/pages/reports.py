@@ -108,7 +108,7 @@ class ReportsPage(BasePage):
     # ------------------------------------------------------------------
     # Period filtering helpers
     # ------------------------------------------------------------------
-    def _filter_records_by_period(self, records, date_field_index=6):
+    def _filter_records_by_period(self, records, date_field_index=6, fallback_date_index=None):
         period = self.period_cb.currentText() if hasattr(self, 'period_cb') else ""
         if not records or not period:
             return records
@@ -118,9 +118,19 @@ class ReportsPage(BasePage):
             try:
                 if len(record) <= date_field_index:
                     continue
+                
+                # Try primary date field first
                 date_str = str(record[date_field_index]).strip()
-                if not date_str or date_str == "N/A":
+                
+                # If primary date is empty/None, try fallback date (e.g., for green slips with empty dateAvail_green)
+                if (not date_str or date_str == "N/A" or date_str == "None") and fallback_date_index is not None:
+                    if len(record) > fallback_date_index:
+                        date_str = str(record[fallback_date_index]).strip()
+                
+                # If still no valid date string, skip this record
+                if not date_str or date_str == "N/A" or date_str == "None":
                     continue
+                    
                 try:
                     if "/" in date_str:
                         date_obj = datetime.strptime(date_str.split()[0], "%d/%m/%Y")
@@ -211,10 +221,17 @@ class ReportsPage(BasePage):
             period_options = get_period_options()
             self.period_cb.addItems(period_options)
             
-            current_month = datetime.now().strftime("%B %Y")
-            idx = self.period_cb.findText(current_month)
+            # Use actual calendar year for month display (matches get_period_options())
+            display_year = datetime.now().year
+            current_month = datetime.now().strftime("%B")  # e.g., "May"
+            current_month_year = f"{current_month} {display_year}"  # e.g., "May 2026"
+            
+            idx = self.period_cb.findText(current_month_year)
             if idx >= 0:
                 self.period_cb.setCurrentIndex(idx)
+            else:
+                # Fallback to first option if exact month not found
+                self.period_cb.setCurrentIndex(0)
             self.period_cb.setFixedHeight(38)
             self.period_cb.setFixedWidth(280)
             self.period_cb.currentIndexChanged.connect(self._on_period_changed)
@@ -288,7 +305,7 @@ class ReportsPage(BasePage):
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip  import get_pink_slips
 
-        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
+        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=9)
         pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5)
         blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6)
 
@@ -392,7 +409,7 @@ class ReportsPage(BasePage):
         try:
             green_raw = get_green_slips(None)
             logger.debug(f"Green slips raw count: {len(green_raw) if green_raw else 0}")
-            green_records = self._filter_records_by_period(green_raw or [], date_field_index=6)
+            green_records = self._filter_records_by_period(green_raw or [], date_field_index=6, fallback_date_index=8)
             logger.debug(f"Green slips after period filter: {len(green_records)}")
         except Exception as e:
             logger.error(f"Failed to retrieve green slips: {e}", exc_info=True)
@@ -401,14 +418,15 @@ class ReportsPage(BasePage):
         rows = []
         for i, record in enumerate(green_records[:5]):
             try:
-                stud_name = record[0] if len(record) > 0 else "Unknown"
-                stud_num  = record[4] if len(record) > 4 else "N/A"
-                year      = record[2] if len(record) > 2 else "N/A"
+                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), slipType(5), dateAvail(6), days(7), exprDate(8), status(9)
+                stud_num  = record[1] if len(record) > 1 else "N/A"
+                stud_name = record[2] if len(record) > 2 else "Unknown"
+                year      = record[3] if len(record) > 3 else "N/A"
                 is_dispensation = record[5] if len(record) > 5 else False
                 slip_type = "Dispensation" if is_dispensation else "Excuse"
                 date      = str(record[6])[:10] if len(record) > 6 else "N/A"
                 days      = str(record[7]) if len(record) > 7 else "N/A"
-                status    = record[8] if len(record) > 8 else "Active"
+                status    = record[9] if len(record) > 9 else "Active"
                 rows.append((stud_num, stud_name, year, slip_type, date, days, status))
             except Exception as e:
                 logger.error(f"Error processing green slip record {i}: {e}", exc_info=True)
@@ -436,10 +454,11 @@ class ReportsPage(BasePage):
         rows = []
         for i, record in enumerate(pink_records[:5]):
             try:
-                stud_name = record[0] if len(record) > 0 else "Unknown"
-                stud_num  = record[4] if len(record) > 4 else "N/A"
-                year      = record[2] if len(record) > 2 else "N/A"
-                course    = record[1] if len(record) > 1 else "N/A"
+                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), dateIssued(5), violation(6), actionTaken(7), officer(8), semester(9)
+                stud_num  = record[1] if len(record) > 1 else "N/A"
+                stud_name = record[2] if len(record) > 2 else "Unknown"
+                year      = record[3] if len(record) > 3 else "N/A"
+                course    = record[4] if len(record) > 4 else "N/A"
                 date      = str(record[5])[:10] if len(record) > 5 else "N/A"
                 violation = record[6] if len(record) > 6 else "N/A"
                 rows.append((stud_num, stud_name, year, course, violation, date))
@@ -469,13 +488,14 @@ class ReportsPage(BasePage):
         rows = []
         for i, record in enumerate(blue_records[:5]):
             try:
-                stud_name = record[0] if len(record) > 0 else "Unknown"
-                stud_num  = record[4] if len(record) > 4 else "N/A"
-                year      = record[2] if len(record) > 2 else "N/A"
-                violation = record[5] if len(record) > 5 else "N/A"
-                severity  = record[8] if len(record) > 8 else "N/A"
+                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), violationType(4), severity(5), dateOfViolation(6), actionTaken(7), status(8)
+                stud_num  = record[1] if len(record) > 1 else "N/A"
+                stud_name = record[2] if len(record) > 2 else "Unknown"
+                year      = record[3] if len(record) > 3 else "N/A"
+                violation = record[4] if len(record) > 4 else "N/A"
+                severity  = record[5] if len(record) > 5 else "N/A"
                 date      = str(record[6])[:10] if len(record) > 6 else "N/A"
-                status    = record[10] if len(record) > 10 else "Open"
+                status    = record[8] if len(record) > 8 else "Open"
                 rows.append((stud_num, stud_name, year, violation, severity, date, status))
             except Exception as e:
                 logger.error(f"Error processing blue slip record {i}: {e}", exc_info=True)
@@ -570,11 +590,12 @@ class ReportsPage(BasePage):
             }
         for slip in all_slips:
             try:
-                course       = slip[1] if len(slip) > 1 else ""
+                # Queries return: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), ...
+                stud_name = slip[2] if len(slip) > 2 else "Unknown"
+                course    = slip[4] if len(slip) > 4 else ""
                 college_code = get_course_college(course)
                 if college_code is None:
                     continue
-                stud_name = slip[0] if len(slip) > 0 else "Unknown"
                 college_data[college_code]["students"].add(stud_name)
                 if slip in green_slips:
                     college_data[college_code]["green"] += 1
@@ -600,7 +621,7 @@ class ReportsPage(BasePage):
 
         lay.addWidget(SectionTitle("Distribution by College"))
 
-        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)
+        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=8)
         pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5)
         blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6)
         all_slips   = green_slips + pink_slips + blue_slips
@@ -716,21 +737,21 @@ class ReportsPage(BasePage):
         student_counts = {}
         try:
             for record in get_green_slips(None) or []:
-                sn = record[4] if len(record) > 4 else None
+                sn = record[1] if len(record) > 1 else None  # studNumber is at index 1
                 if sn:
                     student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
                     student_counts[sn]["green"] += 1
                     if not student_counts[sn]["info"]:
                         student_counts[sn]["info"] = get_student(sn)
             for record in get_pink_slips(None) or []:
-                sn = record[4] if len(record) > 4 else None
+                sn = record[1] if len(record) > 1 else None  # studNumber is at index 1
                 if sn:
                     student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
                     student_counts[sn]["pink"] += 1
                     if not student_counts[sn]["info"]:
                         student_counts[sn]["info"] = get_student(sn)
             for record in get_blue_slips(None) or []:
-                sn = record[4] if len(record) > 4 else None
+                sn = record[1] if len(record) > 1 else None  # studNumber is at index 1
                 if sn:
                     student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
                     student_counts[sn]["blue"] += 1
@@ -820,8 +841,8 @@ class ReportsPage(BasePage):
 
         year_counts = Counter()
         for record in all_records:
-            if len(record) > 2:
-                year = record[2]
+            if len(record) > 3:
+                year = record[3]  # studYrLvl is at index 3
                 if year and year != "N/A":
                     year_counts[str(year)] += 1
 
@@ -925,7 +946,7 @@ class ReportsPage(BasePage):
             from backend.db_pink_slip  import get_pink_slips
 
             records_data = {
-                'green': self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6),
+                'green': self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=9),
                 'pink':  self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5),
                 'blue':  self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6),
             }
@@ -979,7 +1000,7 @@ class ReportsPage(BasePage):
             from backend.db_pink_slip  import get_pink_slips
 
             total = (
-                len(self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6)) +
+                len(self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=9)) +
                 len(self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5)) +
                 len(self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6))
             )
@@ -1052,9 +1073,11 @@ class ReportsPage(BasePage):
             # Try to restore selection, or use current month
             idx = self.period_cb.findText(current_period)
             if idx < 0:
-                # Period name changed (different year), try current month
-                current_month = datetime.now().strftime("%B %Y")
-                idx = self.period_cb.findText(current_month)
+                # Period name changed (different year), try current month with correct year
+                display_year = datetime.now().year
+                current_month = datetime.now().strftime("%B")  # e.g., "May"
+                current_month_year = f"{current_month} {display_year}"  # e.g., "May 2026"
+                idx = self.period_cb.findText(current_month_year)
             
             if idx >= 0:
                 self.period_cb.setCurrentIndex(idx)

@@ -237,22 +237,36 @@ def remove_custom_course(course_code):
 def get_period_options():
     """Generate period options for report filtering based on current year
     
+    Only includes months from January up to and including the current month.
+    When the academic year changes, the list resets and starts from January.
+    
     Returns:
         List of period strings in format:
-        - "January 2024", "February 2024", ..., "December 2024"
-        - "1st Semester S.Y. 2024–2025"
-        - "2ND Semester S.Y. 2024–2025"
-        - "S.Y. 2024–2025 (Full Year)"
+        - "January 2026", "February 2026", ..., up to current month
+        - "1st Semester S.Y. 2025–2026"
+        - "2ND Semester S.Y. 2025–2026"
+        - "S.Y. 2025–2026 (Full Year)"
     """
-    year = get_current_year()
-    months = ["January", "February", "March", "April", "May", "June",
-              "July", "August", "September", "October", "November", "December"]
+    from datetime import datetime
     
-    options = [f"{month} {year}" for month in months]
+    # Use actual calendar year for month display (e.g., May 2026)
+    display_year = datetime.now().year
+    
+    # Use school year for semester display (e.g., "S.Y. 2025–2026")
+    school_year_str = get_school_year()
+    
+    current_month_num = datetime.now().month
+    all_months = ["January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"]
+    
+    # Only include months from January up to and including the current month
+    months_up_to_now = all_months[:current_month_num]
+    options = [f"{month} {display_year}" for month in months_up_to_now]
+    
     options.extend([
-        f"1st Semester S.Y. {year}–{year+1}",
-        f"2ND Semester S.Y. {year}–{year+1}",
-        f"S.Y. {year}–{year+1} (Full Year)",
+        f"1st Semester S.Y. {school_year_str}",
+        f"2ND Semester S.Y. {school_year_str}",
+        f"S.Y. {school_year_str} (Full Year)",
     ])
     return options
 

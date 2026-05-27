@@ -20,9 +20,9 @@ def check_and_update_expired_green_slips():
         
         # Get all active green slips with expiry dates
         cursor.execute("""
-            SELECT ID, exprDate_greenDisp, status_green
+            SELECT [ID], [exprDate_greenDisp], [status_green]
             FROM [Green Slip Record]
-            WHERE status_green = 'Active' AND exprDate_greenDisp IS NOT NULL
+            WHERE [status_green] = 'Active' AND [exprDate_greenDisp] IS NOT NULL
         """)
         
         active_slips = cursor.fetchall()
@@ -58,8 +58,8 @@ def check_and_update_expired_green_slips():
                     # Update status to "Expired"
                     cursor.execute("""
                         UPDATE [Green Slip Record]
-                        SET status_green = 'Expired'
-                        WHERE ID = ?
+                        SET [status_green] = 'Expired'
+                        WHERE [ID] = ?
                     """, (slip_id,))
                     expired_count += 1
             except Exception as slip_error:
@@ -140,23 +140,25 @@ def get_green_slips(student_number):
         cursor = conn.cursor()
         
         if student_number is None:
-            # Return ALL green slips
+            # Return ALL green slips with ID first for deletion
             cursor.execute("""
-                SELECT s.studName, s.studCourse, 
-                       s.studYrLvl, g.*
+                SELECT g.[ID], g.[studNumber], s.[studName], s.[studYrLvl], s.[studCourse],
+                       g.[slipType_green], g.[dateAvail_green], g.[daysOfAbs_greenDisp],
+                       g.[exprDate_greenDisp], g.[status_green]
                 FROM Students s
                 INNER JOIN [Green Slip Record] g 
-                       ON s.studNumber = g.studNumber
+                       ON s.[studNumber] = g.[studNumber]
             """)
         else:
             # Return slips for specific student
             cursor.execute("""
-                SELECT s.studName, s.studCourse, 
-                       s.studYrLvl, g.*
+                SELECT g.[ID], g.[studNumber], s.[studName], s.[studYrLvl], s.[studCourse],
+                       g.[slipType_green], g.[dateAvail_green], g.[daysOfAbs_greenDisp],
+                       g.[exprDate_greenDisp], g.[status_green]
                 FROM Students s
                 INNER JOIN [Green Slip Record] g 
-                       ON s.studNumber = g.studNumber
-                WHERE g.studNumber = ?
+                       ON s.[studNumber] = g.[studNumber]
+                WHERE g.[studNumber] = ?
             """, (student_number,))
         
         rows = cursor.fetchall()
@@ -168,25 +170,25 @@ def get_green_slips(student_number):
             conn.close()
 
 
-def delete_green_slip(stud_num):
-    """Delete a green slip record for a specific student."""
+def delete_green_slip(slip_id):
+    """Delete a specific green slip record by ID."""
     conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             DELETE FROM [Green Slip Record]
-            WHERE studNumber = ?
-        """, (stud_num,))
+            WHERE ID = ?
+        """, (slip_id,))
         conn.commit()
         rows_deleted = cursor.rowcount
         if rows_deleted == 0:
-            raise Exception(f"No green slip found for student {stud_num}")
+            raise Exception(f"No green slip found with ID {slip_id}")
         return rows_deleted
     except Exception as e:
         if conn:
             conn.rollback()
-        raise Exception(f"Failed to delete green slip for student {stud_num}: {str(e)}") from e
+        raise Exception(f"Failed to delete green slip with ID {slip_id}: {str(e)}") from e
     finally:
         if conn:
             conn.close()

@@ -2,6 +2,25 @@ from .db_connection import get_connection
 from .config import get_school_year
 
 
+def delete_student(student_number):
+    """
+    PREVENTED: Student records cannot be deleted.
+    This function is intentionally blocked to ensure data integrity.
+    
+    Args:
+        student_number: Student number (not used - always raises error)
+    
+    Raises:
+        PermissionError: Always raised - students cannot be deleted
+    """
+    raise PermissionError(
+        "Student records cannot be deleted. This is a protected operation.\n"
+        "If you need to remove a student record, contact your administrator to:\n"
+        "1. Archive the record to a historical table, or\n"
+        "2. Modify the student's status field instead"
+    )
+
+
 def add_student(stud_num, name, course, year, school_yr, status):
     conn = None
     try:
@@ -17,6 +36,10 @@ def add_student(stud_num, name, course, year, school_yr, status):
     except Exception as e:
         if conn:
             conn.rollback()
+        error_msg = str(e).lower()
+        # Check for UNIQUE constraint violation
+        if "unique" in error_msg or "duplicate" in error_msg:
+            raise Exception(f"Student number {stud_num} already exists in the system. Each student must have a unique number.") from e
         raise Exception(f"Failed to add student {stud_num}: {str(e)}") from e
     finally:
         if conn:
@@ -79,15 +102,26 @@ def add_student_if_not_exists(stud_num, name="", course="", year="", school_yr="
         
         if not existing:
             # Add new student with available partial info
-            cursor.execute("""
-                INSERT INTO Students 
-                (studNumber, studName, studCourse, 
-                 studYrLvl, schoolYr, studStatus)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (stud_num, name or "", course or "", year or "", 
-                  school_yr, status or "Active"))
-            conn.commit()
-            return True  # Student was added
+            try:
+                cursor.execute("""
+                    INSERT INTO Students 
+                    (studNumber, studName, studCourse, 
+                     studYrLvl, schoolYr, studStatus)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (stud_num, name or "", course or "", year or "", 
+                      school_yr, status or "Active"))
+                conn.commit()
+                return True  # Student was added
+            except Exception as insert_error:
+                # Check if it's a UNIQUE constraint violation
+                error_msg = str(insert_error).lower()
+                if "unique" in error_msg or "duplicate" in error_msg:
+                    # The student exists but we couldn't find it in the SELECT above
+                    # This is likely a race condition - treat as already existing
+                    print(f"[WARNING] Student {stud_num} appears to be a duplicate. Skipping insert.")
+                    conn.rollback()
+                    return False
+                raise
         else:
             # Student exists - update any blank fields with new data
             existing_name = existing[1] if existing[1] else ""
@@ -116,6 +150,11 @@ def add_student_if_not_exists(stud_num, name="", course="", year="", school_yr="
         
         return False  # Student already existed
     except Exception as e:
+        conn.rollback()
+        error_msg = str(e).lower()
+        if "unique" in error_msg or "duplicate" in error_msg:
+            print(f"[INFO] Student {stud_num} already exists in database (duplicate check)")
+            return False
         raise Exception(f"Failed to add student {stud_num}: {str(e)}")
     finally:
         conn.close()

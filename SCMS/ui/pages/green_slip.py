@@ -845,17 +845,21 @@ class GreenSlipPage(BasePage):
             print(f"[DEBUG] Loaded {len(green_records)} green slip records from database")
             for record in green_records:
                 try:
-                    stud_name    = record[0] if len(record) > 0 else "N/A"
-                    stud_course  = record[1] if len(record) > 1 else "N/A"
-                    stud_year    = record[2] if len(record) > 2 else "N/A"
-                    stud_num     = record[4] if len(record) > 4 else "N/A"
-                    is_disp      = record[5] if len(record) > 5 else False
-                    slip_type    = "Dispensation" if is_disp else "Excuse"
+                    # Query returns: ID(0), studNumber(1), studName(2), studYear(3), studCourse(4),
+                    #                slipType(5), dateAvail(6), days(7), exprDate(8), status(9)
+                    slip_id      = record[0]   # ID for deletion
+                    stud_num     = record[1]   # Student Number
+                    stud_name    = record[2]   # Student Name
+                    stud_year    = record[3]   # Year
+                    stud_course  = record[4]   # Course
+                    is_disp      = record[5]   # slipType_green (True=Dispensation, False=Excuse)
                     date_avail   = str(record[6]) if len(record) > 6 else "N/A"
                     days_absence = str(record[7]) if len(record) > 7 else "N/A"
-                    status       = record[8]      if len(record) > 8 else "Active"
-                    expiry       = str(record[9]) if len(record) > 9 else "N/A"
+                    expiry       = str(record[8]) if len(record) > 8 else "N/A"
+                    status       = record[9]   if len(record) > 9 else "Active"
+                    slip_type    = "Dispensation" if is_disp else "Excuse"
                     sample.append((
+                        slip_id,  # Hidden ID for deletion
                         stud_num, stud_name, stud_year, stud_course, slip_type,
                         date_avail[:10] if date_avail != "N/A" else "N/A",
                         days_absence,
@@ -873,7 +877,7 @@ class GreenSlipPage(BasePage):
         self._all_green_records = sample
         print(f"[DEBUG] Green tracker showing {len(sample)} records")
         return sample if sample else [
-            ("No records", "Add records to see them here",
+            (None, "No records", "Add records to see them here",
              "-", "-", "-", "-", "-", "-", "-")
         ]
 
@@ -888,7 +892,7 @@ class GreenSlipPage(BasePage):
 
         filtered = []
         for row in self._all_green_records:
-            stud_num, stud_name, year, course, slip_type, date_str, _, _, _ = row
+            slip_id, stud_num, stud_name, year, course, slip_type, date_str, _, _, status = row
 
             if search_text and (
                     search_text not in stud_num.lower()
@@ -914,7 +918,7 @@ class GreenSlipPage(BasePage):
             filtered.append(row)
 
         if not filtered:
-            filtered = [("No results",
+            filtered = [(None, "No results",
                          "No records match the selected filters",
                          "-", "-", "-", "-", "-", "-", "-")]
         self._rebuild_green_table(filtered)
@@ -934,8 +938,13 @@ class GreenSlipPage(BasePage):
                     self.green_tracker_layout.removeWidget(self.green_tracker_table)
                     self.green_tracker_table.deleteLater()
                     break
+        # Strip the ID from each row before passing to build_record_table
+        display_data = []
+        for row in data:
+            # row[0] is slip_id, row[1:] is the display data
+            display_data.append(row[1:])
         # Create and add new table
-        self.green_tracker_table = build_record_table(headers, data)
+        self.green_tracker_table = build_record_table(headers, display_data)
         _apply_table_selection_style(self.green_tracker_table, GREEN_SLIP)
         self.green_tracker_table.setMinimumHeight(280)
         self.green_tracker_layout.insertWidget(self._green_table_index,
@@ -1137,12 +1146,16 @@ class GreenSlipPage(BasePage):
             return
         
         row = self.green_tracker_table.currentRow()
-        stud_num_item = self.green_tracker_table.item(row, 0)
-        if not stud_num_item:
+        
+        # Get the row data from _all_green_records (which includes the ID)
+        if row < 0 or row >= len(self._all_green_records):
             return
         
-        stud_num = stud_num_item.text()
-        if stud_num == "No records":
+        row_data = self._all_green_records[row]
+        slip_id = row_data[0]  # First element is the ID
+        stud_num = row_data[1]  # Second element is the student number
+        
+        if slip_id is None or stud_num == "No records":
             return
         
         dlg = ConfirmDialog(
@@ -1153,8 +1166,8 @@ class GreenSlipPage(BasePage):
         if dlg.exec_():
             try:
                 from backend.db_green_slip import delete_green_slip
-                print(f"[DEBUG] Deleting green slip for student {stud_num}")
-                delete_green_slip(stud_num)
+                print(f"[DEBUG] Deleting green slip ID {slip_id} for student {stud_num}")
+                delete_green_slip(slip_id)
                 print(f"[DEBUG] Green slip deleted successfully")
                 InfoDialog(
                     "Record Deleted",

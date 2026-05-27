@@ -8,7 +8,7 @@
   ],
   "current_semester": "2nd Semester",
   "green_slip_threshold": "2",
-  "escalation_trigger": "3",
+  "escalation_trigger": "4",
   "notifications": {
     "green_slip_alert": true,
     "pink_slip_warn": true,

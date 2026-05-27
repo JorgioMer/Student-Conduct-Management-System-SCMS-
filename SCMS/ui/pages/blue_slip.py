@@ -710,15 +710,22 @@ class BlueSlipPage(BasePage):
             print(f"[DEBUG] Loaded {len(blue_records)} blue slip records from database")
             for record in blue_records:
                 try:
+                    # Query returns: ID(0), studNumber(1), studName(2), studYear(3),
+                    #                violationType(4), severity(5), dateOfViolation(6),
+                    #                actionTaken(7), status(8)
+                    slip_id      = record[0]   # ID for deletion
+                    stud_num     = record[1]   # Student Number
+                    stud_name    = record[2]   # Student Name
+                    stud_year    = record[3]   # Year
+                    vtype        = record[4]   # Violation Type
+                    severity     = record[5]   # Severity
+                    date_str     = str(record[6])[:10] if len(record) > 6 else "N/A"
+                    action       = str(record[7]) if len(record) > 7 else "N/A"
+                    status       = str(record[8]) if len(record) > 8 else "Open / Pending"
                     sample.append((
-                        str(record[_COL_STUD_NUM])  if len(record) > _COL_STUD_NUM  else "N/A",
-                        str(record[_COL_STUD_NAME]) if len(record) > _COL_STUD_NAME else "N/A",
-                        str(record[_COL_STUD_YEAR]) if len(record) > _COL_STUD_YEAR else "N/A",
-                        str(record[_COL_VTYPE])     if len(record) > _COL_VTYPE     else "N/A",
-                        str(record[_COL_SEVERITY])  if len(record) > _COL_SEVERITY  else "N/A",
-                        str(record[_COL_DATE])[:10] if len(record) > _COL_DATE      else "N/A",
-                        str(record[_COL_ACTION])    if len(record) > _COL_ACTION    else "N/A",
-                        str(record[_COL_STATUS])    if len(record) > _COL_STATUS    else "Open / Pending",
+                        slip_id,  # Hidden ID for deletion
+                        stud_num, stud_name, stud_year, vtype, severity,
+                        date_str, action, status,
                     ))
                 except Exception as e:
                     print(f"[ERROR] Failed to parse blue slip record: {str(e)}")
@@ -732,7 +739,7 @@ class BlueSlipPage(BasePage):
         self._all_blue_records = sample
         print(f"[DEBUG] Blue tracker showing {len(sample)} records")
         return sample if sample else [
-            ("No records", "Add records to see them here",
+            (None, "No records", "Add records to see them here",
              "-", "-", "-", "-", "-", "-")
         ]
 
@@ -747,7 +754,7 @@ class BlueSlipPage(BasePage):
 
         filtered = []
         for row in self._all_blue_records:
-            stud_num, stud_name, year, vtype, severity, date_str, action, status = row
+            slip_id, stud_num, stud_name, year, vtype, severity, date_str, action, status = row
 
             if search_text and (
                     search_text not in stud_num.lower()
@@ -776,7 +783,7 @@ class BlueSlipPage(BasePage):
             filtered.append(row)
 
         if not filtered:
-            filtered = [("No results",
+            filtered = [(None, "No results",
                          "No records match the selected filters",
                          "-", "-", "-", "-", "-", "-")]
         self._rebuild_blue_table(filtered)
@@ -803,8 +810,13 @@ class BlueSlipPage(BasePage):
                     self.blue_tracker_layout.removeWidget(self.blue_tracker_table)
                     self.blue_tracker_table.deleteLater()
                     break
+        # Strip the ID from each row before passing to build_record_table
+        display_data = []
+        for row in data:
+            # row[0] is slip_id, row[1:] is the display data
+            display_data.append(row[1:])
         # Create and add new table
-        self.blue_tracker_table = build_record_table(headers, data)
+        self.blue_tracker_table = build_record_table(headers, display_data)
         _apply_table_selection_style(self.blue_tracker_table, BLUE_SLIP)
         self.blue_tracker_table.setMinimumHeight(260)
         for r in range(self.blue_tracker_table.rowCount()):
@@ -1126,12 +1138,16 @@ class BlueSlipPage(BasePage):
             return
         
         row = self.blue_tracker_table.currentRow()
-        stud_num_item = self.blue_tracker_table.item(row, 0)  # Student No. is column 0
-        if not stud_num_item:
+        
+        # Get the row data from _all_blue_records (which includes the ID)
+        if row < 0 or row >= len(self._all_blue_records):
             return
         
-        stud_num = stud_num_item.text()
-        if stud_num == "No records":
+        row_data = self._all_blue_records[row]
+        slip_id = row_data[0]  # First element is the ID
+        stud_num = row_data[1]  # Second element is the student number
+        
+        if slip_id is None or stud_num == "No records":
             return
         
         dlg = ConfirmDialog(
@@ -1142,8 +1158,8 @@ class BlueSlipPage(BasePage):
         if dlg.exec_():
             try:
                 from backend.db_blue_slip import delete_blue_slip
-                print(f"[DEBUG] Deleting blue slip for student {stud_num}")
-                delete_blue_slip(stud_num)
+                print(f"[DEBUG] Deleting blue slip ID {slip_id} for student {stud_num}")
+                delete_blue_slip(slip_id)
                 print(f"[DEBUG] Blue slip deleted successfully")
                 InfoDialog(
                     "Record Deleted",
