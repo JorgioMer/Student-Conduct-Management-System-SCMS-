@@ -48,40 +48,39 @@ class DashboardPage(QWidget):
         super().__init__(parent)
         self.role = role
         self.setStyleSheet(f"background: {OFF_WHITE};")
-        
+
         # Month tracking for auto-refresh
         today = QDate.currentDate()
         self.current_month = today.month()
         self.current_year = today.year()
         self.main_layout = None
         self.scroll_widget = None
-        
+
         # Timer to check for month changes (every minute)
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._check_month_change)
         self.refresh_timer.start(60000)
-        
+
         # Connect to slip data changes for instant refresh
         data_events.slips_changed.connect(self._on_slips_changed)
-        
+
         self._build()
-    
+
     def _check_month_change(self):
         """Check if the month has changed and refresh dashboard if needed"""
         today = QDate.currentDate()
         if today.month() != self.current_month or today.year() != self.current_year:
-            # Month changed - refresh dashboard
             self.current_month = today.month()
             self.current_year = today.year()
             self._refresh_dashboard()
-    
+
     def _on_slips_changed(self):
         """Refresh dashboard when slips data changes - called whenever a slip is added."""
         try:
             self._refresh_dashboard()
         except Exception as e:
             print(f"[ERROR] Failed to refresh dashboard on slip change: {str(e)}")
-    
+
     def closeEvent(self, event):
         """Clean up signal connections when page is closed"""
         try:
@@ -91,7 +90,7 @@ class DashboardPage(QWidget):
         if self.refresh_timer:
             self.refresh_timer.stop()
         super().closeEvent(event)
-    
+
     def showEvent(self, event):
         """Refresh dashboard whenever the page is shown (tab clicked)"""
         super().showEvent(event)
@@ -99,20 +98,19 @@ class DashboardPage(QWidget):
             self._refresh_dashboard()
         except Exception as e:
             print(f"[ERROR] Failed to refresh dashboard on show: {str(e)}")
-    
+
     def _refresh_dashboard(self):
-        """Refresh dashboard data (called on month change)"""
-        # Clear and rebuild the scroll area content
+        """Refresh dashboard data (called on month change or data change)"""
         parent = self
         parent.setStyleSheet(f"background: {OFF_WHITE};")
-        
+
         # Clear existing layout
         if self.main_layout is not None:
             while self.main_layout.count():
                 item = self.main_layout.takeAt(0)
                 if item.widget():
                     item.widget().deleteLater()
-        
+
         self._build()
 
     def _build(self):
@@ -121,7 +119,7 @@ class DashboardPage(QWidget):
             check_and_update_expired_green_slips()
         except Exception as e:
             print(f"[WARNING] Failed to check for expired green slips: {str(e)}")
-        
+
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -201,16 +199,18 @@ class DashboardPage(QWidget):
         from backend.db_pink_slip import get_pink_slips
 
         green_slips = get_green_slips(None) or []
-        pink_slips = get_pink_slips(None) or []
-        blue_slips = get_blue_slips(None) or []
+        pink_slips  = get_pink_slips(None)  or []
+        blue_slips  = get_blue_slips(None)  or []
 
-        green_count = len(green_slips)
-        pink_count = len(pink_slips)
-        blue_count = len(blue_slips)
-        pending_blue = sum(1 for r in blue_slips if r and len(r) > 7 and "Pending" in str(r[7]))
+        green_count   = len(green_slips)
+        pink_count    = len(pink_slips)
+        blue_count    = len(blue_slips)
+        # Blue: status is at index 8 (confirmed from debug output)
+        pending_blue  = sum(1 for r in blue_slips if r and len(r) > 8 and "Pending" in str(r[8]))
 
         all_students = set()
         for r in green_slips + pink_slips + blue_slips:
+            # studNumber is at index 1 for all slip types (confirmed from debug output)
             if r and len(r) > 1 and r[1]:
                 all_students.add(str(r[1]))
         active_students = len(all_students)
@@ -219,11 +219,11 @@ class DashboardPage(QWidget):
         tiles_row.setSpacing(16)
 
         tiles_data = [
-            ("Green Slips Issued",     str(green_count), GREEN_SLIP),
-            ("Pink Slips Issued",      str(pink_count), PINK_SLIP),
-            ("Blue Slips Issued",      str(blue_count),  BLUE_SLIP),
-            ("Pending Blue Slips",     str(pending_blue),  BLUE_SLIP),
-            ("Active Students Tracked",str(active_students), NAVY),
+            ("Green Slips Issued",      str(green_count),    GREEN_SLIP),
+            ("Pink Slips Issued",       str(pink_count),     PINK_SLIP),
+            ("Blue Slips Issued",       str(blue_count),     BLUE_SLIP),
+            ("Pending Blue Slips",      str(pending_blue),   BLUE_SLIP),
+            ("Active Students Tracked", str(active_students), NAVY),
         ]
         for lbl, val, col in tiles_data:
             tile = StatTile(lbl, val, col)
@@ -240,12 +240,12 @@ class DashboardPage(QWidget):
         cards_grid.setSpacing(18)
 
         cards_info = [
-            ("green", "Green Slip",      "Dispensation\n& Excuse Records",    "fa5s.file-alt",      1),
-            ("pink",  "Pink Slip",       "Penalty Slip\nRecord (Once/Sem.)",  "fa5s.file-invoice",  2),
-            ("blue",  "Blue Slip",       "Violation &\nDisciplinary Record",  "fa5s.file-alt",      3),
-            ("gold",  "Record Trackers", "Monitor all\nslip records",         "fa5s.list-alt",      4),
-            ("gold",  "Reports",         "Monthly Summary\n& Visual Charts",  "fa5s.chart-pie",     5),
-            ("gold",  "Settings",        "Manage Users\n& System Config",     "fa5s.cogs",          6),
+            ("green", "Green Slip",      "Dispensation\n& Excuse Records",   "fa5s.file-alt",     1),
+            ("pink",  "Pink Slip",       "Penalty Slip\nRecord (Once/Sem.)", "fa5s.file-invoice", 2),
+            ("blue",  "Blue Slip",       "Violation &\nDisciplinary Record", "fa5s.file-alt",     3),
+            ("gold",  "Record Trackers", "Monitor all\nslip records",        "fa5s.list-alt",     4),
+            ("gold",  "Reports",         "Monthly Summary\n& Visual Charts", "fa5s.chart-pie",    5),
+            ("gold",  "Settings",        "Manage Users\n& System Config",    "fa5s.cogs",         6),
         ]
 
         for i, (color, title, desc, fa_icon, page_idx) in enumerate(cards_info):
@@ -266,36 +266,31 @@ class DashboardPage(QWidget):
         all_records = []
 
         try:
-            blue_records = get_blue_slips(None) or []
-            for record in blue_records:
+            for record in (get_blue_slips(None) or []):
                 all_records.append(('blue', record))
-
-            green_records = get_green_slips(None) or []
-            for record in green_records:
+            for record in (get_green_slips(None) or []):
                 all_records.append(('green', record))
-
-            pink_records = get_pink_slips(None) or []
-            for record in pink_records:
+            for record in (get_pink_slips(None) or []):
                 all_records.append(('pink', record))
         except Exception as e:
+            print(f"[ERROR] Failed to load records for Recent Activity: {e}")
             all_records = []
 
         def get_record_date(slip_data):
             slip_type, record = slip_data
             try:
-                if slip_type == 'blue':
-                    date_str = str(record[6]) if len(record) > 6 else "1900-01-01"
-                elif slip_type == 'green':
+                # date is at index 6 for blue/green, index 5 for pink
+                if slip_type in ('blue', 'green'):
                     date_str = str(record[6]) if len(record) > 6 else "1900-01-01"
                 else:  # pink
                     date_str = str(record[5]) if len(record) > 5 else "1900-01-01"
                 return datetime.strptime(date_str[:10], "%Y-%m-%d")
-            except:
+            except Exception:
                 return datetime(1900, 1, 1)
 
         try:
             all_records.sort(key=get_record_date, reverse=True)
-        except:
+        except Exception:
             pass
 
         if not all_records:
@@ -306,7 +301,6 @@ class DashboardPage(QWidget):
         else:
             num_rows = min(6, len(all_records))
 
-            # ── 6 columns now: added "Filed By" ──────────────────────────────
             table = QTableWidget(num_rows, 6)
             table.setHorizontalHeaderLabels(
                 ["Student No.", "Student Name", "Slip Type", "Date Filed", "Filed By", "Status"]
@@ -328,58 +322,64 @@ class DashboardPage(QWidget):
             header.setSectionResizeMode(1, QHeaderView.Stretch)           # Student Name
             header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Slip Type
             header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Date Filed
-            header.setSectionResizeMode(4, QHeaderView.Stretch)           # Filed By  ← NEW
+            header.setSectionResizeMode(4, QHeaderView.Stretch)           # Filed By
             header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Status
-
             table.setWordWrap(False)
             table.setFixedHeight(max(200, 36 * (num_rows + 1)))
             table.verticalHeader().setDefaultSectionSize(36)
 
+            STATUS_COLORS = {
+                "Active":         ("#D4EDDA", "#155724"),
+                "Pending":        ("#FFF3CD", "#856404"),
+                "Completed":      ("#CCE5FF", "#004085"),
+                "Resolved":       ("#D1ECF1", "#0C5460"),
+                "Open / Pending": ("#F8D7DA", "#721C24"),
+            }
+
             for r, (slip_type, record) in enumerate(all_records[:6]):
                 try:
-                    stud_name = record[0] if len(record) > 0 else "Unknown"
-                    stud_num  = record[4] if len(record) > 4 else "N/A"
+                    # Actual DB column order (confirmed from debug output):
+                    # Pink:  (ID[0], studNum[1], studName[2], year[3], course[4], date[5],
+                    #          violation[6], action[7], officer[8], semester[9])
+                    # Blue:  (ID[0], studNum[1], studName[2], year[3], course[4],
+                    #          violationType[5], date[6], action[7], status[8])
+                    # Green: (ID[0], studNum[1], studName[2], year[3], course[4],
+                    #          is_disp[5], date[6], days[7], expiry[8], status[9], authorizedBy[10])
+
+                    stud_num  = str(record[1]) if len(record) > 1 else "N/A"
+                    stud_name = str(record[2]) if len(record) > 2 else "Unknown"
 
                     if slip_type == 'blue':
-                        # Blue: studName[0], course[1], year[2], ID[3], studNumber[4],
-                        #       violationType[5], dateOfViolation[6], ?[7], severity[8],
-                        #       action[9], status[10], officerInCharge[11]
                         slip_label = "Blue Slip"
-                        status     = record[10] if len(record) > 10 else "Open / Pending"
                         date       = str(record[6])[:10] if len(record) > 6 else "N/A"
-                        filed_by   = record[11] if len(record) > 11 else "—"   # ← NEW
+                        status     = str(record[8])      if len(record) > 8 else "Open / Pending"
+                        filed_by   = "—"  # no officer column in blue slip DB result
 
                     elif slip_type == 'green':
-                        # Green: studName[0], course[1], year[2], ID[3], studNumber[4],
-                        #        is_disp[5], dateAvail[6], daysAbsence[7], status[8],
-                        #        expiry[9], authorizedBy[10]
-                        is_disp    = record[5] == True if len(record) > 5 else False
+                        is_disp    = record[5] is True   if len(record) > 5 else False
                         slip_label = "Green (Dispensation)" if is_disp else "Green (Excuse)"
-                        status     = record[8]  if len(record) > 8  else "Active"
                         date       = str(record[6])[:10] if len(record) > 6 else "N/A"
-                        filed_by   = record[10] if len(record) > 10 else "—"   # ← NEW
+                        status     = str(record[9])      if len(record) > 9 else "Active"
+                        filed_by   = str(record[10])     if len(record) > 10 and record[10] else "—"
 
                     else:  # pink
-                        # Pink: studName[0], course[1], year[2], ID[3], studNumber[4],
-                        #       dateIssued[5], violation[6], actionTaken[7], officer[8],
-                        #       semester[9]
                         slip_label = "Pink Slip"
-                        status     = "Completed"
                         date       = str(record[5])[:10] if len(record) > 5 else "N/A"
-                        filed_by   = record[8] if len(record) > 8 else "—"     # ← NEW
+                        status     = "Completed"
+                        filed_by   = str(record[8])      if len(record) > 8 and record[8] else "—"
 
-                    # Ensure filed_by is a non-empty string
-                    if not filed_by or str(filed_by).strip() in ("", "None"):
+                    # Normalise filed_by
+                    if not filed_by or filed_by.strip() in ("", "None"):
                         filed_by = "—"
                     else:
-                        filed_by = str(filed_by).strip()
+                        filed_by = filed_by.strip()
 
                     row_data = (stud_num, stud_name, slip_label, date, filed_by, status)
                     for c, val in enumerate(row_data):
                         item = QTableWidgetItem(str(val))
                         item.setTextAlignment(Qt.AlignCenter)
 
-                        if c == 2:  # Slip Type
+                        if c == 2:  # Slip Type colour
                             if "Green" in val:
                                 item.setForeground(QColor(GREEN_SLIP))
                             elif "Pink" in val:
@@ -387,23 +387,18 @@ class DashboardPage(QWidget):
                             elif "Blue" in val:
                                 item.setForeground(QColor(BLUE_SLIP))
 
-                        if c == 5:  # Status  (was c==4, now c==5)
-                            STATUS_COLORS = {
-                                "Active":         ("#D4EDDA", "#155724"),
-                                "Pending":        ("#FFF3CD", "#856404"),
-                                "Completed":      ("#CCE5FF", "#004085"),
-                                "Resolved":       ("#D1ECF1", "#0C5460"),
-                                "Open / Pending": ("#F8D7DA", "#721C24"),
-                            }
+                        if c == 5:  # Status colour
                             bg, fg = STATUS_COLORS.get(val, ("#eee", "#333"))
                             item.setBackground(QColor(bg))
                             item.setForeground(QColor(fg))
 
                         table.setItem(r, c, item)
-                except Exception:
-                    pass
+
+                except Exception as e:
+                    print(f"[ERROR] Recent Activity row {r} ({slip_type}) failed: {e}")
 
             main.addWidget(table)
+
         main.addStretch()
 
     def closeEvent(self, event):

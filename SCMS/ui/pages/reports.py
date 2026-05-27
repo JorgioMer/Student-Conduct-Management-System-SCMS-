@@ -3,7 +3,7 @@
 # =============================================================================
 import logging
 from PyQt5.QtWidgets import (
-    QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+    QApplication, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QPushButton, QFrame, QTabWidget, QWidget,
     QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView
 )
@@ -305,7 +305,7 @@ class ReportsPage(BasePage):
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip  import get_pink_slips
 
-        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=9)
+        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=10)
         pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5)
         blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6)
 
@@ -409,14 +409,19 @@ class ReportsPage(BasePage):
         try:
             green_raw = get_green_slips(None)
             logger.debug(f"Green slips raw count: {len(green_raw) if green_raw else 0}")
-            green_records = self._filter_records_by_period(green_raw or [], date_field_index=6, fallback_date_index=8)
+            green_records = self._filter_records_by_period(green_raw or [], date_field_index=6, fallback_date_index=10)
             logger.debug(f"Green slips after period filter: {len(green_records)}")
         except Exception as e:
             logger.error(f"Failed to retrieve green slips: {e}", exc_info=True)
             green_records = []
-        
+
+        logger.debug(f"Green raw count: {len(green_raw)}")
+        for r in (green_raw or [])[:3]:
+            logger.debug(f"Green record sample: {r}")
+            logger.debug(f"  date_field[6]={r[6] if len(r)>6 else 'MISSING'}, fallback[10]={r[10] if len(r)>10 else 'MISSING'}, datesOfAbs[10]={r[10] if len(r)>10 else 'MISSING'}")
+
         rows = []
-        for i, record in enumerate(green_records[:5]):
+        for i, record in enumerate(green_records):
             try:
                 # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), slipType(5), dateAvail(6), days(7), exprDate(8), status(9), datesOfAbs(10)
                 stud_num  = record[1] if len(record) > 1 else "N/A"
@@ -467,7 +472,7 @@ class ReportsPage(BasePage):
             pink_records = []
         
         rows = []
-        for i, record in enumerate(pink_records[:5]):
+        for i, record in enumerate(pink_records):
             try:
                 # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), dateIssued(5), violation(6), actionTaken(7), officer(8), semester(9)
                 stud_num  = record[1] if len(record) > 1 else "N/A"
@@ -501,7 +506,7 @@ class ReportsPage(BasePage):
             blue_records = []
         
         rows = []
-        for i, record in enumerate(blue_records[:5]):
+        for i, record in enumerate(blue_records):
             try:
                 # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), violationType(4), severity(5), dateOfViolation(6), actionTaken(7), status(8)
                 stud_num  = record[1] if len(record) > 1 else "N/A"
@@ -1050,6 +1055,11 @@ class ReportsPage(BasePage):
 
         if current_idx < self._tabs.count():
             self._tabs.setCurrentIndex(current_idx)
+        
+        self._tabs.update()
+        self._tabs.repaint()
+        from PyQt5.QtWidgets import QApplication
+        QApplication.processEvents()
 
     def _on_slips_changed(self):
         logger.debug("Reports page: _on_slips_changed() called")
