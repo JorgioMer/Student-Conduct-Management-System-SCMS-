@@ -10,9 +10,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 
-# NOTE: Do NOT call matplotlib.use() here at module level.
-# The backend is initialized lazily when _make_canvas() is first called.
-
 from collections import Counter
 from datetime import datetime
 
@@ -40,19 +37,16 @@ from backend.config import (
     get_course_college, get_college_name, get_all_colleges,
     get_period_options
 )
+# FIX: Import the shared date-resolver so green-slip date logic is in one place.
+from backend.db_green_slip import resolve_green_slip_date
 import tempfile
 import os
 
 
-
 # ---------------------------------------------------------------------------
-# Lazy canvas factory — imports happen here, after QApplication exists
+# Lazy canvas factory
 # ---------------------------------------------------------------------------
 def _make_canvas(fig):
-    """
-    Render a matplotlib Figure to a QLabel via Agg PNG bytes.
-    Avoids Qt5Agg entirely — compatible with Python 3.13 + PyQt5.
-    """
     try:
         import io
         from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -85,19 +79,11 @@ class ReportsPage(BasePage):
         logger.debug("ReportsPage.__init__ starting...")
         try:
             super().__init__(parent)
-            logger.debug("  BasePage initialized")
-
             self.current_user = current_user or {}
-            self.staff_id = self.current_user.get("username", "UNKNOWN")
-            self._tabs = None
-            self._built_tabs = set()
-            logger.debug(f"  Set staff_id: {self.staff_id}")
-
-            logger.debug("  Calling _build()...")
+            self.staff_id     = self.current_user.get("username", "UNKNOWN")
+            self._tabs        = None
+            self._built_tabs  = set()
             self._build()
-            logger.debug("  _build() completed")
-
-            logger.debug("  Connecting data_events signals...")
             data_events.slips_changed.connect(self._on_slips_changed)
             data_events.settings_changed.connect(self._on_settings_changed)
             logger.info("ReportsPage.__init__ completed successfully")
@@ -108,7 +94,26 @@ class ReportsPage(BasePage):
     # ------------------------------------------------------------------
     # Period filtering helpers
     # ------------------------------------------------------------------
-    def _filter_records_by_period(self, records, date_field_index=6, fallback_date_index=None):
+
+    def _filter_records_by_period(self, records, slip_type="other"):
+        """
+        Filter records by the currently selected period.
+
+        slip_type controls which date-resolution strategy is used:
+          "green"  -> resolve_green_slip_date() handles both Dispensation
+                      (dateAvail_green, index 6) and Excuse
+                      (datesOfAbs_greenExc start, index 10) correctly.
+          "pink"   -> index 5  (dateIssued)
+          "blue"   -> index 6  (dateOfViolation_blue)
+          "other"  -> index 6  (generic fallback)
+
+        FIX: The original code used raw date_field_index + fallback_date_index
+        integers for green slips.  The fallback (index 10) holds a range string
+        like "2026-05-20 to 2026-05-25", NOT a plain date, so the strptime call
+        always failed and Excuse slips were silently dropped from every report.
+        Now green slips go through resolve_green_slip_date() which knows how to
+        parse both plain dates and range strings.
+        """
         period = self.period_cb.currentText() if hasattr(self, 'period_cb') else ""
         if not records or not period:
             return records
@@ -116,34 +121,35 @@ class ReportsPage(BasePage):
         filtered = []
         for record in records:
             try:
-                if len(record) <= date_field_index:
-                    continue
-                
-                # Try primary date field first
-                date_str = str(record[date_field_index]).strip()
-                
-                # If primary date is empty/None, try fallback date (e.g., for green slips with empty dateAvail_green)
-                if (not date_str or date_str == "N/A" or date_str == "None") and fallback_date_index is not None:
-                    if len(record) > fallback_date_index:
-                        date_str = str(record[fallback_date_index]).strip()
-                
-                # If still no valid date string, skip this record
-                if not date_str or date_str == "N/A" or date_str == "None":
-                    continue
-                    
-                try:
-                    if "/" in date_str:
-                        date_obj = datetime.strptime(date_str.split()[0], "%d/%m/%Y")
-                    else:
-                        date_obj = datetime.strptime(date_str.split()[0], "%Y-%m-%d")
-                except ValueError:
-                    continue
-                if self._date_in_period(date_obj, period):
+                if slip_type == "green":
+                    date_obj = resolve_green_slip_date(record)
+                else:
+                    # Pink: index 5 / Blue & others: index 6
+                    idx      = 5 if slip_type == "pink" else 6
+                    date_raw = record[idx] if len(record) > idx else None
+                    date_obj = self._parse_plain_date(date_raw)
+
+                if date_obj and self._date_in_period(date_obj, period):
                     filtered.append(record)
+
             except Exception as e:
                 logger.debug(f"Error filtering record: {e}")
                 continue
+
         return filtered
+
+    @staticmethod
+    def _parse_plain_date(raw):
+        """Parse a plain date value (string or date/datetime object)."""
+        if not raw or str(raw).strip() in ("", "None", "N/A"):
+            return None
+        s = str(raw).strip().split()[0]
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                continue
+        return None
 
     def _date_in_period(self, date_obj, period_str):
         month = date_obj.month
@@ -170,7 +176,6 @@ class ReportsPage(BasePage):
     def _build(self):
         logger.debug("_build() starting...")
         try:
-            # Header
             header = QFrame()
             header.setFixedHeight(82)
             header.setStyleSheet(f"""
@@ -215,23 +220,16 @@ class ReportsPage(BasePage):
             period_lbl = QLabel("Report Period:")
             period_lbl.setStyleSheet("border: none; background: transparent;")
             period_row.addWidget(period_lbl)
+
             self.period_cb = QComboBox()
-            
-            # Generate period options dynamically based on current year
             period_options = get_period_options()
             self.period_cb.addItems(period_options)
-            
-            # Use actual calendar year for month display (matches get_period_options())
-            display_year = datetime.now().year
-            current_month = datetime.now().strftime("%B")  # e.g., "May"
-            current_month_year = f"{current_month} {display_year}"  # e.g., "May 2026"
-            
+
+            display_year      = datetime.now().year
+            current_month     = datetime.now().strftime("%B")
+            current_month_year = f"{current_month} {display_year}"
             idx = self.period_cb.findText(current_month_year)
-            if idx >= 0:
-                self.period_cb.setCurrentIndex(idx)
-            else:
-                # Fallback to first option if exact month not found
-                self.period_cb.setCurrentIndex(0)
+            self.period_cb.setCurrentIndex(idx if idx >= 0 else 0)
             self.period_cb.setFixedHeight(38)
             self.period_cb.setFixedWidth(280)
             self.period_cb.currentIndexChanged.connect(self._on_period_changed)
@@ -247,20 +245,17 @@ class ReportsPage(BasePage):
 
             self._update_print_button_state()
 
-            # Tabs
             tabs = QTabWidget()
             self._tabs = tabs
-
             tabs.addTab(self._build_overview_tab(),    "   Overview ")
             tabs.addTab(self._build_green_report(),    "   Green Slips ")
             tabs.addTab(self._build_pink_report(),     "   Pink Slips ")
             tabs.addTab(self._build_blue_report(),     "   Blue Slips ")
             tabs.addTab(self._build_college_report(),  "   By College ")
             tabs.addTab(self._build_toplist_tab(),     "   Student Records ")
-
             self.main_layout.addWidget(tabs)
             self.main_layout.addStretch()
-            logger.debug("_build() completed successfully")
+
         except Exception as e:
             logger.error(f"Error in ReportsPage._build(): {str(e)}", exc_info=True)
             raise
@@ -298,16 +293,17 @@ class ReportsPage(BasePage):
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
 
-        selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') else "November 2026"
+        selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') else ""
         lay.addWidget(SectionTitle(f"Monthly Overview — {selected_period}"))
 
         from backend.db_blue_slip  import get_blue_slips
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip  import get_pink_slips
 
-        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=10)
-        pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5)
-        blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6)
+        # FIX: pass slip_type= so the correct date strategy is used per type.
+        green_slips = self._filter_records_by_period(get_green_slips(None) or [], slip_type="green")
+        pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], slip_type="pink")
+        blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], slip_type="blue")
 
         green_count   = len(green_slips)
         pink_count    = len(pink_slips)
@@ -369,14 +365,13 @@ class ReportsPage(BasePage):
 
         lay.addLayout(charts_row)
 
-        # College distribution
         lay.addWidget(Divider())
         college_chart_label = QLabel("Distribution by College")
         college_chart_label.setFont(QFont("Segoe UI", 13, QFont.Bold))
         college_chart_label.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
         lay.addWidget(college_chart_label)
 
-        all_slips   = green_slips + pink_slips + blue_slips
+        all_slips    = green_slips + pink_slips + blue_slips
         college_data = self._build_college_data(all_slips, green_slips, pink_slips, blue_slips)
 
         college_frame = QFrame()
@@ -407,51 +402,43 @@ class ReportsPage(BasePage):
     def _build_green_report(self) -> QWidget:
         from backend.db_green_slip import get_green_slips
         try:
-            green_raw = get_green_slips(None)
-            logger.debug(f"Green slips raw count: {len(green_raw) if green_raw else 0}")
-            green_records = self._filter_records_by_period(green_raw or [], date_field_index=6, fallback_date_index=10)
-            logger.debug(f"Green slips after period filter: {len(green_records)}")
+            green_raw = get_green_slips(None) or []
+            # FIX: use slip_type="green" so Excuse slips are NOT silently dropped.
+            green_records = self._filter_records_by_period(green_raw, slip_type="green")
         except Exception as e:
             logger.error(f"Failed to retrieve green slips: {e}", exc_info=True)
             green_records = []
 
-        logger.debug(f"Green raw count: {len(green_raw)}")
-        for r in (green_raw or [])[:3]:
-            logger.debug(f"Green record sample: {r}")
-            logger.debug(f"  date_field[6]={r[6] if len(r)>6 else 'MISSING'}, fallback[10]={r[10] if len(r)>10 else 'MISSING'}, datesOfAbs[10]={r[10] if len(r)>10 else 'MISSING'}")
-
         rows = []
         for i, record in enumerate(green_records):
             try:
-                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), slipType(5), dateAvail(6), days(7), exprDate(8), status(9), datesOfAbs(10)
-                stud_num  = record[1] if len(record) > 1 else "N/A"
-                stud_name = record[2] if len(record) > 2 else "Unknown"
-                year      = record[3] if len(record) > 3 else "N/A"
+                stud_num        = record[1] if len(record) > 1 else "N/A"
+                stud_name       = record[2] if len(record) > 2 else "Unknown"
+                year            = record[3] if len(record) > 3 else "N/A"
                 is_dispensation = record[5] if len(record) > 5 else False
-                slip_type = "Dispensation" if is_dispensation else "Excuse"
-                date      = str(record[6])[:10] if len(record) > 6 else "N/A"
-                days      = str(record[7]) if len(record) > 7 else "N/A"
-                dates_of_abs = record[10] if len(record) > 10 else None  # datesOfAbs_greenExc for Excuse
-                status    = record[9] if len(record) > 9 else "Active"
-                
-                # Calculate days from date range for Excuse slips
+                slip_type       = "Dispensation" if is_dispensation else "Excuse"
+                date            = str(record[6])[:10] if len(record) > 6 else "N/A"
+                days            = str(record[7]) if len(record) > 7 else "N/A"
+                dates_of_abs    = record[10] if len(record) > 10 else None
+                status          = record[9] if len(record) > 9 else "Active"
+
+                # For Excuse slips, calculate days from the stored date range.
                 if slip_type.lower() == "excuse" and dates_of_abs and "to" in str(dates_of_abs):
                     try:
-                        parts = str(dates_of_abs).split(" to ")
-                        if len(parts) == 2:
-                            from datetime import datetime
-                            date_from = datetime.strptime(parts[0].strip(), "%Y-%m-%d").date()
-                            date_to = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
-                            days_diff = (date_to - date_from).days + 1
-                            days = str(days_diff)
-                    except:
-                        pass  # Use original days value
-                
+                        parts     = str(dates_of_abs).split(" to ")
+                        date_from = datetime.strptime(parts[0].strip(), "%Y-%m-%d").date()
+                        date_to   = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
+                        days      = str((date_to - date_from).days + 1)
+                    except Exception:
+                        pass   # keep original days value
+
                 rows.append((stud_num, stud_name, year, slip_type, date, days, status))
             except Exception as e:
                 logger.error(f"Error processing green slip record {i}: {e}", exc_info=True)
+
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
+
         return self._build_slip_report_tab(
             "green", "Green Slip Monthly Report",
             "Dispensation and Excuse slips issued this month",
@@ -463,18 +450,15 @@ class ReportsPage(BasePage):
     def _build_pink_report(self) -> QWidget:
         from backend.db_pink_slip import get_pink_slips
         try:
-            pink_raw = get_pink_slips(None)
-            logger.debug(f"Pink slips raw count: {len(pink_raw) if pink_raw else 0}")
-            pink_records = self._filter_records_by_period(pink_raw or [], date_field_index=5)
-            logger.debug(f"Pink slips after period filter: {len(pink_records)}")
+            pink_raw     = get_pink_slips(None) or []
+            pink_records = self._filter_records_by_period(pink_raw, slip_type="pink")
         except Exception as e:
             logger.error(f"Failed to retrieve pink slips: {e}", exc_info=True)
             pink_records = []
-        
+
         rows = []
         for i, record in enumerate(pink_records):
             try:
-                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), dateIssued(5), violation(6), actionTaken(7), officer(8), semester(9)
                 stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
@@ -484,8 +468,10 @@ class ReportsPage(BasePage):
                 rows.append((stud_num, stud_name, year, course, violation, date))
             except Exception as e:
                 logger.error(f"Error processing pink slip record {i}: {e}", exc_info=True)
+
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-")]
+
         return self._build_slip_report_tab(
             "pink", "Pink Slip Monthly Report",
             "Penalty slips issued this month (one per student per semester)",
@@ -497,18 +483,15 @@ class ReportsPage(BasePage):
     def _build_blue_report(self) -> QWidget:
         from backend.db_blue_slip import get_blue_slips
         try:
-            blue_raw = get_blue_slips(None)
-            logger.debug(f"Blue slips raw count: {len(blue_raw) if blue_raw else 0}")
-            blue_records = self._filter_records_by_period(blue_raw or [], date_field_index=6)
-            logger.debug(f"Blue slips after period filter: {len(blue_records)}")
+            blue_raw     = get_blue_slips(None) or []
+            blue_records = self._filter_records_by_period(blue_raw, slip_type="blue")
         except Exception as e:
             logger.error(f"Failed to retrieve blue slips: {e}", exc_info=True)
             blue_records = []
-        
+
         rows = []
         for i, record in enumerate(blue_records):
             try:
-                # Query returns: ID(0), studNumber(1), studName(2), studYrLvl(3), violationType(4), severity(5), dateOfViolation(6), actionTaken(7), status(8)
                 stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
@@ -519,8 +502,10 @@ class ReportsPage(BasePage):
                 rows.append((stud_num, stud_name, year, violation, severity, date, status))
             except Exception as e:
                 logger.error(f"Error processing blue slip record {i}: {e}", exc_info=True)
+
         if not rows:
             rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
+
         return self._build_slip_report_tab(
             "blue", "Blue Slip Monthly Report",
             "Violation records and disciplinary actions taken this month",
@@ -581,7 +566,7 @@ class ReportsPage(BasePage):
             QFrame {{
                 background: {bg};
                 border-left: 4px solid {colour};
-                border-radius: 6px;
+                border-radius: 0px;
                 padding: 6px;
             }}
         """)
@@ -610,9 +595,8 @@ class ReportsPage(BasePage):
             }
         for slip in all_slips:
             try:
-                # Queries return: ID(0), studNumber(1), studName(2), studYrLvl(3), studCourse(4), ...
-                stud_name = slip[2] if len(slip) > 2 else "Unknown"
-                course    = slip[4] if len(slip) > 4 else ""
+                stud_name    = slip[2] if len(slip) > 2 else "Unknown"
+                course       = slip[4] if len(slip) > 4 else ""
                 college_code = get_course_college(course)
                 if college_code is None:
                     continue
@@ -641,9 +625,10 @@ class ReportsPage(BasePage):
 
         lay.addWidget(SectionTitle("Distribution by College"))
 
-        green_slips = self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=8)
-        pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5)
-        blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6)
+        # FIX: use slip_type= parameters consistently (was mixed index integers).
+        green_slips = self._filter_records_by_period(get_green_slips(None) or [], slip_type="green")
+        pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], slip_type="pink")
+        blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], slip_type="blue")
         all_slips   = green_slips + pink_slips + blue_slips
 
         college_data = self._build_college_data(all_slips, green_slips, pink_slips, blue_slips)
@@ -674,7 +659,7 @@ class ReportsPage(BasePage):
                 stats_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
                 tile_lay.addWidget(stats_lbl)
 
-                breakdown = QLabel(f"🟢 {data['green']}  🔴 {data['pink']}  🔵 {data['blue']}")
+                breakdown = QLabel(f"G {data['green']}  P {data['pink']}  B {data['blue']}")
                 breakdown.setFont(QFont("Segoe UI", 10))
                 breakdown.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
                 tile_lay.addWidget(breakdown)
@@ -757,21 +742,21 @@ class ReportsPage(BasePage):
         student_counts = {}
         try:
             for record in get_green_slips(None) or []:
-                sn = record[1] if len(record) > 1 else None  # studNumber is at index 1
+                sn = record[1] if len(record) > 1 else None
                 if sn:
                     student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
                     student_counts[sn]["green"] += 1
                     if not student_counts[sn]["info"]:
                         student_counts[sn]["info"] = get_student(sn)
             for record in get_pink_slips(None) or []:
-                sn = record[1] if len(record) > 1 else None  # studNumber is at index 1
+                sn = record[1] if len(record) > 1 else None
                 if sn:
                     student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
                     student_counts[sn]["pink"] += 1
                     if not student_counts[sn]["info"]:
                         student_counts[sn]["info"] = get_student(sn)
             for record in get_blue_slips(None) or []:
-                sn = record[1] if len(record) > 1 else None  # studNumber is at index 1
+                sn = record[1] if len(record) > 1 else None
                 if sn:
                     student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
                     student_counts[sn]["blue"] += 1
@@ -817,7 +802,7 @@ class ReportsPage(BasePage):
         note.setStyleSheet(f"""
             background: #FFF8E1;
             border-left: 4px solid {GOLD};
-            border-radius: 6px;
+            border-radius: 0px;
             padding: 10px 14px;
             color: #8D6E0A;
         """)
@@ -826,17 +811,15 @@ class ReportsPage(BasePage):
         return w
 
     # ------------------------------------------------------------------
-    # Chart builders — matplotlib imported lazily inside each method
+    # Chart builders
     # ------------------------------------------------------------------
     def _create_slip_distribution_chart(self, green, pink, blue):
         from matplotlib.figure import Figure
         fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
-
         sizes  = [green, pink, blue]
         labels = ['Green Slips', 'Pink Slips', 'Blue Slips']
         colors = ['#4CAF50', '#E91E63', '#2196F3']
-
         if sum(sizes) > 0:
             wedges, texts, autotexts = ax.pie(
                 sizes, labels=labels, colors=colors,
@@ -849,7 +832,6 @@ class ReportsPage(BasePage):
         else:
             ax.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=12, color='gray')
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-
         ax.set_title('Slip Distribution', fontsize=11, fontweight='bold', pad=10)
         fig.tight_layout(pad=0.5)
         return _make_canvas(fig)
@@ -858,14 +840,12 @@ class ReportsPage(BasePage):
         from matplotlib.figure import Figure
         fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
-
         year_counts = Counter()
         for record in all_records:
             if len(record) > 3:
-                year = record[3]  # studYrLvl is at index 3
+                year = record[3]
                 if year and year != "N/A":
                     year_counts[str(year)] += 1
-
         if year_counts:
             years  = sorted(year_counts.keys())
             counts = [year_counts[y] for y in years]
@@ -881,7 +861,6 @@ class ReportsPage(BasePage):
         else:
             ax.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=12, color='gray')
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-
         ax.set_title('Records by Year Level', fontsize=11, fontweight='bold', pad=10)
         ax.tick_params(axis='both', labelsize=8)
         fig.tight_layout(pad=0.5)
@@ -891,17 +870,14 @@ class ReportsPage(BasePage):
         from matplotlib.figure import Figure
         fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
-
         student_counts = Counter()
         for record in all_records:
-            # Records have: ID(0), studNumber(1), studName(2), ...
             if len(record) > 2:
-                name = record[2]  # studName is at index 2
+                name = record[2]
                 if name and name not in ("Unknown", "N/A", None, ""):
                     student_counts[name] += 1
-
         if student_counts:
-            top  = sorted(student_counts.items(), key=lambda x: x[1], reverse=True)[:6]
+            top    = sorted(student_counts.items(), key=lambda x: x[1], reverse=True)[:6]
             names  = [n[:15] for n, _ in top]
             counts = [c for _, c in top]
             bars   = ax.barh(names, counts, color='#FF9800', edgecolor='black', linewidth=0.5)
@@ -913,7 +889,6 @@ class ReportsPage(BasePage):
         else:
             ax.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=12, color='gray')
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-
         ax.set_title('Top Students by Slips', fontsize=11, fontweight='bold', pad=10)
         ax.tick_params(axis='both', labelsize=8)
         fig.tight_layout(pad=0.5)
@@ -923,19 +898,16 @@ class ReportsPage(BasePage):
         from matplotlib.figure import Figure
         fig = Figure(figsize=(8, 4), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
-
         college_colors = {
             "CEDAS": "#FF6B6B", "CABE": "#4ECDC4", "CCIS": "#95E1D3",
             "COE":   "#F9CA24", "CHS":  "#6C5CE7", "CSP":  "#A29BFE",
         }
-
         colleges, totals, colors = [], [], []
         for code, data in college_data.items():
             if data["total"] > 0:
                 colleges.append(code)
                 totals.append(data["total"])
                 colors.append(college_colors.get(code, "#999999"))
-
         if colleges:
             x_pos = range(len(colleges))
             bars  = ax.bar(x_pos, totals, color=colors, edgecolor='black', linewidth=0.5)
@@ -952,7 +924,6 @@ class ReportsPage(BasePage):
         else:
             ax.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=12, color='gray')
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-
         ax.set_title('Records by College', fontsize=11, fontweight='bold', pad=10)
         fig.tight_layout(pad=0.5)
         return _make_canvas(fig)
@@ -967,9 +938,9 @@ class ReportsPage(BasePage):
             from backend.db_pink_slip  import get_pink_slips
 
             records_data = {
-                'green': self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=9),
-                'pink':  self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5),
-                'blue':  self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6),
+                'green': self._filter_records_by_period(get_green_slips(None) or [], slip_type="green"),
+                'pink':  self._filter_records_by_period(get_pink_slips(None)  or [], slip_type="pink"),
+                'blue':  self._filter_records_by_period(get_blue_slips(None)  or [], slip_type="blue"),
             }
             total = sum(len(v) for v in records_data.values())
 
@@ -998,12 +969,12 @@ class ReportsPage(BasePage):
                        success=False, parent=self).exec_()
             return
         try:
-            records = [tuple(row) for row in rows]
+            records       = [tuple(row) for row in rows]
             selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') \
                 else datetime.now().strftime("%B %Y")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_pdf  = os.path.join(tempfile.gettempdir(),
-                                     f'SCMS_{slip_type.upper()}_Report_{timestamp}.pdf')
+            timestamp     = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_pdf      = os.path.join(tempfile.gettempdir(),
+                                         f'SCMS_{slip_type.upper()}_Report_{timestamp}.pdf')
             generate_slip_report(temp_pdf, slip_type, records, subtitle, period=selected_period)
             log_report_generated(self.staff_id, f"{slip_type.title()} Slip Report")
             PDFPreviewDialog(temp_pdf, title, parent=self).exec_()
@@ -1020,10 +991,12 @@ class ReportsPage(BasePage):
             from backend.db_green_slip import get_green_slips
             from backend.db_pink_slip  import get_pink_slips
 
+            # FIX: was using fallback_date_index=9 for green (status field) — now
+            # all three calls use the correct slip_type= parameter.
             total = (
-                len(self._filter_records_by_period(get_green_slips(None) or [], date_field_index=6, fallback_date_index=9)) +
-                len(self._filter_records_by_period(get_pink_slips(None)  or [], date_field_index=5)) +
-                len(self._filter_records_by_period(get_blue_slips(None)  or [], date_field_index=6))
+                len(self._filter_records_by_period(get_green_slips(None) or [], slip_type="green")) +
+                len(self._filter_records_by_period(get_pink_slips(None)  or [], slip_type="pink")) +
+                len(self._filter_records_by_period(get_blue_slips(None)  or [], slip_type="blue"))
             )
             if hasattr(self, 'top_print_btn'):
                 self.top_print_btn.setEnabled(total > 0)
@@ -1032,7 +1005,6 @@ class ReportsPage(BasePage):
             logger.error(f"Failed to update print button state: {e}")
 
     def _rebuild_tabs(self):
-        """Remove all tabs and rebuild them with fresh data."""
         if self._tabs is None:
             return
         current_idx = self._tabs.currentIndex()
@@ -1055,10 +1027,9 @@ class ReportsPage(BasePage):
 
         if current_idx < self._tabs.count():
             self._tabs.setCurrentIndex(current_idx)
-        
+
         self._tabs.update()
         self._tabs.repaint()
-        from PyQt5.QtWidgets import QApplication
         QApplication.processEvents()
 
     def _on_slips_changed(self):
@@ -1070,48 +1041,30 @@ class ReportsPage(BasePage):
             logger.error(f"Failed to refresh reports: {e}", exc_info=True)
 
     def _on_settings_changed(self):
-        """Handle system settings changes (e.g., school year change)"""
         logger.debug("Reports page: _on_settings_changed() called")
         try:
-            # Rebuild period selector with new year
             self._rebuild_period_selector()
-            # Rebuild tabs with new period filters
             self._rebuild_tabs()
         except Exception as e:
             logger.error(f"Failed to refresh reports on settings change: {e}", exc_info=True)
 
     def _rebuild_period_selector(self):
-        """Rebuild the period combo box with updated year"""
         if not hasattr(self, 'period_cb'):
             return
-        
-        logger.debug("Rebuilding period selector...")
         try:
-            # Save current selection
             current_period = self.period_cb.currentText()
-            
-            # Clear and repopulate with new period options
             self.period_cb.blockSignals(True)
             self.period_cb.clear()
-            period_options = get_period_options()
-            self.period_cb.addItems(period_options)
-            
-            # Try to restore selection, or use current month
+            self.period_cb.addItems(get_period_options())
+
             idx = self.period_cb.findText(current_period)
             if idx < 0:
-                # Period name changed (different year), try current month with correct year
-                display_year = datetime.now().year
-                current_month = datetime.now().strftime("%B")  # e.g., "May"
-                current_month_year = f"{current_month} {display_year}"  # e.g., "May 2026"
+                display_year      = datetime.now().year
+                current_month_year = f"{datetime.now().strftime('%B')} {display_year}"
                 idx = self.period_cb.findText(current_month_year)
-            
-            if idx >= 0:
-                self.period_cb.setCurrentIndex(idx)
-            else:
-                self.period_cb.setCurrentIndex(0)
-            
+
+            self.period_cb.setCurrentIndex(idx if idx >= 0 else 0)
             self.period_cb.blockSignals(False)
-            logger.debug("Period selector rebuilt successfully")
         except Exception as e:
             logger.error(f"Error rebuilding period selector: {e}", exc_info=True)
 
