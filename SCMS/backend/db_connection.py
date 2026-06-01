@@ -99,20 +99,15 @@ class PooledConnection:
         self._pool = pool
     
     def close(self):
-        """Return connection to pool after cleaning up any pending transactions."""
+        """Return connection to pool without rolling back committed transactions."""
         if self._raw_conn is None:
             return
         
-        try:
-            # Always rollback any pending transaction before returning to pool
-            # This ensures the connection is in a clean state
-            try:
-                self._raw_conn.rollback()
-            except:
-                pass
-        finally:
-            # Return to pool for reuse
-            self._pool.return_connection(self._raw_conn)
+        # NOTE: Do NOT rollback here. Application code is responsible for
+        # explicit error handling. Automatic rollback would undo commits,
+        # preventing data from being persisted (green slip save bug).
+        # Connection is returned to pool in a clean state for next use.
+        self._pool.return_connection(self._raw_conn)
     
     def cursor(self, *args, **kwargs):
         """Delegate cursor creation to raw connection."""
