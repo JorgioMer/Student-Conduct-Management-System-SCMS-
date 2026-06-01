@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.ticker import MaxNLocator
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt5.QtGui import QPixmap
@@ -31,13 +32,13 @@ class MatplotlibChart(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.figure = Figure(figsize=(10, 4), dpi=100, facecolor='white')
+        self.figure = Figure(figsize=(7, 3), dpi=100, facecolor='white')
         self._canvas_agg = FigureCanvasAgg(self.figure)
         self._last_pixmap = None
 
         self._image_label = QLabel()
         self._image_label.setAlignment(Qt.AlignCenter)
-        self._image_label.setMinimumHeight(200)
+        self._image_label.setMinimumHeight(140)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -99,7 +100,7 @@ class GreenSlipChart(MatplotlibChart):
             colors1.append('#66BB6A')
 
         if sizes1:
-            ax1.pie(sizes1, labels=labels1, colors=colors1, autopct='%1.1f%%',
+            ax1.pie(sizes1, labels=labels1, colors=colors1, autopct='%1.0f%%',
                     startangle=90, textprops={'fontsize': 10, 'weight': 'bold'})
         else:
             ax1.text(0.5, 0.5, 'No data available', ha='center', va='center', fontsize=12)
@@ -118,6 +119,7 @@ class GreenSlipChart(MatplotlibChart):
         ax2.set_ylabel('Count', fontsize=10, fontweight='bold')
         ax2.set_title('Green Slips by Status', fontsize=11, fontweight='bold', pad=15)
         ax2.set_ylim(0, max(counts) * 1.15 if any(counts) else 1)
+        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.grid(axis='y', alpha=0.3, linestyle='--')
 
         self.figure.tight_layout()
@@ -149,6 +151,7 @@ class BlueSlipChart(MatplotlibChart):
             ax1.set_xticklabels(types, rotation=45, ha='right', fontsize=9)
             ax1.set_ylabel('Count', fontsize=10, fontweight='bold')
             ax1.set_ylim(0, max(counts) * 1.15 if counts else 1)
+            ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax1.grid(axis='y', alpha=0.3, linestyle='--')
         else:
             ax1.text(0.5, 0.5, 'No violation data', ha='center', va='center', fontsize=12)
@@ -161,7 +164,7 @@ class BlueSlipChart(MatplotlibChart):
         if resolved_count  > 0: labels2.append(f'Resolved ({resolved_count})');   sizes2.append(resolved_count);  colors2.append('#2E7D32')
 
         if sizes2:
-            ax2.pie(sizes2, labels=labels2, colors=colors2, autopct='%1.1f%%',
+            ax2.pie(sizes2, labels=labels2, colors=colors2, autopct='%1.0f%%',
                     startangle=90, textprops={'fontsize': 10, 'weight': 'bold'})
         else:
             ax2.text(0.5, 0.5, 'No status data', ha='center', va='center', fontsize=12)
@@ -197,6 +200,7 @@ class PinkSlipChart(MatplotlibChart):
             ax1.set_xticklabels(types, rotation=45, ha='right', fontsize=9)
             ax1.set_ylabel('Count', fontsize=10, fontweight='bold')
             ax1.set_ylim(0, max(counts) * 1.15 if counts else 1)
+            ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax1.grid(axis='y', alpha=0.3, linestyle='--')
         else:
             ax1.text(0.5, 0.5, 'No violation data', ha='center', va='center', fontsize=12)
@@ -207,7 +211,7 @@ class PinkSlipChart(MatplotlibChart):
             years  = list(year_distribution.keys())
             counts = [year_distribution[y] for y in years]
             colors_list = ['#FF6F00', '#FF8A50', '#FFB74D', '#FFCC80', '#FFE0B2'][:len(years)]
-            ax2.pie(counts, labels=years, colors=colors_list, autopct='%1.1f%%',
+            ax2.pie(counts, labels=years, colors=colors_list, autopct='%1.0f%%',
                     startangle=90, textprops={'fontsize': 10, 'weight': 'bold'})
         else:
             ax2.text(0.5, 0.5, 'No grade data', ha='center', va='center', fontsize=12)
@@ -234,7 +238,7 @@ class CombinedAllSlipsChart(MatplotlibChart):
         if blue_count  > 0: labels.append(f'Blue ({blue_count})');   sizes.append(blue_count);  colors.append(BLUE_SLIP)
 
         if sizes:
-            ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%',
+            ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.0f%%',
                     startangle=90, textprops={'fontsize': 10, 'weight': 'bold'})
         else:
             ax1.text(0.5, 0.5, 'No data available', ha='center', va='center', fontsize=12)
@@ -253,6 +257,7 @@ class CombinedAllSlipsChart(MatplotlibChart):
         ax2.set_ylabel('Count', fontsize=10, fontweight='bold')
         ax2.set_title('Total Monthly Records by Type', fontsize=11, fontweight='bold', pad=15)
         ax2.set_ylim(0, max(counts) * 1.15 if any(counts) else 1)
+        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.grid(axis='y', alpha=0.3, linestyle='--')
 
         self.figure.tight_layout()

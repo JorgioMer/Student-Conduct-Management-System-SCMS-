@@ -955,7 +955,7 @@ class GreenSlipPage(BasePage):
                     stud_name    = record[2]   # Student Name
                     stud_year    = record[3]   # Year
                     stud_course  = record[4]   # Course
-                    is_disp      = record[5]   # slipType_green (True=Dispensation, False=Excuse)
+                    is_disp = record[5] in (True, 1) if len(record) > 5 else False   # slipType_green (True=Dispensation, False=Excuse)
                     date_avail   = str(record[6]) if len(record) > 6 else "N/A"
                     days_absence = str(record[7]) if len(record) > 7 else "N/A"
                     expiry       = str(record[8]) if len(record) > 8 else "N/A"
@@ -1370,13 +1370,13 @@ class GreenSlipPage(BasePage):
 
         total              = len(green_records)
         dispensation_count = sum(1 for r in green_records
-                                 if len(r) > 5 and r[5] == True)
+                            if len(r) > 5 and r[5] in (True, 1))
         excuse_count       = sum(1 for r in green_records
-                                 if len(r) > 5 and r[5] == False)
+                            if len(r) > 5 and r[5] in (False, 0))
         active_count       = sum(1 for r in green_records
-                                 if len(r) > 8 and "Active"  in str(r[8]))
+                                 if len(r) > 9 and "Active"  in str(r[9]))
         expired_count      = sum(1 for r in green_records
-                                 if len(r) > 8 and "Expired" in str(r[8]))
+                                 if len(r) > 9 and "Expired" in str(r[9]))
 
         stud_counts: dict = {}
         for r in green_records:

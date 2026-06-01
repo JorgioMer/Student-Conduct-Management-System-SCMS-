@@ -12,6 +12,7 @@ from PyQt5.QtGui import QFont, QColor
 
 from collections import Counter
 from datetime import datetime
+from matplotlib.ticker import MaxNLocator
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,13 @@ from backend.config import (
     get_course_college, get_college_name, get_all_colleges,
     get_period_options
 )
-# FIX: Import the shared date-resolver so green-slip date logic is in one place.
-from backend.db_green_slip import resolve_green_slip_date
+# Import the shared date parser and green-slip resolver from db_green_slip.
+# _parse_date handles every shape pyodbc + Access can return:
+#   native datetime/date objects, "YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY",
+#   and datetime strings with trailing time components.
+# Using ONE parser everywhere means a locale-format change only needs fixing
+# in one place rather than scattered across reports_page and db_green_slip.
+from backend.db_green_slip import resolve_green_slip_date, _parse_date as _parse_any_date
 import tempfile
 import os
 
@@ -140,16 +146,16 @@ class ReportsPage(BasePage):
 
     @staticmethod
     def _parse_plain_date(raw):
-        """Parse a plain date value (string or date/datetime object)."""
-        if not raw or str(raw).strip() in ("", "None", "N/A"):
-            return None
-        s = str(raw).strip().split()[0]
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
-            try:
-                return datetime.strptime(s, fmt).date()
-            except ValueError:
-                continue
-        return None
+        """
+        Delegates to the shared _parse_any_date() from db_green_slip so that
+        pink, blue, and green slips all go through the exact same date parser.
+        Handles native datetime/date objects and all string formats Access can
+        produce depending on the PC regional settings:
+          "YYYY-MM-DD"  (ISO  — pink / blue slips)
+          "DD/MM/YYYY"  (Access default locale — green slips on new PCs)
+          "MM/DD/YYYY"  (US locale variant)
+        """
+        return _parse_any_date(raw)
 
     def _date_in_period(self, date_obj, period_str):
         month = date_obj.month
@@ -353,7 +359,7 @@ class ReportsPage(BasePage):
             """)
             frame_lay = QVBoxLayout(frame)
             frame_lay.setContentsMargins(10, 10, 10, 10)
-            frame.setMinimumHeight(300)
+            frame.setMinimumHeight(280)
             try:
                 frame_lay.addWidget(builder())
             except Exception as e:
@@ -383,7 +389,7 @@ class ReportsPage(BasePage):
             }}
         """)
         college_layout = QVBoxLayout(college_frame)
-        college_frame.setMinimumHeight(320)
+        college_frame.setMinimumHeight(300)
         college_layout.setContentsMargins(10, 10, 10, 10)
         try:
             college_layout.addWidget(self._create_college_distribution_chart(college_data))
@@ -415,7 +421,8 @@ class ReportsPage(BasePage):
                 stud_num        = record[1] if len(record) > 1 else "N/A"
                 stud_name       = record[2] if len(record) > 2 else "Unknown"
                 year            = record[3] if len(record) > 3 else "N/A"
-                is_dispensation = record[5] if len(record) > 5 else False
+                # FIX: slipType_green stored as 1/0 on some ODBC drivers, bool on others
+                is_dispensation = record[5] in (True, 1) if len(record) > 5 else False
                 slip_type       = "Dispensation" if is_dispensation else "Excuse"
                 date            = str(record[6])[:10] if len(record) > 6 else "N/A"
                 days            = str(record[7]) if len(record) > 7 else "N/A"
@@ -678,7 +685,7 @@ class ReportsPage(BasePage):
                 border-radius: 10px;
             }}
         """)
-        chart_frame.setMinimumHeight(320)
+        chart_frame.setMinimumHeight(300)
         chart_lay = QVBoxLayout(chart_frame)
         chart_lay.setContentsMargins(10, 10, 10, 10)
         try:
@@ -815,7 +822,7 @@ class ReportsPage(BasePage):
     # ------------------------------------------------------------------
     def _create_slip_distribution_chart(self, green, pink, blue):
         from matplotlib.figure import Figure
-        fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(4, 3), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
         sizes  = [green, pink, blue]
         labels = ['Green Slips', 'Pink Slips', 'Blue Slips']
@@ -823,7 +830,7 @@ class ReportsPage(BasePage):
         if sum(sizes) > 0:
             wedges, texts, autotexts = ax.pie(
                 sizes, labels=labels, colors=colors,
-                autopct='%1.1f%%', startangle=90,
+                autopct='%1.0f%%', startangle=90,
                 textprops={'fontsize': 9},
             )
             for at in autotexts:
@@ -838,7 +845,7 @@ class ReportsPage(BasePage):
 
     def _create_year_breakdown_chart(self, all_records):
         from matplotlib.figure import Figure
-        fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(4, 3), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
         year_counts = Counter()
         for record in all_records:
@@ -858,6 +865,7 @@ class ReportsPage(BasePage):
                 h = bar.get_height()
                 ax.text(bar.get_x() + bar.get_width() / 2., h,
                         f'{int(h)}', ha='center', va='bottom', fontsize=8)
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         else:
             ax.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=12, color='gray')
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
@@ -868,7 +876,7 @@ class ReportsPage(BasePage):
 
     def _create_student_slip_distribution_chart(self, all_records):
         from matplotlib.figure import Figure
-        fig = Figure(figsize=(5, 4), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(4, 3), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
         student_counts = Counter()
         for record in all_records:
@@ -886,6 +894,7 @@ class ReportsPage(BasePage):
                 w = bar.get_width()
                 ax.text(w, bar.get_y() + bar.get_height() / 2.,
                         f'{int(w)}', ha='left', va='center', fontsize=8, fontweight='bold')
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         else:
             ax.text(0.5, 0.5, 'No Data', ha='center', va='center', fontsize=12, color='gray')
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
@@ -896,7 +905,7 @@ class ReportsPage(BasePage):
 
     def _create_college_distribution_chart(self, college_data):
         from matplotlib.figure import Figure
-        fig = Figure(figsize=(8, 4), dpi=90, facecolor='white', edgecolor='none')
+        fig = Figure(figsize=(6, 3), dpi=90, facecolor='white', edgecolor='none')
         ax  = fig.add_subplot(111)
         college_colors = {
             "CEDAS": "#FF6B6B", "CABE": "#4ECDC4", "CCIS": "#95E1D3",
@@ -919,6 +928,7 @@ class ReportsPage(BasePage):
                 h = bar.get_height()
                 ax.text(bar.get_x() + bar.get_width() / 2., h,
                         f'{int(h)}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax.yaxis.grid(True, alpha=0.3, linestyle='--')
             ax.set_axisbelow(True)
         else:
