@@ -502,10 +502,10 @@ class ReportsPage(BasePage):
                 stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
-                violation = record[4] if len(record) > 4 else "N/A"
-                severity  = record[5] if len(record) > 5 else "N/A"
-                date      = str(record[6])[:10] if len(record) > 6 else "N/A"
-                status    = record[8] if len(record) > 8 else "Open"
+                violation = record[5] if len(record) > 5 else "N/A"  # Shifted from [4] after adding studCourse
+                severity  = record[6] if len(record) > 6 else "N/A"  # Shifted from [5]
+                date      = str(record[7])[:10] if len(record) > 7 else "N/A"  # Shifted from [6]
+                status    = record[9] if len(record) > 9 else "Open"  # Shifted from [8]
                 rows.append((stud_num, stud_name, year, violation, severity, date, status))
             except Exception as e:
                 logger.error(f"Error processing blue slip record {i}: {e}", exc_info=True)

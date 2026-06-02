@@ -49,7 +49,7 @@ def get_blue_slips(student_number):
         if student_number is None:
             # Return ALL blue slips with ID first for deletion
             cursor.execute("""
-                SELECT b.[ID], b.[studNumber], s.[studName], s.[studYrLvl],
+                SELECT b.[ID], b.[studNumber], s.[studName], s.[studYrLvl], s.[studCourse],
                        b.[violationType_blue], b.[severityLvl_blue], b.[dateOfViolation_blue],
                        b.[actionTaken_blue], b.[status_blue]
                 FROM Students s
@@ -59,7 +59,7 @@ def get_blue_slips(student_number):
         else:
             # Return slips for specific student
             cursor.execute("""
-                SELECT b.[ID], b.[studNumber], s.[studName], s.[studYrLvl],
+                SELECT b.[ID], b.[studNumber], s.[studName], s.[studYrLvl], s.[studCourse],
                        b.[violationType_blue], b.[severityLvl_blue], b.[dateOfViolation_blue],
                        b.[actionTaken_blue], b.[status_blue]
                 FROM Students s
