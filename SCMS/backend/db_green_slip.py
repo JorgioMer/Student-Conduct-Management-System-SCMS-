@@ -21,6 +21,10 @@ def _parse_date(raw):
     """
     Parse any date value returned by pyodbc into a datetime.date object.
     Returns None if the value is empty or unparseable.
+    
+    FIX: Try ISO format and US format (MM/DD/YYYY) first, then regional
+    DD/MM/YYYY. This ensures dates like "6/1/2026" are correctly parsed as
+    June 1st (MM/DD), not January 6th (DD/MM).
     """
     if raw is None:
         return None
@@ -35,7 +39,8 @@ def _parse_date(raw):
         return None
     # Drop any trailing time component ("2026-05-27 00:00:00" -> "2026-05-27")
     s = s.split()[0]
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
+    # Try formats in order: ISO, US (MM/DD/YYYY), then regional (DD/MM/YYYY)
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
         try:
             return datetime.strptime(s, fmt).date()
         except ValueError:

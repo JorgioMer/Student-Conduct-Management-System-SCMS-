@@ -99,15 +99,33 @@ class PooledConnection:
         self._pool = pool
     
     def close(self):
-        """Return connection to pool without rolling back committed transactions."""
+        """
+        Return connection to pool after clearing any pending transaction.
+        
+        IMPORTANT: This rollback clears locks/pending transactions but does NOT
+        undo committed work because:
+        - After commit(), the transaction is closed in pyodbc
+        - Calling rollback() after commit() is a no-op (documented pyodbc behavior)
+        - We only rollback to clear locks from any NEW transaction that started
+          after the last commit
+        
+        Application code that needs to abort must call rollback() explicitly
+        BEFORE close() (which all our database functions do in except blocks).
+        """
         if self._raw_conn is None:
             return
         
-        # NOTE: Do NOT rollback here. Application code is responsible for
-        # explicit error handling. Automatic rollback would undo commits,
-        # preventing data from being persisted (green slip save bug).
-        # Connection is returned to pool in a clean state for next use.
-        self._pool.return_connection(self._raw_conn)
+        try:
+            # Rollback to clear any pending transaction/locks from new transaction
+            # (safe because it's a no-op after a successful commit)
+            try:
+                self._raw_conn.rollback()
+            except Exception:
+                # Rollback might fail if no active transaction - that's fine
+                pass
+        finally:
+            # Return to pool for reuse
+            self._pool.return_connection(self._raw_conn)
     
     def cursor(self, *args, **kwargs):
         """Delegate cursor creation to raw connection."""
