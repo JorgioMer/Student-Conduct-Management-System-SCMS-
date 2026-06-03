@@ -57,11 +57,6 @@ def _apply_table_selection_style(table: QTableWidget, accent_color: str):
 #  Shared Record Detail Dialog
 # =============================================================================
 class RecordDetailDialog(QDialog):
-    """
-    Generic detail dialog for any slip record.
-    Pass a list of (label, value) pairs and a slip_type colour key.
-    Optionally pass slip_summary={slip_key: count} to show a summary strip.
-    """
     SLIP_META = {
         "green":  {"colour": GREEN_SLIP, "bg": "#E8F5E9", "emoji": "🟢", "title": "Green Slip Record"},
         "pink":   {"colour": PINK_SLIP,  "bg": "#FCE4EC", "emoji": "🔴", "title": "Pink Slip Record"},
@@ -87,7 +82,6 @@ class RecordDetailDialog(QDialog):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # ── Coloured header banner ────────────────────────────────────────────
         header = QFrame()
         header.setFixedHeight(72)
         header.setStyleSheet(f"""
@@ -114,7 +108,6 @@ class RecordDetailDialog(QDialog):
         h_lay.addStretch()
         outer.addWidget(header)
 
-        # ── Slip Summary strip ────────────────────────────────────────────────
         if self._slip_summary:
             summary_frame = QFrame()
             summary_frame.setStyleSheet(f"""
@@ -155,7 +148,6 @@ class RecordDetailDialog(QDialog):
             s_lay.addStretch()
             outer.addWidget(summary_frame)
 
-        # ── Scrollable body ───────────────────────────────────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -198,7 +190,6 @@ class RecordDetailDialog(QDialog):
         scroll.setWidget(body)
         outer.addWidget(scroll)
 
-        # ── Footer buttons ────────────────────────────────────────────────────
         footer = QFrame()
         footer.setStyleSheet(f"""
             QFrame {{
@@ -212,7 +203,6 @@ class RecordDetailDialog(QDialog):
         f_lay.setContentsMargins(20, 10, 20, 10)
         f_lay.addStretch()
 
-        # Export PDF button (if student number is available)
         if self.student_number:
             export_btn = QPushButton("  📄 Export as PDF  ")
             export_btn.setFixedHeight(36)
@@ -227,9 +217,7 @@ class RecordDetailDialog(QDialog):
                     font-weight: bold;
                     padding: 0 20px;
                 }}
-                QPushButton:hover {{
-                    background: #1976D2;
-                }}
+                QPushButton:hover {{ background: #1976D2; }}
             """)
             export_btn.clicked.connect(self._export_student_pdf)
             f_lay.addWidget(export_btn)
@@ -247,30 +235,27 @@ class RecordDetailDialog(QDialog):
                 font-weight: bold;
                 padding: 0 20px;
             }}
-            QPushButton:hover {{
-                background: {GOLD};
-                color: {NAVY};
-            }}
+            QPushButton:hover {{ background: {GOLD}; color: {NAVY}; }}
         """)
         close_btn.clicked.connect(self.accept)
         f_lay.addWidget(close_btn)
         outer.addWidget(footer)
 
     def _export_student_pdf(self):
-        """Export individual student conduct report as PDF."""
         try:
-            temp_pdf = os.path.join(tempfile.gettempdir(), 
-                                    f"StudentReport_{self.student_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
-            
+            temp_pdf = os.path.join(
+                tempfile.gettempdir(),
+                f"StudentReport_{self.student_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            )
             result = generate_individual_student_report(temp_pdf, self.student_number)
             if result:
                 PDFPreviewDialog(temp_pdf, title="Student Conduct Report", parent=self).exec_()
             else:
-                InfoDialog("Error", f"Student {self.student_number} not found in database.", 
-                          success=False, parent=self).exec_()
+                InfoDialog("Error", f"Student {self.student_number} not found in database.",
+                           success=False, parent=self).exec_()
         except Exception as e:
-            InfoDialog("Error", f"Failed to generate report:\n{str(e)}", 
-                      success=False, parent=self).exec_()
+            InfoDialog("Error", f"Failed to generate report:\n{str(e)}",
+                       success=False, parent=self).exec_()
 
 
 # =============================================================================
@@ -278,10 +263,6 @@ class RecordDetailDialog(QDialog):
 # =============================================================================
 def _view_selected_row(table: QTableWidget, slip_type: str, parent=None,
                        slip_summary: dict = None):
-    """
-    Read the currently selected row from *table*, build a field list,
-    and open RecordDetailDialog.  Shows InfoDialog if nothing is selected.
-    """
     selected = table.selectedItems()
     if not selected:
         InfoDialog(
@@ -296,18 +277,16 @@ def _view_selected_row(table: QTableWidget, slip_type: str, parent=None,
                for c in range(table.columnCount())]
     fields = []
     student_number = None
-    
+
     for col, header in enumerate(headers):
         item = table.item(row, col)
         field_value = item.text() if item else "—"
         fields.append((header, field_value))
-        
-        # Try to extract student number from "Student No." column
         if header.lower() in ("student no.", "student number") and field_value != "—":
             student_number = field_value
 
     dlg = RecordDetailDialog(fields, slip_type=slip_type,
-                             slip_summary=slip_summary, 
+                             slip_summary=slip_summary,
                              student_number=student_number, parent=parent)
     dlg.exec_()
 
@@ -320,34 +299,22 @@ class TrackersPage(BasePage):
         logger.debug("TrackersPage.__init__ starting...")
         try:
             super().__init__(parent)
-            logger.debug("  BasePage initialized")
-            
             self.current_user = current_user or {}
-            self.staff_id = self.current_user.get("username", "UNKNOWN")
-            logger.debug(f"  Set staff_id: {self.staff_id}")
-            
-            self._combined_tiles = {}
-            self._combined_table = None
-            self._combined_layout = None
+            self.staff_id     = self.current_user.get("username", "UNKNOWN")
+            self._combined_tiles      = {}
+            self._combined_table      = None
+            self._combined_layout     = None
             self._combined_table_index = 2
-            self._monthly_tiles = {}
-            self._monthly_chart = None
-            logger.debug("  Initialized instance variables")
-            
-            logger.debug("  Connecting data_events signal...")
+            self._monthly_tiles       = {}
+            self._monthly_chart       = None
             data_events.slips_changed.connect(self._on_slips_changed)
-            
-            logger.debug("  Calling _build()...")
             self._build()
-            logger.debug("  _build() completed")
-            
             logger.info("TrackersPage.__init__ completed successfully")
         except Exception as e:
             logger.error(f"Error in TrackersPage.__init__: {str(e)}", exc_info=True)
             raise
 
     def closeEvent(self, event):
-        """Clean up signal connections when page is closed"""
         try:
             data_events.slips_changed.disconnect(self._on_slips_changed)
         except Exception:
@@ -357,7 +324,6 @@ class TrackersPage(BasePage):
     def _build(self):
         logger.debug("_build() starting...")
         try:
-            logger.debug("  Creating header frame...")
             header = QFrame()
             header.setFixedHeight(82)
             header.setStyleSheet(f"""
@@ -372,7 +338,6 @@ class TrackersPage(BasePage):
 
             h_lay = QHBoxLayout(header)
             h_lay.setContentsMargins(24, 12, 24, 12)
-
             h_left = QVBoxLayout()
             h_left.setSpacing(2)
 
@@ -388,24 +353,12 @@ class TrackersPage(BasePage):
             h_left.addWidget(s_lbl)
             h_lay.addLayout(h_left)
             h_lay.addStretch()
-
             self.main_layout.addWidget(header)
 
-            logger.debug("  Creating tabs...")
             tabs = QTabWidget()
-            
-            logger.debug("  Building combined tab...")
             tabs.addTab(self._build_combined_tab(), "   All Records ")
-            logger.debug("  Combined tab added")
-            
-            logger.debug("  Building student tab...")
             tabs.addTab(self._build_student_tab(),  "   Student Lookup ")
-            logger.debug("  Student tab added")
-            
-            logger.debug("  Building monthly tab...")
             tabs.addTab(self._build_monthly_tab(),  "   Monthly Summary ")
-            logger.debug("  Monthly tab added")
-
             self.main_layout.addWidget(tabs)
             self.main_layout.addStretch()
             logger.debug("_build() completed successfully")
@@ -422,20 +375,19 @@ class TrackersPage(BasePage):
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(14)
 
-        from backend.db_blue_slip import get_blue_slips
+        from backend.db_blue_slip  import get_blue_slips
         from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
+        from backend.db_pink_slip  import get_pink_slips
 
         green_slips = get_green_slips(None) or []
         pink_slips  = get_pink_slips(None)  or []
         blue_slips  = get_blue_slips(None)  or []
 
-        green_count   = len(green_slips)
-        pink_count    = len(pink_slips)
-        blue_count    = len(blue_slips)
-        total_records = green_count + pink_count + blue_count
-
-        all_students = set()
+        green_count      = len(green_slips)
+        pink_count       = len(pink_slips)
+        blue_count       = len(blue_slips)
+        total_records    = green_count + pink_count + blue_count
+        all_students     = set()
         for r in green_slips + pink_slips + blue_slips:
             if len(r) > 1:
                 all_students.add(r[1])
@@ -456,7 +408,7 @@ class TrackersPage(BasePage):
             self._combined_tiles[label] = tile
         lay.addLayout(tiles_row)
 
-        # ── Filter Row ─────────────────────────────────────────────────────
+        # ── Filter Row ────────────────────────────────────────────────────────
         filter_frame = QFrame()
         filter_frame.setStyleSheet(f"""
             QFrame {{
@@ -565,11 +517,11 @@ class TrackersPage(BasePage):
             p_lay.addWidget(ind_btn)
             return pair, combo
 
-        slip_pair, slip_filter   = make_filter_pair(
+        slip_pair,  slip_filter  = make_filter_pair(
             ["All Slip Types", "Green Slip", "Pink Slip", "Blue Slip"], width=145)
         month_pair, month_filter = make_filter_pair(
             ["This Month", "All Months", "Custom Range"], width=185)
-        year_pair, year_filter   = make_filter_pair(
+        year_pair,  year_filter  = make_filter_pair(
             ["All Years", "1st", "2nd", "3rd", "4th", "5th"], width=110)
 
         filter_outer.addWidget(slip_pair)
@@ -618,14 +570,16 @@ class TrackersPage(BasePage):
             "January","February","March","April","May","June",
             "July","August","September","October","November","December"
         ])
-        from_month.setFixedHeight(34); from_month.setFixedWidth(130)
+        from_month.setFixedHeight(34)
+        from_month.setFixedWidth(130)
         from_month.setStyleSheet(month_combo_style)
         custom_lay.addWidget(from_month)
 
         from_year = QComboBox()
         from_year.addItems(["2022","2023","2024","2025"])
         from_year.setCurrentText("2024")
-        from_year.setFixedHeight(34); from_year.setFixedWidth(80)
+        from_year.setFixedHeight(34)
+        from_year.setFixedWidth(80)
         from_year.setStyleSheet(month_combo_style)
         custom_lay.addWidget(from_year)
 
@@ -639,14 +593,16 @@ class TrackersPage(BasePage):
             "July","August","September","October","November","December"
         ])
         to_month.setCurrentIndex(10)
-        to_month.setFixedHeight(34); to_month.setFixedWidth(130)
+        to_month.setFixedHeight(34)
+        to_month.setFixedWidth(130)
         to_month.setStyleSheet(month_combo_style)
         custom_lay.addWidget(to_month)
 
         to_year = QComboBox()
         to_year.addItems(["2022","2023","2024","2025"])
         to_year.setCurrentText("2024")
-        to_year.setFixedHeight(34); to_year.setFixedWidth(80)
+        to_year.setFixedHeight(34)
+        to_year.setFixedWidth(80)
         to_year.setStyleSheet(month_combo_style)
         custom_lay.addWidget(to_year)
 
@@ -672,7 +628,6 @@ class TrackersPage(BasePage):
         lay.addWidget(filter_frame)
         lay.addWidget(custom_range_frame)
 
-        # ── Apply Filter button ───────────────────────────────────────────────
         filter_btn = QPushButton(" Apply Filter")
         filter_btn.setFixedHeight(38)
         filter_btn.setFixedWidth(130)
@@ -701,10 +656,9 @@ class TrackersPage(BasePage):
         self._apply_combined_colors(self._combined_table)
         self._combined_table.setMinimumHeight(320)
         lay.addWidget(self._combined_table)
-        self._combined_layout = lay
+        self._combined_layout      = lay
         self._combined_table_index = 2
 
-        # ── Action Row — View button now wired ────────────────────────────────
         action_row = QHBoxLayout()
         action_row.addStretch()
 
@@ -726,12 +680,9 @@ class TrackersPage(BasePage):
         lay.addStretch()
         return w
 
-    # ── View handler: All Records tab ─────────────────────────────────────────
     def _view_combined_record(self):
-        """Determine slip type from the Slip Type column, build summary, open detail dialog."""
         if self._combined_table is None:
             return
-
         selected = self._combined_table.selectedItems()
         if not selected:
             InfoDialog(
@@ -741,7 +692,7 @@ class TrackersPage(BasePage):
             ).exec_()
             return
 
-        row = self._combined_table.currentRow()
+        row       = self._combined_table.currentRow()
         slip_cell = self._combined_table.item(row, 5)
         slip_text = slip_cell.text() if slip_cell else ""
 
@@ -755,29 +706,28 @@ class TrackersPage(BasePage):
             slip_type = "mixed"
 
         stud_num_cell = self._combined_table.item(row, 1)
-        stud_num = stud_num_cell.text() if stud_num_cell else ""
-        slip_summary = self._get_student_slip_summary(stud_num)
+        stud_num      = stud_num_cell.text() if stud_num_cell else ""
+        slip_summary  = self._get_student_slip_summary(stud_num)
 
         _view_selected_row(self._combined_table, slip_type, parent=self,
                            slip_summary=slip_summary)
 
     def _get_student_slip_summary(self, stud_num: str) -> dict:
-        """Return {slip_key: count} for a given student number."""
-        from backend.db_blue_slip import get_blue_slips
+        from backend.db_blue_slip  import get_blue_slips
         from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
+        from backend.db_pink_slip  import get_pink_slips
         summary = {}
         try:
             green = [r for r in (get_green_slips(None) or [])
-                     if len(r) > 4 and str(r[4]).strip() == stud_num.strip()]
+                     if len(r) > 1 and str(r[1]).strip() == stud_num.strip()]
             if green:
                 summary["green"] = len(green)
             pink = [r for r in (get_pink_slips(None) or [])
-                    if len(r) > 4 and str(r[4]).strip() == stud_num.strip()]
+                    if len(r) > 1 and str(r[1]).strip() == stud_num.strip()]
             if pink:
                 summary["pink"] = len(pink)
             blue = [r for r in (get_blue_slips(None) or [])
-                    if len(r) > 4 and str(r[4]).strip() == stud_num.strip()]
+                    if len(r) > 1 and str(r[1]).strip() == stud_num.strip()]
             if blue:
                 summary["blue"] = len(blue)
         except Exception:
@@ -785,11 +735,11 @@ class TrackersPage(BasePage):
         return summary if summary else None
 
     def _build_combined_sample(self):
-        from backend.db_blue_slip import get_blue_slips
+        from backend.db_blue_slip  import get_blue_slips
         from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
+        from backend.db_pink_slip  import get_pink_slips
 
-        sample = []
+        sample      = []
         all_records = []
         try:
             for record in (get_blue_slips(None)  or []): all_records.append(("blue",  record))
@@ -800,39 +750,38 @@ class TrackersPage(BasePage):
 
         for i, (slip_type, record) in enumerate(all_records[:8], 1):
             try:
-                # Database queries return: ID(0), studNumber(1), studName(2), studYrLvl(3), ...
+                # ── Common fields (same for all slip types) ───────────────────
+                # DB structure: [0]=ID, [1]=studNumber, [2]=studName,
+                #               [3]=studYrLvl, [4]=studCourse, ...
                 stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
+                course    = record[4] if len(record) > 4 else "N/A"
 
                 if slip_type == "blue":
-                    # Blue slip: fetch course from Students table
-                    course = "N/A"
-                    try:
-                        student_rec = get_student(stud_num)
-                        if student_rec and len(student_rec) > 2:
-                            course = student_rec[2] if student_rec[2] else "N/A"
-                    except Exception:
-                        pass
-                    
+                    # BLUE:  [5]=violationType_blue  [6]=severityLvl_blue
+                    #        [7]=dateOfViolation_blue [8]=actionTaken_blue
+                    #        [9]=status_blue
                     slip_label = "🔵 Blue Slip"
-                    details    = record[4] if len(record) > 4 else "N/A"  # violationType_blue
-                    date       = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status     = record[8] if len(record) > 8 else "Open / Pending"
+                    details    = str(record[5]) if len(record) > 5 else "N/A"   # violationType_blue
+                    date       = str(record[7])[:10] if len(record) > 7 else "N/A"  # dateOfViolation_blue
+                    status     = record[9] if len(record) > 9 else "Open / Pending"  # status_blue
+
                 elif slip_type == "green":
-                    # Green slip: record[4] is studCourse
-                    course     = record[4] if len(record) > 4 else "N/A"
-                    is_disp    = record[5] == True if len(record) > 5 else False
+                    # GREEN: [5]=slipType_green [6]=dateAvail_green
+                    #        [7]=daysOfAbs      [8]=exprDate
+                    #        [9]=status_green   [10]=datesOfAbs_greenExc
+                    is_disp    = record[5] in (True, 1) if len(record) > 5 else False
                     slip_label = "🟢 Green (Disp.)" if is_disp else "🟢 Green (Excuse)"
-                    details    = str(record[7]) if len(record) > 7 else "N/A"
-                    date       = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status     = record[9] if len(record) > 9 else "Active"
-                else:
-                    # Pink slip: record[4] is studCourse
-                    course     = record[4] if len(record) > 4 else "N/A"
+                    details    = str(record[7]) if len(record) > 7 else "N/A"   # days / absence type
+                    date       = str(record[6])[:10] if len(record) > 6 else "N/A"  # dateAvail_green
+                    status     = record[9] if len(record) > 9 else "Active"      # status_green
+
+                else:  # pink
+                    # PINK:  [5]=dateIssued_pink [6]=violationType_pink
                     slip_label = "🔴 Pink Slip"
-                    details    = record[6] if len(record) > 6 else "N/A"
-                    date       = str(record[5])[:10] if len(record) > 5 else "N/A"
+                    details    = str(record[6]) if len(record) > 6 else "N/A"   # violationType_pink
+                    date       = str(record[5])[:10] if len(record) > 5 else "N/A"  # dateIssued_pink
                     status     = "Completed"
 
                 sample.append((str(i), stud_num, stud_name, year, course,
@@ -859,9 +808,9 @@ class TrackersPage(BasePage):
                 table.item(r, 5).setForeground(QColor(fg))
 
     def _refresh_combined_records(self):
-        from backend.db_blue_slip import get_blue_slips
+        from backend.db_blue_slip  import get_blue_slips
         from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
+        from backend.db_pink_slip  import get_pink_slips
 
         green_slips = get_green_slips(None) or []
         pink_slips  = get_pink_slips(None)  or []
@@ -898,7 +847,8 @@ class TrackersPage(BasePage):
             _apply_table_selection_style(self._combined_table, NAVY)
             self._apply_combined_colors(self._combined_table)
             self._combined_table.setMinimumHeight(320)
-            self._combined_layout.insertWidget(self._combined_table_index, self._combined_table)
+            self._combined_layout.insertWidget(self._combined_table_index,
+                                               self._combined_table)
 
     # ── Student Lookup tab ────────────────────────────────────────────────────
     def _build_student_tab(self) -> QWidget:
@@ -983,13 +933,12 @@ class TrackersPage(BasePage):
         self.slip_history_empty.setStyleSheet(f"color: {MID_GRAY}; padding: 30px; border: none;")
         self.history_table_container.addWidget(self.slip_history_empty)
         lay.addLayout(self.history_table_container)
-
         lay.addStretch()
         return w
 
     def _clear_profile_layout(self):
         while self.profile_layout.count() > 2:
-            item = self.profile_layout.takeAt(2)
+            item   = self.profile_layout.takeAt(2)
             widget = item.widget()
             if widget is not None:
                 if widget is self.profile_empty:
@@ -1006,7 +955,7 @@ class TrackersPage(BasePage):
 
     def _clear_history_layout(self):
         while self.history_table_container.count() > 0:
-            item = self.history_table_container.takeAt(0)
+            item   = self.history_table_container.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 if widget is self.slip_history_empty:
@@ -1015,20 +964,22 @@ class TrackersPage(BasePage):
                     widget.deleteLater()
 
     def _search_student(self):
-        from backend.db_students import get_student
-        from backend.db_blue_slip import get_blue_slips
+        from backend.db_students   import get_student
+        from backend.db_blue_slip  import get_blue_slips
         from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
+        from backend.db_pink_slip  import get_pink_slips
 
         search_term = self.stud_search_edit.text().strip()
         if not search_term:
-            InfoDialog("Input Required", "Please enter a student number or name to search.",
+            InfoDialog("Input Required",
+                       "Please enter a student number or name to search.",
                        success=False, parent=self).exec_()
             return
 
         student_info = get_student(search_term)
         if not student_info:
-            InfoDialog("Not Found", f"No student found with number/name: {search_term}",
+            InfoDialog("Not Found",
+                       f"No student found with number/name: {search_term}",
                        success=False, parent=self).exec_()
             return
 
@@ -1041,58 +992,57 @@ class TrackersPage(BasePage):
 
         profile_grid = QGridLayout()
         profile_grid.setSpacing(12)
-
         for i, (label, value) in enumerate([
             ("Student Number:", stud_num),
             ("Student Name:",   stud_name),
             ("Year Level:",     stud_year),
             ("Course:",         stud_course),
         ]):
-            lbl = QLabel(label)
-            lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
-            lbl.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
-
-            val = QLabel(value)
-            val.setFont(QFont("Segoe UI", 11))
-            val.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
-
-            profile_grid.addWidget(lbl, i, 0, alignment=Qt.AlignRight)
-            profile_grid.addWidget(val, i, 1, alignment=Qt.AlignLeft)
-
+            lbl_w = QLabel(label)
+            lbl_w.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            lbl_w.setStyleSheet(f"color: {NAVY}; background: transparent; border: none;")
+            val_w = QLabel(value)
+            val_w.setFont(QFont("Segoe UI", 11))
+            val_w.setStyleSheet(f"color: {TEXT_DARK}; background: transparent; border: none;")
+            profile_grid.addWidget(lbl_w, i, 0, alignment=Qt.AlignRight)
+            profile_grid.addWidget(val_w, i, 1, alignment=Qt.AlignLeft)
         self.profile_layout.addLayout(profile_grid)
 
         history_records = []
         try:
+            # Blue slips: [5]=violationType [7]=dateOfViolation [9]=status
             for record in get_blue_slips(stud_num) or []:
                 try:
                     violation = record[5] if len(record) > 5 else "N/A"
-                    date      = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status    = record[10] if len(record) > 10 else "Open"
+                    date      = str(record[7])[:10] if len(record) > 7 else "N/A"
+                    status    = record[9] if len(record) > 9 else "Open"
                     history_records.append(("Blue Slip", violation, date, status))
-                except:
+                except Exception:
                     pass
 
+            # Green slips: [5]=slipType [6]=dateAvail [9]=status
             for record in get_green_slips(stud_num) or []:
                 try:
-                    slip_type = "Dispensation" if (record[5] is True if len(record) > 5 else False) else "Excuse"
+                    is_disp   = record[5] in (True, 1) if len(record) > 5 else False
+                    slip_type = "Dispensation" if is_disp else "Excuse"
                     date      = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    status    = record[8] if len(record) > 8 else "Active"
+                    status    = record[9] if len(record) > 9 else "Active"
                     history_records.append(("Green (" + slip_type + ")", date, status, "-"))
-                except:
+                except Exception:
                     pass
 
+            # Pink slips: [5]=dateIssued [6]=violationType
             for record in get_pink_slips(stud_num) or []:
                 try:
                     violation = record[6] if len(record) > 6 else "N/A"
                     date      = str(record[5])[:10] if len(record) > 5 else "N/A"
                     history_records.append(("Pink Slip", violation, date, "Completed"))
-                except:
+                except Exception:
                     pass
-        except:
+        except Exception:
             pass
 
         self._clear_history_layout()
-
         if not history_records:
             no_records = QLabel(f"No slip records found for {stud_name} ({stud_num})")
             no_records.setAlignment(Qt.AlignCenter)
@@ -1128,8 +1078,12 @@ class TrackersPage(BasePage):
         period_row.addWidget(lbl)
 
         self._monthly_period_cb = QComboBox()
-        self._monthly_period_cb.addItems(["December 2026","November 2026", "October 2026", "September 2026", "August 2026", "July 2026", "June 2026","May 2026","April 2026", "March 2026", "February 2026", "January 2026"])
-        self._monthly_period_cb.setCurrentText("May 2026")  # Set current month as default
+        self._monthly_period_cb.addItems([
+            "December 2026", "November 2026", "October 2026", "September 2026",
+            "August 2026", "July 2026", "June 2026", "May 2026",
+            "April 2026", "March 2026", "February 2026", "January 2026",
+        ])
+        self._monthly_period_cb.setCurrentText("May 2026")
         self._monthly_period_cb.setFixedHeight(36)
         self._monthly_period_cb.setFixedWidth(200)
         self._monthly_period_cb.currentTextChanged.connect(self._on_monthly_period_changed)
@@ -1143,9 +1097,9 @@ class TrackersPage(BasePage):
         period_row.addWidget(export_btn)
         lay.addLayout(period_row)
 
-        from backend.db_blue_slip import get_blue_slips
+        from backend.db_blue_slip  import get_blue_slips
         from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
+        from backend.db_pink_slip  import get_pink_slips
 
         green_slips = get_green_slips(None) or []
         pink_slips  = get_pink_slips(None)  or []
@@ -1164,101 +1118,83 @@ class TrackersPage(BasePage):
             self._monthly_tiles[label] = tile
         lay.addLayout(tiles_row)
 
-        logger.debug("  Creating CombinedAllSlipsChart...")
         self._monthly_chart = None
         try:
             from ui.chart_widgets import CombinedAllSlipsChart
-            logger.debug("    CombinedAllSlipsChart imported")
             self._monthly_chart = CombinedAllSlipsChart(w)
-            logger.debug("    CombinedAllSlipsChart created")
             self._monthly_chart.setMinimumHeight(380)
         except Exception as e:
             logger.error(f"Error creating CombinedAllSlipsChart: {str(e)}", exc_info=True)
-            # Graceful fallback — show a placeholder so the page still loads
-            from PyQt5.QtCore import Qt
             self._monthly_chart = QLabel("Chart unavailable")
             self._monthly_chart.setAlignment(Qt.AlignCenter)
             self._monthly_chart.setMinimumHeight(380)
             self._monthly_chart.setStyleSheet(
-                "color: #9E9E9E; border: 1px dashed #BDBDBD; border-radius: 8px;"
-            )
+                "color: #9E9E9E; border: 1px dashed #BDBDBD; border-radius: 8px;")
 
-
-        logger.debug("  Refreshing monthly summary...")
         self._refresh_monthly_summary()
         lay.addWidget(self._monthly_chart)
         lay.addStretch()
         return w
 
-    def _refresh_monthly_chart(self, chart_widget):
-        from backend.db_blue_slip import get_blue_slips
-        from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
-        blue_slips  = get_blue_slips(None)  or []
-        green_slips = get_green_slips(None) or []
-        pink_slips  = get_pink_slips(None)  or []
-        chart_widget.update_data(len(green_slips), len(pink_slips), len(blue_slips))
-
-    def _refresh_monthly_summary(self):
-        from backend.db_blue_slip import get_blue_slips
-        from backend.db_green_slip import get_green_slips
-        from backend.db_pink_slip import get_pink_slips
-
-        # Get selected period
-        selected_period = self._monthly_period_cb.currentText() if hasattr(self, '_monthly_period_cb') else "May 2026"
-        
-        # Get all records and filter by selected period
-        green_slips = self._filter_monthly_records(get_green_slips(None) or [], date_field_index=6, period=selected_period)
-        pink_slips  = self._filter_monthly_records(get_pink_slips(None) or [], date_field_index=5, period=selected_period)
-        blue_slips  = self._filter_monthly_records(get_blue_slips(None) or [], date_field_index=6, period=selected_period)
-
-        if self._monthly_tiles:
-            self._monthly_tiles["Green Slips"].set_value(len(green_slips))
-            self._monthly_tiles["Pink Slips"].set_value(len(pink_slips))
-            self._monthly_tiles["Blue Slips"].set_value(len(blue_slips))
-            self._monthly_tiles["Total"].set_value(len(green_slips) + len(pink_slips) + len(blue_slips))
-
-        if self._monthly_chart and hasattr(self._monthly_chart, 'update_data'):
-            self._monthly_chart.update_data(len(green_slips), len(pink_slips), len(blue_slips))
-
     def _filter_monthly_records(self, records, date_field_index=6, period="May 2026"):
-        """Filter records to show only those from the selected month."""
+        """
+        Filter records to show only those from the selected month/year.
+
+        FIX: Use the shared _parse_date() from db_green_slip so that
+        DD/MM/YYYY dates (Access regional format) are handled correctly.
+        Passing date_field_index=7 for blue slips ensures the actual
+        dateOfViolation field is used instead of severityLvl.
+        """
+        from backend.db_green_slip import _parse_date as _parse_any_date
         if not records or not period:
             return []
-        
+
+        try:
+            period_date = datetime.strptime(period, "%B %Y")
+        except ValueError:
+            return records
+
         filtered = []
         for record in records:
             try:
                 if len(record) <= date_field_index:
                     continue
-                
-                date_str = str(record[date_field_index]).strip()
-                if not date_str or date_str == "N/A":
-                    continue
-                
-                # Parse date (handle DD/MM/YYYY and YYYY-MM-DD formats)
-                try:
-                    if "/" in date_str:
-                        date_obj = datetime.strptime(date_str.split()[0], "%d/%m/%Y")
-                    else:
-                        date_obj = datetime.strptime(date_str.split()[0], "%Y-%m-%d")
-                except ValueError:
-                    continue
-                
-                # Check if date matches the selected period (month and year)
-                try:
-                    period_date = datetime.strptime(period, "%B %Y")
-                    if date_obj.month == period_date.month and date_obj.year == period_date.year:
-                        filtered.append(record)
-                except ValueError:
-                    continue
+                date_obj = _parse_any_date(record[date_field_index])
+                if date_obj and date_obj.month == period_date.month \
+                             and date_obj.year  == period_date.year:
+                    filtered.append(record)
             except Exception:
                 continue
-        
         return filtered
 
+    def _refresh_monthly_summary(self):
+        from backend.db_blue_slip  import get_blue_slips
+        from backend.db_green_slip import get_green_slips
+        from backend.db_pink_slip  import get_pink_slips
+
+        selected_period = (self._monthly_period_cb.currentText()
+                           if hasattr(self, '_monthly_period_cb') else "May 2026")
+
+        # FIX: blue date is at index 7, not 6
+        green_slips = self._filter_monthly_records(
+            get_green_slips(None) or [], date_field_index=6, period=selected_period)
+        pink_slips  = self._filter_monthly_records(
+            get_pink_slips(None)  or [], date_field_index=5, period=selected_period)
+        blue_slips  = self._filter_monthly_records(
+            get_blue_slips(None)  or [], date_field_index=7, period=selected_period)
+
+        if self._monthly_tiles:
+            self._monthly_tiles["Green Slips"].set_value(len(green_slips))
+            self._monthly_tiles["Pink Slips"].set_value(len(pink_slips))
+            self._monthly_tiles["Blue Slips"].set_value(len(blue_slips))
+            self._monthly_tiles["Total"].set_value(
+                len(green_slips) + len(pink_slips) + len(blue_slips))
+
+        if self._monthly_chart and hasattr(self._monthly_chart, 'update_data'):
+            self._monthly_chart.update_data(
+                len(green_slips), len(pink_slips), len(blue_slips))
+
     def _on_monthly_period_changed(self):
-        """Handle changes to the monthly period dropdown."""
         self._refresh_monthly_summary()
 
     def _on_slips_changed(self):
@@ -1270,137 +1206,104 @@ class TrackersPage(BasePage):
 
     # ── PDF Export Methods ────────────────────────────────────────────────────
     def _export_combined_records(self):
-        """Export combined records from all slip types as PDF."""
         try:
-            from backend.db_blue_slip import get_blue_slips
+            from backend.db_blue_slip  import get_blue_slips
             from backend.db_green_slip import get_green_slips
-            from backend.db_pink_slip import get_pink_slips
-            
+            from backend.db_pink_slip  import get_pink_slips
+
             green_slips = get_green_slips(None) or []
-            pink_slips = get_pink_slips(None) or []
-            blue_slips = get_blue_slips(None) or []
-            
-            # Combine all records
+            pink_slips  = get_pink_slips(None)  or []
+            blue_slips  = get_blue_slips(None)  or []
             all_records = green_slips + pink_slips + blue_slips
-            
+
             if not all_records:
-                InfoDialog(
-                    "No Data",
-                    "No records available to export.",
-                    success=False,
-                    parent=self
-                ).exec_()
+                InfoDialog("No Data", "No records available to export.",
+                           success=False, parent=self).exec_()
                 return
-            
-            # Generate PDF
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_pdf = os.path.join(tempfile.gettempdir(), f'SCMS_Combined_Records_{timestamp}.pdf')
-            generate_slip_report(temp_pdf, 'mixed', all_records, 
-                               "All Slip Types Combined - Monthly Overview")
-            
-            # Log the export action
+            temp_pdf  = os.path.join(tempfile.gettempdir(),
+                                     f'SCMS_Combined_Records_{timestamp}.pdf')
+            generate_slip_report(temp_pdf, 'mixed', all_records,
+                                 "All Slip Types Combined - Monthly Overview")
             log_export(self.staff_id, "Combined Records Report", len(all_records))
-            
-            # Show preview dialog
             PDFPreviewDialog(temp_pdf, "All Records Export", parent=self).exec_()
         except Exception as e:
-            InfoDialog(
-                "Export Error",
-                f"Failed to export records:\n{str(e)}",
-                success=False,
-                parent=self
-            ).exec_()
+            InfoDialog("Export Error", f"Failed to export records:\n{str(e)}",
+                       success=False, parent=self).exec_()
 
     def _export_monthly_summary(self):
-        """Export monthly summary report as PDF."""
         try:
-            from backend.db_blue_slip import get_blue_slips
+            from backend.db_blue_slip  import get_blue_slips
             from backend.db_green_slip import get_green_slips
-            from backend.db_pink_slip import get_pink_slips
-            from backend.db_students import get_student
-            
+            from backend.db_pink_slip  import get_pink_slips
+            from backend.db_students   import get_student
+
             green_slips = get_green_slips(None) or []
-            pink_slips = get_pink_slips(None) or []
-            blue_slips = get_blue_slips(None) or []
-            
-            # Count slips per student for summary
+            pink_slips  = get_pink_slips(None)  or []
+            blue_slips  = get_blue_slips(None)  or []
+
             student_counts = {}
             for record in green_slips:
-                stud_num = record[4] if len(record) > 4 else None
-                if stud_num:
-                    if stud_num not in student_counts:
-                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
-                    student_counts[stud_num]["green"] += 1
-                    if not student_counts[stud_num]["info"]:
-                        student_counts[stud_num]["info"] = get_student(stud_num)
-            
+                sn = record[1] if len(record) > 1 else None
+                if sn:
+                    student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
+                    student_counts[sn]["green"] += 1
+                    if not student_counts[sn]["info"]:
+                        student_counts[sn]["info"] = get_student(sn)
+
             for record in pink_slips:
-                stud_num = record[4] if len(record) > 4 else None
-                if stud_num:
-                    if stud_num not in student_counts:
-                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
-                    student_counts[stud_num]["pink"] += 1
-                    if not student_counts[stud_num]["info"]:
-                        student_counts[stud_num]["info"] = get_student(stud_num)
-            
+                sn = record[1] if len(record) > 1 else None
+                if sn:
+                    student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
+                    student_counts[sn]["pink"] += 1
+                    if not student_counts[sn]["info"]:
+                        student_counts[sn]["info"] = get_student(sn)
+
             for record in blue_slips:
-                stud_num = record[4] if len(record) > 4 else None
-                if stud_num:
-                    if stud_num not in student_counts:
-                        student_counts[stud_num] = {"green": 0, "pink": 0, "blue": 0, "info": None}
-                    student_counts[stud_num]["blue"] += 1
-                    if not student_counts[stud_num]["info"]:
-                        student_counts[stud_num]["info"] = get_student(stud_num)
-            
-            # Build student data for export
+                sn = record[1] if len(record) > 1 else None
+                if sn:
+                    student_counts.setdefault(sn, {"green": 0, "pink": 0, "blue": 0, "info": None})
+                    student_counts[sn]["blue"] += 1
+                    if not student_counts[sn]["info"]:
+                        student_counts[sn]["info"] = get_student(sn)
+
             sorted_students = sorted(
                 student_counts.items(),
                 key=lambda x: x[1]["green"] + x[1]["pink"] + x[1]["blue"],
-                reverse=True
+                reverse=True,
             )
-            
+
             student_data = []
-            for rank, (stud_num, counts) in enumerate(sorted_students[:20], 1):
+            for rank, (sn, counts) in enumerate(sorted_students[:20], 1):
                 try:
-                    info = counts["info"]
+                    info      = counts["info"]
                     stud_name = info[1] if info and len(info) > 1 else "Unknown"
-                    year = info[3] if info and len(info) > 3 else "N/A"
-                    total = counts["green"] + counts["pink"] + counts["blue"]
+                    year      = info[3] if info and len(info) > 3 else "N/A"
+                    total     = counts["green"] + counts["pink"] + counts["blue"]
                     student_data.append((
-                        str(rank), stud_num, stud_name, year,
+                        str(rank), sn, stud_name, year,
                         str(counts["green"]), str(counts["pink"]),
-                        str(counts["blue"]), str(total)
+                        str(counts["blue"]), str(total),
                     ))
-                except:
+                except Exception:
                     pass
-            
+
             if not student_data:
-                InfoDialog(
-                    "No Data",
-                    "No student records available to export.",
-                    success=False,
-                    parent=self
-                ).exec_()
+                InfoDialog("No Data", "No student records available to export.",
+                           success=False, parent=self).exec_()
                 return
-            
-            # Generate PDF
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             from backend.pdf_export import generate_student_conduct_summary
-            temp_pdf = os.path.join(tempfile.gettempdir(), f'SCMS_Monthly_Summary_{timestamp}.pdf')
+            temp_pdf = os.path.join(tempfile.gettempdir(),
+                                    f'SCMS_Monthly_Summary_{timestamp}.pdf')
             generate_student_conduct_summary(temp_pdf, student_data)
-            
-            # Log the export action
             log_report_generated(self.staff_id, "Monthly Summary Report")
-            
-            # Show preview dialog
             PDFPreviewDialog(temp_pdf, "Monthly Summary Report", parent=self).exec_()
         except Exception as e:
-            InfoDialog(
-                "Export Error",
-                f"Failed to export monthly summary:\n{str(e)}",
-                success=False,
-                parent=self
-            ).exec_()
+            InfoDialog("Export Error", f"Failed to export monthly summary:\n{str(e)}",
+                       success=False, parent=self).exec_()
 
 
 from ui.components import Divider
