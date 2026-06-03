@@ -38,12 +38,6 @@ from backend.config import (
     get_course_college, get_college_name, get_all_colleges,
     get_period_options
 )
-# Import the shared date parser and green-slip resolver from db_green_slip.
-# _parse_date handles every shape pyodbc + Access can return:
-#   native datetime/date objects, "YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY",
-#   and datetime strings with trailing time components.
-# Using ONE parser everywhere means a locale-format change only needs fixing
-# in one place rather than scattered across reports_page and db_green_slip.
 from backend.db_green_slip import resolve_green_slip_date, _parse_date as _parse_any_date
 import tempfile
 import os
@@ -80,6 +74,37 @@ def _make_canvas(fig):
         return placeholder
 
 
+# ---------------------------------------------------------------------------
+# Shared date-strip helper
+# ---------------------------------------------------------------------------
+def _strip_date(raw):
+    """
+    Return only the YYYY-MM-DD portion of any date/datetime value.
+    Handles:
+      - native datetime / date objects
+      - "2026-06-02 00:00:00"   (Access datetime string with time)
+      - "2026-06-02"            (ISO date string)
+      - "02/06/2026" / "06/02/2026"  (locale variants)
+    Returns "N/A" if the value is missing or unparseable.
+    """
+    if raw is None:
+        return "N/A"
+    s = str(raw).strip()
+    if not s or s in ("-", "None", "N/A"):
+        return "N/A"
+    # Strip time component first
+    if " " in s:
+        s = s.split(" ")[0]
+    # Already ISO — just return it
+    if len(s) == 10 and s[4] == "-":
+        return s
+    # Try parsing locale variants and convert to ISO
+    parsed = _parse_any_date(raw)
+    if parsed:
+        return parsed.strftime("%Y-%m-%d")
+    return s[:10]
+
+
 class ReportsPage(BasePage):
     def __init__(self, current_user=None, parent=None):
         logger.debug("ReportsPage.__init__ starting...")
@@ -109,16 +134,12 @@ class ReportsPage(BasePage):
           "green"  -> resolve_green_slip_date() handles both Dispensation
                       (dateAvail_green, index 6) and Excuse
                       (datesOfAbs_greenExc start, index 10) correctly.
-          "pink"   -> index 5  (dateIssued)
-          "blue"   -> index 6  (dateOfViolation_blue)
+          "pink"   -> index 5  (dateIssued_pink)
+          "blue"   -> index 7  (dateOfViolation_blue)
+                      NOTE: get_blue_slips() includes studCourse at [4], so
+                      every field after it shifts right by one vs. older code
+                      that assumed date at [6].
           "other"  -> index 6  (generic fallback)
-
-        FIX: The original code used raw date_field_index + fallback_date_index
-        integers for green slips.  The fallback (index 10) holds a range string
-        like "2026-05-20 to 2026-05-25", NOT a plain date, so the strptime call
-        always failed and Excuse slips were silently dropped from every report.
-        Now green slips go through resolve_green_slip_date() which knows how to
-        parse both plain dates and range strings.
         """
         period = self.period_cb.currentText() if hasattr(self, 'period_cb') else ""
         if not records or not period:
@@ -129,10 +150,15 @@ class ReportsPage(BasePage):
             try:
                 if slip_type == "green":
                     date_obj = resolve_green_slip_date(record)
+                elif slip_type == "pink":
+                    date_raw = record[5] if len(record) > 5 else None
+                    date_obj = self._parse_plain_date(date_raw)
+                elif slip_type == "blue":
+                    # [7] = dateOfViolation_blue (studCourse at [4] shifts everything +1)
+                    date_raw = record[7] if len(record) > 7 else None
+                    date_obj = self._parse_plain_date(date_raw)
                 else:
-                    # Pink: index 5 / Blue & others: index 6
-                    idx      = 5 if slip_type == "pink" else 6
-                    date_raw = record[idx] if len(record) > idx else None
+                    date_raw = record[6] if len(record) > 6 else None
                     date_obj = self._parse_plain_date(date_raw)
 
                 if date_obj and self._date_in_period(date_obj, period):
@@ -147,13 +173,9 @@ class ReportsPage(BasePage):
     @staticmethod
     def _parse_plain_date(raw):
         """
-        Delegates to the shared _parse_any_date() from db_green_slip so that
-        pink, blue, and green slips all go through the exact same date parser.
+        Delegates to the shared _parse_any_date() from db_green_slip.
         Handles native datetime/date objects and all string formats Access can
-        produce depending on the PC regional settings:
-          "YYYY-MM-DD"  (ISO  — pink / blue slips)
-          "DD/MM/YYYY"  (Access default locale — green slips on new PCs)
-          "MM/DD/YYYY"  (US locale variant)
+        produce:  "YYYY-MM-DD", "YYYY-MM-DD HH:MM:SS", "DD/MM/YYYY", "MM/DD/YYYY"
         """
         return _parse_any_date(raw)
 
@@ -231,8 +253,8 @@ class ReportsPage(BasePage):
             period_options = get_period_options()
             self.period_cb.addItems(period_options)
 
-            display_year      = datetime.now().year
-            current_month     = datetime.now().strftime("%B")
+            display_year       = datetime.now().year
+            current_month      = datetime.now().strftime("%B")
             current_month_year = f"{current_month} {display_year}"
             idx = self.period_cb.findText(current_month_year)
             self.period_cb.setCurrentIndex(idx if idx >= 0 else 0)
@@ -306,7 +328,6 @@ class ReportsPage(BasePage):
         from backend.db_green_slip import get_green_slips
         from backend.db_pink_slip  import get_pink_slips
 
-        # FIX: pass slip_type= so the correct date strategy is used per type.
         green_slips = self._filter_records_by_period(get_green_slips(None) or [], slip_type="green")
         pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], slip_type="pink")
         blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], slip_type="blue")
@@ -408,8 +429,7 @@ class ReportsPage(BasePage):
     def _build_green_report(self) -> QWidget:
         from backend.db_green_slip import get_green_slips
         try:
-            green_raw = get_green_slips(None) or []
-            # FIX: use slip_type="green" so Excuse slips are NOT silently dropped.
+            green_raw     = get_green_slips(None) or []
             green_records = self._filter_records_by_period(green_raw, slip_type="green")
         except Exception as e:
             logger.error(f"Failed to retrieve green slips: {e}", exc_info=True)
@@ -421,15 +441,13 @@ class ReportsPage(BasePage):
                 stud_num        = record[1] if len(record) > 1 else "N/A"
                 stud_name       = record[2] if len(record) > 2 else "Unknown"
                 year            = record[3] if len(record) > 3 else "N/A"
-                # FIX: slipType_green stored as 1/0 on some ODBC drivers, bool on others
                 is_dispensation = record[5] in (True, 1) if len(record) > 5 else False
                 slip_type       = "Dispensation" if is_dispensation else "Excuse"
-                date            = str(record[6])[:10] if len(record) > 6 else "N/A"
+                date            = _strip_date(record[6]) if len(record) > 6 else "N/A"
                 days            = str(record[7]) if len(record) > 7 else "N/A"
                 dates_of_abs    = record[10] if len(record) > 10 else None
                 status          = record[9] if len(record) > 9 else "Active"
 
-                # For Excuse slips, calculate days from the stored date range.
                 if slip_type.lower() == "excuse" and dates_of_abs and "to" in str(dates_of_abs):
                     try:
                         parts     = str(dates_of_abs).split(" to ")
@@ -437,7 +455,7 @@ class ReportsPage(BasePage):
                         date_to   = datetime.strptime(parts[1].strip(), "%Y-%m-%d").date()
                         days      = str((date_to - date_from).days + 1)
                     except Exception:
-                        pass   # keep original days value
+                        pass
 
                 rows.append((stud_num, stud_name, year, slip_type, date, days, status))
             except Exception as e:
@@ -470,7 +488,7 @@ class ReportsPage(BasePage):
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
                 course    = record[4] if len(record) > 4 else "N/A"
-                date      = str(record[5])[:10] if len(record) > 5 else "N/A"
+                date      = _strip_date(record[5]) if len(record) > 5 else "N/A"
                 violation = record[6] if len(record) > 6 else "N/A"
                 rows.append((stud_num, stud_name, year, course, violation, date))
             except Exception as e:
@@ -502,10 +520,11 @@ class ReportsPage(BasePage):
                 stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
-                violation = record[5] if len(record) > 5 else "N/A"  # Shifted from [4] after adding studCourse
-                severity  = record[6] if len(record) > 6 else "N/A"  # Shifted from [5]
-                date      = str(record[7])[:10] if len(record) > 7 else "N/A"  # Shifted from [6]
-                status    = record[9] if len(record) > 9 else "Open"  # Shifted from [8]
+                violation = record[5] if len(record) > 5 else "N/A"
+                severity  = record[6] if len(record) > 6 else "N/A"
+                # FIX: _strip_date removes the "00:00:00" time component Access appends
+                date      = _strip_date(record[7]) if len(record) > 7 else "N/A"
+                status    = record[9] if len(record) > 9 else "Open"
                 rows.append((stud_num, stud_name, year, violation, severity, date, status))
             except Exception as e:
                 logger.error(f"Error processing blue slip record {i}: {e}", exc_info=True)
@@ -632,7 +651,6 @@ class ReportsPage(BasePage):
 
         lay.addWidget(SectionTitle("Distribution by College"))
 
-        # FIX: use slip_type= parameters consistently (was mixed index integers).
         green_slips = self._filter_records_by_period(get_green_slips(None) or [], slip_type="green")
         pink_slips  = self._filter_records_by_period(get_pink_slips(None)  or [], slip_type="pink")
         blue_slips  = self._filter_records_by_period(get_blue_slips(None)  or [], slip_type="blue")
@@ -663,7 +681,7 @@ class ReportsPage(BasePage):
 
                 stats_lbl = QLabel(f"Students: {len(data['students'])}\nTotal Records: {data['total']}")
                 stats_lbl.setFont(QFont("Segoe UI", 10))
-                stats_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
+                stats_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: transparent; border: none;")
                 tile_lay.addWidget(stats_lbl)
 
                 breakdown = QLabel(f"G {data['green']}  P {data['pink']}  B {data['blue']}")
@@ -979,12 +997,12 @@ class ReportsPage(BasePage):
                        success=False, parent=self).exec_()
             return
         try:
-            records       = [tuple(row) for row in rows]
+            records         = [tuple(row) for row in rows]
             selected_period = self.period_cb.currentText() if hasattr(self, 'period_cb') \
                 else datetime.now().strftime("%B %Y")
-            timestamp     = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_pdf      = os.path.join(tempfile.gettempdir(),
-                                         f'SCMS_{slip_type.upper()}_Report_{timestamp}.pdf')
+            timestamp       = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_pdf        = os.path.join(tempfile.gettempdir(),
+                                           f'SCMS_{slip_type.upper()}_Report_{timestamp}.pdf')
             generate_slip_report(temp_pdf, slip_type, records, subtitle, period=selected_period)
             log_report_generated(self.staff_id, f"{slip_type.title()} Slip Report")
             PDFPreviewDialog(temp_pdf, title, parent=self).exec_()
@@ -1001,8 +1019,6 @@ class ReportsPage(BasePage):
             from backend.db_green_slip import get_green_slips
             from backend.db_pink_slip  import get_pink_slips
 
-            # FIX: was using fallback_date_index=9 for green (status field) — now
-            # all three calls use the correct slip_type= parameter.
             total = (
                 len(self._filter_records_by_period(get_green_slips(None) or [], slip_type="green")) +
                 len(self._filter_records_by_period(get_pink_slips(None)  or [], slip_type="pink")) +
@@ -1069,7 +1085,7 @@ class ReportsPage(BasePage):
 
             idx = self.period_cb.findText(current_period)
             if idx < 0:
-                display_year      = datetime.now().year
+                display_year       = datetime.now().year
                 current_month_year = f"{datetime.now().strftime('%B')} {display_year}"
                 idx = self.period_cb.findText(current_month_year)
 

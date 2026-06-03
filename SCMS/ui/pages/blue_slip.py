@@ -32,24 +32,32 @@ from backend.config import get_current_semester
 from backend.db_accounts import get_officer_names
 from backend.db_activity_log import log_slip_created
 
-# ── Column index constants ────────────────────────────────────────────────────
-# Query: SELECT s.studName, s.studCourse, s.studYrLvl, b.*
-# b.* expands to: ID, studNumber, violationType_blue, dateOfViolation_blue,
-#                 confiscatedBy_blue, severityLvl_blue, actionTaken_blue,
-#                 status_blue, violationDesc_blue, witnesses_blue
-_COL_STUD_NAME      = 0
-_COL_STUD_COURSE    = 1
-_COL_STUD_YEAR      = 2
-_COL_SLIP_ID        = 3
-_COL_STUD_NUM       = 4
+# ── Column index constants (DB record structure) ──────────────────────────────
+# get_blue_slips() returns:
+#   [0]  recordID_blue
+#   [1]  studNumber_blue
+#   [2]  studName_blue
+#   [3]  studYrLvl_blue
+#   [4]  studCourse_blue
+#   [5]  violationType_blue
+#   [6]  severityLvl_blue
+#   [7]  dateOfViolation_blue
+#   [8]  actionTaken_blue
+#   [9]  status_blue
+#   [10] violationDesc_blue   (if present)
+#   [11] witnesses_blue       (if present)
+_COL_SLIP_ID        = 0
+_COL_STUD_NUM       = 1
+_COL_STUD_NAME      = 2
+_COL_STUD_YEAR      = 3
+_COL_STUD_COURSE    = 4
 _COL_VTYPE          = 5
-_COL_DATE           = 6
-_COL_CONFISCATED_BY = 7
-_COL_SEVERITY       = 8
-_COL_ACTION         = 9
-_COL_STATUS         = 10
-_COL_DESC           = 11
-_COL_WITNESSES      = 12
+_COL_SEVERITY       = 6
+_COL_DATE           = 7
+_COL_ACTION         = 8
+_COL_STATUS         = 9
+_COL_DESC           = 10
+_COL_WITNESSES      = 11
 
 
 class CalendarDateEdit(QDateEdit):
@@ -227,7 +235,7 @@ def _build_officer_combo(accent: str) -> QComboBox:
     combo = QComboBox()
     combo.setFixedHeight(38)
     combo.setStyleSheet(_combo_style(accent))
-    combo.addItem("— Select Officer —")          # placeholder / index 0
+    combo.addItem("— Select Officer —")
     for name in get_officer_names():
         combo.addItem(name)
     return combo
@@ -488,34 +496,27 @@ class BlueSlipPage(BasePage):
         btn_row.addWidget(clear_btn)
         btn_row.addWidget(save_btn)
         lay.addLayout(btn_row)
-        
-        # Connect auto-fill on student number entry
+
         self.blue_no.editingFinished.connect(self._auto_fill_blue)
-        
+
         return w
 
     def _auto_fill_blue(self):
-        """Auto-fill blue slip form when student number exists in database."""
         stud_no = self.blue_no.text().strip()
         if not stud_no:
             return
-        
         try:
             from backend.db_students import get_student
             student = get_student(stud_no)
             if student:
-                # student = (studNumber, studName, studCourse, studYrLvl, schoolYr, studStatus)
                 self.blue_name.setText(student[1] or "")
                 self.blue_course.setText(student[2] or "")
-                
-                # Set year if available
                 year = student[3] or ""
                 if year:
                     index = self.blue_year.findText(year)
                     if index >= 0:
                         self.blue_year.setCurrentIndex(index)
-        except Exception as e:
-            # Silently fail - user can fill manually
+        except Exception:
             pass
 
     def _clear_blue_form(self):
@@ -552,7 +553,7 @@ class BlueSlipPage(BasePage):
                 success=False, parent=self
             ).exec_()
             return
-        
+
         try:
             all_records = get_blue_slips(None) or []
         except Exception:
@@ -587,15 +588,15 @@ class BlueSlipPage(BasePage):
 
         same_type_count = 0
         for r in matches:
-            vtype  = str(r[_COL_VTYPE])       if len(r) > _COL_VTYPE   else "N/A"
-            date   = str(r[_COL_DATE])[:10]   if len(r) > _COL_DATE    else "N/A"
-            status = str(r[_COL_STATUS])       if len(r) > _COL_STATUS  else "N/A"
+            vtype  = str(r[_COL_VTYPE])              if len(r) > _COL_VTYPE   else "N/A"
+            date   = str(r[_COL_DATE])[:10]           if len(r) > _COL_DATE    else "N/A"
+            status = str(r[_COL_STATUS])              if len(r) > _COL_STATUS  else "N/A"
             lines.append(f"  • {date}  —  {vtype}  ({status})")
             if current_vtype and current_vtype in vtype:
                 same_type_count += 1
 
-        lines.append("")  # blank line for spacing
-        
+        lines.append("")
+
         if same_type_count >= 2:
             lines.append(
                 f"🔴 AUTOMATIC ESCALATION TRIGGERED:\n"
@@ -604,8 +605,8 @@ class BlueSlipPage(BasePage):
                 f"Per escalation policy, this record will automatically\n"
                 f"be marked as ESCALATED when saved."
             )
-            self.blue_escalate_chk.setChecked(True)  # Auto-check the escalation box
-            success = False  # Show as warning
+            self.blue_escalate_chk.setChecked(True)
+            success = False
         elif same_type_count == 1:
             lines.append(
                 f"⚠ ESCALATION AVAILABLE:\n"
@@ -614,14 +615,14 @@ class BlueSlipPage(BasePage):
                 f"You may manually flag this as ESCALATED if you believe\n"
                 f"this warrants higher disciplinary action."
             )
-            success = False  # Show as warning
+            success = False
         else:
             lines.append(
                 f"✓ No prior violations of type: {current_vtype}\n"
                 f"This will be a first offense of this type.\n"
                 f"No escalation will be triggered."
             )
-            self.blue_escalate_chk.setChecked(False)  # Uncheck escalation
+            self.blue_escalate_chk.setChecked(False)
             success = True
 
         InfoDialog(
@@ -631,7 +632,6 @@ class BlueSlipPage(BasePage):
         ).exec_()
 
     def closeEvent(self, event):
-        """Clean up signal connections when page is closed"""
         try:
             data_events.slips_changed.disconnect(self._on_slips_changed)
         except Exception:
@@ -660,23 +660,19 @@ class BlueSlipPage(BasePage):
                 violation_desc    = self.blue_desc.toPlainText().strip()
                 witnesses         = self.blue_witnesses.text().strip()
                 is_manual_escalation = self.blue_escalate_chk.isChecked()
-                
-                # ── Determine if this should be escalated ────────────────────
+
                 from backend.db_blue_slip import should_escalate_violation
                 should_escalate = should_escalate_violation(stud_num, violation_type, is_manual_escalation)
-                
-                # ── If escalation detected, update status ────────────────────
+
                 if should_escalate and status not in ("Escalated", "Resolved"):
                     status = "Escalated"
-                
+
                 record_id = add_blue_slip(stud_num, violation_type, date_of_violation, severity,
                               action_taken, status=status, violation_desc=violation_desc,
                               witnesses=witnesses, stud_name=stud_name,
                               stud_course=stud_course, stud_year=stud_year)
-                # Log the action
                 log_slip_created("SYSTEM", "Blue", stud_name, record_id=record_id)
-                
-                # ── Show escalation warning if applicable ────────────────────
+
                 if should_escalate and not is_manual_escalation:
                     from backend.db_blue_slip import count_violations_by_type
                     prior_count = count_violations_by_type(stud_num, violation_type)
@@ -710,22 +706,34 @@ class BlueSlipPage(BasePage):
             print(f"[DEBUG] Loaded {len(blue_records)} blue slip records from database")
             for record in blue_records:
                 try:
-                    # Query returns: ID(0), studNumber(1), studName(2), studYear(3),
-                    #                violationType(4), severity(5), dateOfViolation(6),
-                    #                actionTaken(7), status(8)
-                    slip_id      = record[0]   # ID for deletion
-                    stud_num     = record[1]   # Student Number
-                    stud_name    = record[2]   # Student Name
-                    stud_year    = record[3]   # Year
-                    vtype        = record[4]   # Violation Type
-                    severity     = record[5]   # Severity
-                    date_str     = str(record[6])[:10] if len(record) > 6 else "N/A"
-                    action       = str(record[7]) if len(record) > 7 else "N/A"
-                    status       = str(record[8]) if len(record) > 8 else "Open / Pending"
+                    # ==========================================================
+                    # DB record structure (get_blue_slips):
+                    #   [0]  recordID_blue
+                    #   [1]  studNumber_blue
+                    #   [2]  studName_blue
+                    #   [3]  studYrLvl_blue
+                    #   [4]  studCourse_blue
+                    #   [5]  violationType_blue
+                    #   [6]  severityLvl_blue
+                    #   [7]  dateOfViolation_blue
+                    #   [8]  actionTaken_blue
+                    #   [9]  status_blue
+                    # ==========================================================
+                    slip_id  = record[0]                                              # recordID_blue
+                    stud_num = record[1]                                              # studNumber_blue
+                    stud_name= record[2]                                              # studName_blue
+                    stud_year= record[3]                                              # studYrLvl_blue
+                    vtype    = record[5] if len(record) > 5 else "N/A"               # violationType_blue
+                    severity = record[6] if len(record) > 6 else "N/A"               # severityLvl_blue
+                    # FIX: strip time component "2026-06-02 00:00:00" → "2026-06-02"
+                    date_str = str(record[7])[:10] if len(record) > 7 else "N/A"     # dateOfViolation_blue
+                    action   = record[8] if len(record) > 8 else "N/A"               # actionTaken_blue
+                    status   = record[9] if len(record) > 9 else "Open / Pending"    # status_blue
+
                     sample.append((
-                        str(slip_id),  # Record ID for display
-                        stud_num, stud_name, stud_year, vtype, severity,
-                        date_str, action, status,
+                        str(slip_id),
+                        stud_num, stud_name, stud_year,
+                        vtype, severity, date_str, action, status,
                     ))
                 except Exception as e:
                     print(f"[ERROR] Failed to parse blue slip record: {str(e)}")
@@ -800,9 +808,8 @@ class BlueSlipPage(BasePage):
         if self.blue_tracker_layout is None:
             print("[WARNING] Blue tracker layout not initialized yet")
             return
-        headers = ["Record ID","Student No.", "Student Name", "Year", "Violation Type",
+        headers = ["Record ID", "Student No.", "Student Name", "Year", "Violation Type",
                    "Severity", "Date", "Action Taken", "Status"]
-        # Remove old table if it exists
         if self.blue_tracker_table is not None:
             for i in range(self.blue_tracker_layout.count()):
                 item = self.blue_tracker_layout.itemAt(i)
@@ -810,13 +817,7 @@ class BlueSlipPage(BasePage):
                     self.blue_tracker_layout.removeWidget(self.blue_tracker_table)
                     self.blue_tracker_table.deleteLater()
                     break
-        # Strip the ID from each row before passing to build_record_table
-        display_data = []
-        for row in data:
-            # row[0] is slip_id, include all columns for display
-            display_data.append(row)
-        # Create and add new table
-        self.blue_tracker_table = build_record_table(headers, display_data)
+        self.blue_tracker_table = build_record_table(headers, data)
         _apply_table_selection_style(self.blue_tracker_table, BLUE_SLIP)
         self.blue_tracker_table.setMinimumHeight(260)
         for r in range(self.blue_tracker_table.rowCount()):
@@ -976,7 +977,6 @@ class BlueSlipPage(BasePage):
         self.blue_tracker_layout = lay
         self._blue_table_index = 3
 
-        # ── Action Row ────────────────────────────────────────────────────────
         action_row = QHBoxLayout()
         action_row.addStretch()
 
@@ -1003,12 +1003,9 @@ class BlueSlipPage(BasePage):
         lay.addStretch()
         return w
 
-    # ── View handler for Blue Slip Tracker ───────────────────────────────────
     def _view_blue_record(self):
-        """Open detail dialog for the selected row in the Blue Slip tracker."""
         if self.blue_tracker_table is None:
             return
-
         selected = self.blue_tracker_table.selectedItems()
         if not selected:
             InfoDialog(
@@ -1017,7 +1014,6 @@ class BlueSlipPage(BasePage):
                 success=False, parent=self
             ).exec_()
             return
-
         row = self.blue_tracker_table.currentRow()
         headers = [
             self.blue_tracker_table.horizontalHeaderItem(c).text()
@@ -1027,129 +1023,98 @@ class BlueSlipPage(BasePage):
         for col, header in enumerate(headers):
             item = self.blue_tracker_table.item(row, col)
             fields.append((header, item.text() if item else "—"))
-
         from ui.pages.trackers import RecordDetailDialog
         dlg = RecordDetailDialog(fields, slip_type="blue", parent=self)
         dlg.exec_()
 
     def _update_blue_status(self):
-        """Update the status of a selected blue slip record."""
         if self.blue_tracker_table is None:
             return
         selected = self.blue_tracker_table.selectedItems()
         if not selected:
-            InfoDialog(
-                "No Record Selected",
-                "Please select a record to update.",
-                success=False, parent=self
-            ).exec_()
+            InfoDialog("No Record Selected", "Please select a record to update.",
+                       success=False, parent=self).exec_()
             return
-        
+
         row = self.blue_tracker_table.currentRow()
-        stud_num_item = self.blue_tracker_table.item(row, 1)  # Student No. is column 1 (Record ID is column 0)
+        stud_num_item = self.blue_tracker_table.item(row, 1)
         if not stud_num_item:
             return
-        
         stud_num = stud_num_item.text()
         if stud_num == "No records":
             return
-        
-        # Show status update dialog
-        from PyQt5.QtWidgets import QComboBox, QDialog, QVBoxLayout, QHBoxLayout, QPushButton
-        from PyQt5.QtCore import Qt
+
+        from PyQt5.QtWidgets import QDialog
         dlg = QDialog(self)
         dlg.setWindowTitle("Update Blue Slip Status")
         dlg.setFixedWidth(350)
         dlg.setStyleSheet(f"background: {WHITE};")
-        
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(16, 16, 16, 16)
         lay.setSpacing(12)
-        
+
         lbl = QLabel("Update status for student: " + stud_num)
         lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
         lay.addWidget(lbl)
-        
         lay.addWidget(QLabel("New Status:"))
+
         status_combo = QComboBox()
         status_combo.addItems([
-            "Open / Pending",
-            "Under Investigation",
-            "Action Taken",
-            "Resolved",
-            "Dismissed"
+            "Open / Pending", "Under Investigation",
+            "Action Taken", "Resolved", "Dismissed"
         ])
         lay.addWidget(status_combo)
-        
+
         btn_lay = QHBoxLayout()
         btn_lay.addStretch()
-        
-        ok_btn = QPushButton("Update")
+        ok_btn     = QPushButton("Update")
         ok_btn.setStyleSheet(btn_blue())
         ok_btn.setFixedHeight(38)
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setStyleSheet(btn_outline())
         cancel_btn.setFixedHeight(38)
-        
         btn_lay.addWidget(ok_btn)
         btn_lay.addWidget(cancel_btn)
         lay.addLayout(btn_lay)
-        
+
         def on_update():
             try:
                 new_status = status_combo.currentText()
                 from backend.db_blue_slip import update_blue_slip_status
-                print(f"[DEBUG] Updating blue slip status for student {stud_num} to {new_status}")
                 update_blue_slip_status(stud_num, new_status)
-                print(f"[DEBUG] Blue slip status updated successfully")
                 dlg.accept()
-                InfoDialog(
-                    "Status Updated",
-                    f"Blue slip status updated to: {new_status}",
-                    success=True, parent=self
-                ).exec_()
+                InfoDialog("Status Updated",
+                           f"Blue slip status updated to: {new_status}",
+                           success=True, parent=self).exec_()
                 data_events.slips_changed.emit()
             except Exception as e:
-                print(f"[ERROR] Failed to update blue slip status: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                InfoDialog(
-                    "Error",
-                    f"Failed to update status: {str(e)}",
-                    success=False, parent=self
-                ).exec_()
-        
+                InfoDialog("Error", f"Failed to update status: {str(e)}",
+                           success=False, parent=self).exec_()
+
         ok_btn.clicked.connect(on_update)
         cancel_btn.clicked.connect(dlg.reject)
-        
         dlg.exec_()
 
     def _delete_blue_record(self):
-        """Delete selected blue slip record from database."""
         if self.blue_tracker_table is None:
             return
         selected = self.blue_tracker_table.selectedItems()
         if not selected:
-            InfoDialog(
-                "No Record Selected",
-                "Please select a record to delete.",
-                success=False, parent=self
-            ).exec_()
+            InfoDialog("No Record Selected", "Please select a record to delete.",
+                       success=False, parent=self).exec_()
             return
-        
+
         row = self.blue_tracker_table.currentRow()
-        
-        # Get the row data from _all_blue_records (which includes the ID)
         if row < 0 or row >= len(self._all_blue_records):
             return
-        
+
         row_data = self._all_blue_records[row]
-        slip_id = row_data[0]  # First element is the ID
-        stud_num = row_data[1]  # Second element is the student number
-        
+        slip_id  = row_data[0]
+        stud_num = row_data[1]
+
         if slip_id is None or stud_num == "No records":
             return
-        
+
         dlg = ConfirmDialog(
             "Confirm Delete",
             f"Delete blue slip record for student {stud_num}?\nThis action cannot be undone.",
@@ -1158,24 +1123,13 @@ class BlueSlipPage(BasePage):
         if dlg.exec_():
             try:
                 from backend.db_blue_slip import delete_blue_slip
-                print(f"[DEBUG] Deleting blue slip ID {slip_id} for student {stud_num}")
                 delete_blue_slip(slip_id)
-                print(f"[DEBUG] Blue slip deleted successfully")
-                InfoDialog(
-                    "Record Deleted",
-                    "Blue slip record has been deleted.",
-                    success=True, parent=self
-                ).exec_()
+                InfoDialog("Record Deleted", "Blue slip record has been deleted.",
+                           success=True, parent=self).exec_()
                 data_events.slips_changed.emit()
             except Exception as e:
-                print(f"[ERROR] Failed to delete blue slip: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                InfoDialog(
-                    "Error",
-                    f"Failed to delete record: {str(e)}",
-                    success=False, parent=self
-                ).exec_()
+                InfoDialog("Error", f"Failed to delete record: {str(e)}",
+                           success=False, parent=self).exec_()
 
     # =========================================================================
     # Violation Progress tab
@@ -1221,7 +1175,6 @@ class BlueSlipPage(BasePage):
         s_lay.addStretch()
         lay.addWidget(search_frame)
 
-        # ── Student name / status banner ──────────────────────────────────────
         self._prog_name_lbl = QLabel(
             "Search for a student to view their violation escalation progress")
         self._prog_name_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
@@ -1234,7 +1187,6 @@ class BlueSlipPage(BasePage):
         """)
         lay.addWidget(self._prog_name_lbl)
 
-        # ── Progress steps container ──────────────────────────────────────────
         self._prog_steps_frame = QFrame()
         self._prog_steps_frame.setStyleSheet(
             f"QFrame {{ background: {WHITE}; border: none; }}")
@@ -1242,20 +1194,12 @@ class BlueSlipPage(BasePage):
         self._prog_steps_layout.setContentsMargins(0, 0, 0, 0)
         self._prog_steps_layout.setSpacing(8)
 
-        # Render the default empty ladder on first load
         self._build_progress_steps([], current_offense=0)
         lay.addWidget(self._prog_steps_frame)
-
         lay.addStretch()
         return w
 
     def _build_progress_steps(self, student_violations: list, current_offense: int):
-        """
-        Rebuild the 5-step escalation ladder.
-        student_violations : list of (vtype, date_str) tuples, one per recorded offense.
-        current_offense    : total offenses capped at 5 — drives which step is highlighted.
-        """
-        # Clear any previously rendered steps
         while self._prog_steps_layout.count():
             child = self._prog_steps_layout.takeAt(0)
             if child.widget():
@@ -1274,7 +1218,6 @@ class BlueSlipPage(BasePage):
             done    = offense_num <  current_offense
             current = offense_num == current_offense
 
-            # Use the actual violation date for this step slot if available
             date = ""
             if i < len(student_violations):
                 date = student_violations[i][1]
@@ -1347,14 +1290,11 @@ class BlueSlipPage(BasePage):
             self._prog_steps_layout.addWidget(s_frame)
 
     def _load_student_history(self):
-        """Load and display a student's violation escalation progress."""
         stud_num = self._prog_stud_search.text().strip()
         if not stud_num:
-            InfoDialog(
-                "Missing Input",
-                "Please enter a student number to load their violation history.",
-                success=False, parent=self
-            ).exec_()
+            InfoDialog("Missing Input",
+                       "Please enter a student number to load their violation history.",
+                       success=False, parent=self).exec_()
             return
 
         try:
@@ -1377,14 +1317,12 @@ class BlueSlipPage(BasePage):
             self._build_progress_steps([], current_offense=0)
             return
 
-        # Sort ascending by date so the earliest offense = step 1
         matches.sort(key=lambda r: str(r[_COL_DATE]) if len(r) > _COL_DATE else "")
 
         stud_name       = str(matches[0][_COL_STUD_NAME]) if matches else stud_num
         offense_count   = len(matches)
         current_offense = min(offense_count, 5)
 
-        # Build (vtype, date) pairs for up to 5 step slots
         violations_for_steps = []
         for r in matches[:5]:
             vtype    = str(r[_COL_VTYPE])[:28] if len(r) > _COL_VTYPE else "N/A"

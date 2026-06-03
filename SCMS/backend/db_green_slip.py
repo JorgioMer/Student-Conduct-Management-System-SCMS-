@@ -21,17 +21,23 @@ def _parse_date(raw):
     """
     Parse any date value returned by pyodbc into a datetime.date object.
     Returns None if the value is empty or unparseable.
-    
-    FIX: Try ISO format and US format (MM/DD/YYYY) first, then regional
-    DD/MM/YYYY. This ensures dates like "6/1/2026" are correctly parsed as
-    June 1st (MM/DD), not January 6th (DD/MM).
+
+    FIX: Try DD/MM/YYYY before MM/DD/YYYY because Access on Philippine
+    systems uses DD/MM/YYYY regional format. The previous order caused
+    "01/06/2026" to be parsed as January 6 (MM/DD) instead of June 1 (DD/MM),
+    which placed June records under January in the reports page.
+
+    Format priority:
+      1. YYYY-MM-DD  — ISO/pyodbc native string, always unambiguous
+      2. DD/MM/YYYY  — Access default on Philippine/regional locale
+      3. MM/DD/YYYY  — US locale fallback (rare)
     """
     if raw is None:
         return None
     # Native date/datetime objects — no string parsing needed
-    if isinstance(raw, datetime):           # datetime.datetime
+    if isinstance(raw, datetime):       # datetime.datetime
         return raw.date()
-    if isinstance(raw, _dt.date):           # datetime.date (not datetime subclass)
+    if isinstance(raw, _dt.date):       # datetime.date (not datetime subclass)
         return raw
     # String path
     s = str(raw).strip()
@@ -39,8 +45,8 @@ def _parse_date(raw):
         return None
     # Drop any trailing time component ("2026-05-27 00:00:00" -> "2026-05-27")
     s = s.split()[0]
-    # Try formats in order: ISO, US (MM/DD/YYYY), then regional (DD/MM/YYYY)
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
+    # Try formats in order: ISO first (unambiguous), then DD/MM (regional), then MM/DD (US)
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
         try:
             return datetime.strptime(s, fmt).date()
         except ValueError:
