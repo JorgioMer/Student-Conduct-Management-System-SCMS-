@@ -74,37 +74,6 @@ def _make_canvas(fig):
         return placeholder
 
 
-# ---------------------------------------------------------------------------
-# Shared date-strip helper
-# ---------------------------------------------------------------------------
-def _strip_date(raw):
-    """
-    Return only the YYYY-MM-DD portion of any date/datetime value.
-    Handles:
-      - native datetime / date objects
-      - "2026-06-02 00:00:00"   (Access datetime string with time)
-      - "2026-06-02"            (ISO date string)
-      - "02/06/2026" / "06/02/2026"  (locale variants)
-    Returns "N/A" if the value is missing or unparseable.
-    """
-    if raw is None:
-        return "N/A"
-    s = str(raw).strip()
-    if not s or s in ("-", "None", "N/A"):
-        return "N/A"
-    # Strip time component first
-    if " " in s:
-        s = s.split(" ")[0]
-    # Already ISO — just return it
-    if len(s) == 10 and s[4] == "-":
-        return s
-    # Try parsing locale variants and convert to ISO
-    parsed = _parse_any_date(raw)
-    if parsed:
-        return parsed.strftime("%Y-%m-%d")
-    return s[:10]
-
-
 class ReportsPage(BasePage):
     def __init__(self, current_user=None, parent=None):
         logger.debug("ReportsPage.__init__ starting...")
@@ -131,15 +100,10 @@ class ReportsPage(BasePage):
         Filter records by the currently selected period.
 
         slip_type controls which date-resolution strategy is used:
-          "green"  -> resolve_green_slip_date() handles both Dispensation
-                      (dateAvail_green, index 6) and Excuse
-                      (datesOfAbs_greenExc start, index 10) correctly.
+          "green"  -> resolve_green_slip_date() (index 6 + fallback index 10)
           "pink"   -> index 5  (dateIssued_pink)
           "blue"   -> index 7  (dateOfViolation_blue)
-                      NOTE: get_blue_slips() includes studCourse at [4], so
-                      every field after it shifts right by one vs. older code
-                      that assumed date at [6].
-          "other"  -> index 6  (generic fallback)
+          "other"  -> index 7  (generic fallback)
         """
         period = self.period_cb.currentText() if hasattr(self, 'period_cb') else ""
         if not records or not period:
@@ -150,15 +114,11 @@ class ReportsPage(BasePage):
             try:
                 if slip_type == "green":
                     date_obj = resolve_green_slip_date(record)
-                elif slip_type == "pink":
-                    date_raw = record[5] if len(record) > 5 else None
-                    date_obj = self._parse_plain_date(date_raw)
-                elif slip_type == "blue":
-                    # [7] = dateOfViolation_blue (studCourse at [4] shifts everything +1)
-                    date_raw = record[7] if len(record) > 7 else None
-                    date_obj = self._parse_plain_date(date_raw)
                 else:
-                    date_raw = record[6] if len(record) > 6 else None
+                    # Pink: index 5 (dateIssued_pink)
+                    # Blue & others: index 7 (dateOfViolation_blue)
+                    idx      = 5 if slip_type == "pink" else 7
+                    date_raw = record[idx] if len(record) > idx else None
                     date_obj = self._parse_plain_date(date_raw)
 
                 if date_obj and self._date_in_period(date_obj, period):
@@ -172,11 +132,6 @@ class ReportsPage(BasePage):
 
     @staticmethod
     def _parse_plain_date(raw):
-        """
-        Delegates to the shared _parse_any_date() from db_green_slip.
-        Handles native datetime/date objects and all string formats Access can
-        produce:  "YYYY-MM-DD", "YYYY-MM-DD HH:MM:SS", "DD/MM/YYYY", "MM/DD/YYYY"
-        """
         return _parse_any_date(raw)
 
     def _date_in_period(self, date_obj, period_str):
@@ -443,7 +398,7 @@ class ReportsPage(BasePage):
                 year            = record[3] if len(record) > 3 else "N/A"
                 is_dispensation = record[5] in (True, 1) if len(record) > 5 else False
                 slip_type       = "Dispensation" if is_dispensation else "Excuse"
-                date            = _strip_date(record[6]) if len(record) > 6 else "N/A"
+                date            = str(record[6])[:10] if len(record) > 6 else "N/A"
                 days            = str(record[7]) if len(record) > 7 else "N/A"
                 dates_of_abs    = record[10] if len(record) > 10 else None
                 status          = record[9] if len(record) > 9 else "Active"
@@ -488,7 +443,7 @@ class ReportsPage(BasePage):
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
                 course    = record[4] if len(record) > 4 else "N/A"
-                date      = _strip_date(record[5]) if len(record) > 5 else "N/A"
+                date      = str(record[5])[:10] if len(record) > 5 else "N/A"
                 violation = record[6] if len(record) > 6 else "N/A"
                 rows.append((stud_num, stud_name, year, course, violation, date))
             except Exception as e:
@@ -520,23 +475,26 @@ class ReportsPage(BasePage):
                 stud_num  = record[1] if len(record) > 1 else "N/A"
                 stud_name = record[2] if len(record) > 2 else "Unknown"
                 year      = record[3] if len(record) > 3 else "N/A"
+                # FIX: include course from index 4
+                course    = record[4] if len(record) > 4 else "N/A"
                 violation = record[5] if len(record) > 5 else "N/A"
                 severity  = record[6] if len(record) > 6 else "N/A"
-                # FIX: _strip_date removes the "00:00:00" time component Access appends
-                date      = _strip_date(record[7]) if len(record) > 7 else "N/A"
+                # Strip time component ("2026-06-02 00:00:00" → "2026-06-02")
+                date      = str(record[7])[:10] if len(record) > 7 else "N/A"
                 status    = record[9] if len(record) > 9 else "Open"
-                rows.append((stud_num, stud_name, year, violation, severity, date, status))
+                rows.append((stud_num, stud_name, year, course, violation, severity, date, status))
             except Exception as e:
                 logger.error(f"Error processing blue slip record {i}: {e}", exc_info=True)
 
         if not rows:
-            rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-")]
+            rows = [("No records", "Add records to see them here", "-", "-", "-", "-", "-", "-")]
 
         return self._build_slip_report_tab(
             "blue", "Blue Slip Monthly Report",
             "Violation records and disciplinary actions taken this month",
             BLUE_SLIP, "#E3F2FD",
-            ["Student No.", "Student Name", "Year", "Violation", "Severity", "Date", "Status"],
+            # FIX: added "Course" column between "Year" and "Violation"
+            ["Student No.", "Student Name", "Year", "Course", "Violation", "Severity", "Date", "Status"],
             rows,
         )
 
@@ -681,7 +639,7 @@ class ReportsPage(BasePage):
 
                 stats_lbl = QLabel(f"Students: {len(data['students'])}\nTotal Records: {data['total']}")
                 stats_lbl.setFont(QFont("Segoe UI", 10))
-                stats_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: transparent; border: none;")
+                stats_lbl.setStyleSheet(f"color: {MID_GRAY}; background: transparent; border: none;")
                 tile_lay.addWidget(stats_lbl)
 
                 breakdown = QLabel(f"G {data['green']}  P {data['pink']}  B {data['blue']}")

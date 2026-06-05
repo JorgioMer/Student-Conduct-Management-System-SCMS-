@@ -1,16 +1,6 @@
 # =============================================================================
 #  PDF Export Module — SCMS Document Generation with CCIS ISO Header/Footer
 # =============================================================================
-"""
-Handles PDF generation for reports and slip records with the official CCIS
-ISO 9001:2015 header banner and CCIS footer (logo + program list + divider).
-
-SETUP: Place these two image files alongside this script (or update the paths
-below to wherever you store them in your project):
-  - header_banner.jpg  (the Cor Jesu / ISO wide banner from the Word template)
-  - footer_logo.png    (the CCIS circuit-board logo from the Word template)
-"""
-
 from reportlab.lib import pagesizes
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, mm
@@ -33,7 +23,6 @@ from collections import Counter
 
 # ── Image paths ───────────────────────────────────────────────────────────────
 def _get_asset_path(filename):
-    """Resolve asset path, checking multiple locations for flexibility."""
     backend_path = Path(__file__).parent / filename
     if backend_path.exists():
         return str(backend_path)
@@ -71,7 +60,6 @@ CONTENT_W = PAGE_W - MARGIN_LEFT - MARGIN_RIGHT
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 def _safe(text):
-    """Encode to latin-1, replacing unmappable chars. Never returns None."""
     if text is None:
         return '-'
     text = str(text)
@@ -85,7 +73,6 @@ def _safe(text):
 
 
 def _wrap_text_for_table(text, is_header=False):
-    """Wrap table cell text in a Paragraph for text wrapping."""
     if text is None:
         text = '-'
     text = _safe(text)
@@ -109,7 +96,6 @@ def _wrap_text_for_table(text, is_header=False):
 
 
 def _wrap_table_row(row, is_header=False):
-    """Wrap all cells in a table row with Paragraph objects."""
     return [_wrap_text_for_table(cell, is_header) for cell in row]
 
 
@@ -213,7 +199,6 @@ class CorJesuHeaderFooter(BaseDocTemplate):
         c.saveState()
         c.setFont("Helvetica", 10)
 
-        # ── HEADER ────────────────────────────────────────────────────
         banner_y = PAGE_H - MARGIN_LEFT - BANNER_H
         if os.path.exists(HEADER_BANNER_PATH):
             c.drawImage(HEADER_BANNER_PATH, MARGIN_LEFT, banner_y,
@@ -224,8 +209,7 @@ class CorJesuHeaderFooter(BaseDocTemplate):
             c.rect(MARGIN_LEFT, banner_y, BANNER_W, BANNER_H, fill=1, stroke=0)
             c.setFillColor(GOLD)
             c.setFont("Helvetica-Bold", 14)
-            c.drawCentredString(PAGE_W / 2, banner_y + BANNER_H * 0.6,
-                                "Cor Jesu College")
+            c.drawCentredString(PAGE_W / 2, banner_y + BANNER_H * 0.6, "Cor Jesu College")
             c.setFillColor(WHITE)
             c.setFont("Helvetica", 9)
             c.drawCentredString(PAGE_W / 2, banner_y + BANNER_H * 0.3,
@@ -240,9 +224,7 @@ class CorJesuHeaderFooter(BaseDocTemplate):
         c.drawRightString(PAGE_W - MARGIN_RIGHT, title_y,
                           f"Generated: {self.report_date}")
 
-        # ── FOOTER ────────────────────────────────────────────────────
         footer_top = MARGIN_BOTTOM - 0.08 * inch
-
         c.setStrokeColor(BLUE_CJC)
         c.setLineWidth(2.5)
         c.line(MARGIN_LEFT, footer_top + 0.55 * inch,
@@ -362,43 +344,21 @@ def _info_table_style():
 
 
 # ── PDF Export Functions ──────────────────────────────────────────────────────
-
-# =============================================================================
-#  DB record index reference (all slip types):
 #
-#  GREEN SLIP:
-#    [0]  recordID_green
-#    [1]  studNumber_green
-#    [2]  studName_green
-#    [3]  studYrLvl_green
-#    [4]  studCourse_green
-#    [5]  slipType_green      (True/1 = Dispensation, False/0 = Excuse)
-#    [6]  dateAvail_green
-#    [7]  daysOrReason_green
-#    [8]  remarks_green  (or datesOfAbs on some builds — not used for display)
-#    [9]  status_green
-#    [10] datesOfAbs_greenExc (range string for Excuse slips)
+# DB record index reference:
 #
-#  PINK SLIP:
-#    [0]  recordID_pink
-#    [1]  studNumber_pink
-#    [2]  studName_pink
-#    [3]  studYrLvl_pink
-#    [4]  studCourse_pink
-#    [5]  dateIssued_pink
-#    [6]  violationType_pink
+#  GREEN: [0]=ID [1]=studNumber [2]=studName [3]=studYrLvl [4]=studCourse
+#         [5]=slipType_green (True/1=Disp, False/0=Excuse)
+#         [6]=dateAvail_green [7]=daysOfAbs [8]=exprDate [9]=status_green
+#         [10]=datesOfAbs_greenExc
 #
-#  BLUE SLIP:
-#    [0]  recordID_blue
-#    [1]  studNumber_blue
-#    [2]  studName_blue
-#    [3]  studYrLvl_blue
-#    [4]  studCourse_blue
-#    [5]  violationType_blue
-#    [6]  severityLvl_blue
-#    [7]  dateOfViolation_blue
-#    [8]  actionTaken_blue
-#    [9]  status_blue
+#  PINK:  [0]=ID [1]=studNumber [2]=studName [3]=studYrLvl [4]=studCourse
+#         [5]=dateIssued_pink [6]=violationType_pink
+#
+#  BLUE:  [0]=ID [1]=studNumber [2]=studName [3]=studYrLvl [4]=studCourse
+#         [5]=violationType_blue [6]=severityLvl_blue
+#         [7]=dateOfViolation_blue [8]=actionTaken_blue [9]=status_blue
+#
 # =============================================================================
 
 
@@ -442,12 +402,12 @@ def generate_overview_report(output_path, records_data, period=None):
         headers    = ['Student No.', 'Name', 'Year', 'Type', 'Date', 'Status']
         green_data = [headers] + [
             [
-                _safe(r[1] if len(r) > 1 else None),                        # studNumber_green
-                _safe(r[2] if len(r) > 2 else None),                        # studName_green
-                _safe(r[3] if len(r) > 3 else None),                        # studYrLvl_green
-                'Excuse' if r[5] in (False, 0) else 'Dispensation',         # slipType_green
-                _safe(str(r[6])[:10] if len(r) > 6 else None),              # dateAvail_green
-                _safe(r[9] if len(r) > 9 else 'Active'),                    # status_green
+                _safe(r[1] if len(r) > 1 else None),                      # studNumber
+                _safe(r[2] if len(r) > 2 else None),                      # studName
+                _safe(r[3] if len(r) > 3 else None),                      # studYrLvl
+                'Excuse' if r[5] in (False, 0) else 'Dispensation',       # slipType
+                _safe(str(r[6])[:10] if len(r) > 6 else None),            # dateAvail
+                _safe(r[9] if len(r) > 9 else 'Active'),                  # status
             ]
             for r in records_data['green'][:10]
         ]
@@ -468,12 +428,12 @@ def generate_overview_report(output_path, records_data, period=None):
         headers   = ['Student No.', 'Name', 'Year', 'Course', 'Violation', 'Date Issued']
         pink_data = [headers] + [
             [
-                _safe(r[1] if len(r) > 1 else None),                        # studNumber_pink
-                _safe(r[2] if len(r) > 2 else None),                        # studName_pink
-                _safe(r[3] if len(r) > 3 else None),                        # studYrLvl_pink
-                _safe(r[4] if len(r) > 4 else None),                        # studCourse_pink
-                _safe(r[6] if len(r) > 6 else None),                        # violationType_pink
-                _safe(str(r[5])[:10] if len(r) > 5 else None),              # dateIssued_pink
+                _safe(r[1] if len(r) > 1 else None),                      # studNumber
+                _safe(r[2] if len(r) > 2 else None),                      # studName
+                _safe(r[3] if len(r) > 3 else None),                      # studYrLvl
+                _safe(r[4] if len(r) > 4 else None),                      # studCourse
+                _safe(r[6] if len(r) > 6 else None),                      # violationType
+                _safe(str(r[5])[:10] if len(r) > 5 else None),            # dateIssued
             ]
             for r in records_data['pink'][:10]
         ]
@@ -491,23 +451,26 @@ def generate_overview_report(output_path, records_data, period=None):
         story.append(PageBreak())
         story.append(Spacer(1, 0.4 * inch))
         story.append(Paragraph("Blue Slips Report", styles['section']))
-        headers   = ['Student No.', 'Name', 'Year', 'Violation', 'Severity', 'Date', 'Status']
+        # FIX: added Course column between Year and Violation
+        headers   = ['Student No.', 'Name', 'Year', 'Course', 'Violation', 'Severity', 'Date', 'Status']
         blue_data = [headers] + [
             [
-                _safe(r[1] if len(r) > 1 else None),                        # studNumber_blue
-                _safe(r[2] if len(r) > 2 else None),                        # studName_blue
-                _safe(r[3] if len(r) > 3 else None),                        # studYrLvl_blue
-                _safe(r[5] if len(r) > 5 else None),                        # violationType_blue
-                _safe(r[6] if len(r) > 6 else None),                        # severityLvl_blue
-                _safe(str(r[7])[:10] if len(r) > 7 else None),              # dateOfViolation_blue
-                _safe(r[9] if len(r) > 9 else 'Active'),                    # status_blue
+                _safe(r[1] if len(r) > 1 else None),                      # studNumber
+                _safe(r[2] if len(r) > 2 else None),                      # studName
+                _safe(r[3] if len(r) > 3 else None),                      # studYrLvl
+                _safe(r[4] if len(r) > 4 else None),                      # studCourse
+                _safe(r[5] if len(r) > 5 else None),                      # violationType
+                _safe(r[6] if len(r) > 6 else None),                      # severityLvl
+                _safe(str(r[7])[:10] if len(r) > 7 else None),            # dateOfViolation
+                _safe(r[9] if len(r) > 9 else 'Active'),                  # status
             ]
             for r in records_data['blue'][:10]
         ]
         blue_data = [_wrap_table_row(blue_data[0], is_header=True)] + \
                     [_wrap_table_row(row) for row in blue_data[1:]]
         t = Table(blue_data,
-                  colWidths=[1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.9*inch, 0.8*inch, 0.8*inch],
+                  colWidths=[0.85*inch, 1.1*inch, 0.65*inch, 0.85*inch,
+                             0.95*inch, 0.75*inch, 0.75*inch, 0.75*inch],
                   splitByRow=True)
         t.setStyle(create_table_style('blue'))
         story.append(t)
@@ -526,7 +489,6 @@ def generate_overview_report(output_path, records_data, period=None):
     except Exception as e:
         story.append(Paragraph(f"<i>Chart unavailable: {str(e)}</i>", styles['normal']))
 
-    # Build college data
     all_slips    = (records_data.get('green', []) +
                     records_data.get('pink',  []) +
                     records_data.get('blue',  []))
@@ -620,13 +582,13 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle="", peri
         headers    = ['Student No.', 'Name', 'Year', 'Type', 'Date', 'Days/Reason', 'Status']
         table_data = [headers] + [
             [
-                _safe(r[1] if len(r) > 1 else None),                        # studNumber_green
-                _safe(r[2] if len(r) > 2 else None),                        # studName_green
-                _safe(r[3] if len(r) > 3 else None),                        # studYrLvl_green
-                'Excuse' if r[5] in (False, 0) else 'Dispensation',         # slipType_green
-                _safe(str(r[6])[:10] if len(r) > 6 else None),              # dateAvail_green
-                _safe(r[7] if len(r) > 7 else None),                        # daysOrReason_green
-                _safe(r[9] if len(r) > 9 else 'Active'),                    # status_green
+                _safe(r[1] if len(r) > 1 else None),                      # studNumber
+                _safe(r[2] if len(r) > 2 else None),                      # studName
+                _safe(r[3] if len(r) > 3 else None),                      # studYrLvl
+                'Excuse' if r[5] in (False, 0) else 'Dispensation',       # slipType
+                _safe(str(r[6])[:10] if len(r) > 6 else None),            # dateAvail
+                _safe(r[7] if len(r) > 7 else None),                      # daysOrReason
+                _safe(r[9] if len(r) > 9 else 'Active'),                  # status
             ]
             for r in records_data[:20]
         ]
@@ -636,32 +598,35 @@ def generate_slip_report(output_path, slip_type, records_data, subtitle="", peri
         headers    = ['Student No.', 'Name', 'Year', 'Course', 'Violation', 'Date Issued']
         table_data = [headers] + [
             [
-                _safe(r[1] if len(r) > 1 else None),                        # studNumber_pink
-                _safe(r[2] if len(r) > 2 else None),                        # studName_pink
-                _safe(r[3] if len(r) > 3 else None),                        # studYrLvl_pink
-                _safe(r[4] if len(r) > 4 else None),                        # studCourse_pink
-                _safe(r[6] if len(r) > 6 else None),                        # violationType_pink
-                _safe(str(r[5])[:10] if len(r) > 5 else None),              # dateIssued_pink
+                _safe(r[1] if len(r) > 1 else None),                      # studNumber
+                _safe(r[2] if len(r) > 2 else None),                      # studName
+                _safe(r[3] if len(r) > 3 else None),                      # studYrLvl
+                _safe(r[4] if len(r) > 4 else None),                      # studCourse
+                _safe(r[6] if len(r) > 6 else None),                      # violationType
+                _safe(str(r[5])[:10] if len(r) > 5 else None),            # dateIssued
             ]
             for r in records_data[:20]
         ]
         col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 1.2*inch, 0.9*inch]
 
     else:  # blue
-        headers    = ['Student No.', 'Name', 'Year', 'Violation', 'Severity', 'Date', 'Status']
+        # FIX: added Course column between Year and Violation
+        headers    = ['Student No.', 'Name', 'Year', 'Course', 'Violation', 'Severity', 'Date', 'Status']
         table_data = [headers] + [
             [
-                _safe(r[1] if len(r) > 1 else None),                        # studNumber_blue
-                _safe(r[2] if len(r) > 2 else None),                        # studName_blue
-                _safe(r[3] if len(r) > 3 else None),                        # studYrLvl_blue
-                _safe(r[5] if len(r) > 5 else None),                        # violationType_blue
-                _safe(r[6] if len(r) > 6 else None),                        # severityLvl_blue
-                _safe(str(r[7])[:10] if len(r) > 7 else None),              # dateOfViolation_blue
-                _safe(r[9] if len(r) > 9 else 'Active'),                    # status_blue
+                _safe(r[1] if len(r) > 1 else None),                      # studNumber
+                _safe(r[2] if len(r) > 2 else None),                      # studName
+                _safe(r[3] if len(r) > 3 else None),                      # studYrLvl
+                _safe(r[4] if len(r) > 4 else None),                      # studCourse
+                _safe(r[5] if len(r) > 5 else None),                      # violationType
+                _safe(r[6] if len(r) > 6 else None),                      # severityLvl
+                _safe(str(r[7])[:10] if len(r) > 7 else None),            # dateOfViolation
+                _safe(r[9] if len(r) > 9 else 'Active'),                  # status
             ]
             for r in records_data[:20]
         ]
-        col_widths = [1.0*inch, 1.3*inch, 0.8*inch, 1.0*inch, 0.8*inch, 0.8*inch, 0.8*inch]
+        col_widths = [0.85*inch, 1.1*inch, 0.65*inch, 0.85*inch,
+                      0.95*inch, 0.75*inch, 0.75*inch, 0.75*inch]
 
     table_data = [_wrap_table_row(table_data[0], is_header=True)] + \
                  [_wrap_table_row(row) for row in table_data[1:]]
@@ -720,44 +685,6 @@ def generate_individual_student_report(output_path, student_number,
                                         student_info, green_slips, pink_slips,
                                         blue_slips, get_course_college_fn,
                                         colleges_dict):
-    """
-    Generate a comprehensive individual student conduct report.
-
-    IMPORTANT — the function signature has changed. Instead of fetching DB data
-    internally, the caller now passes the already-fetched data in.  Update your
-    call-site like this:
-
-        from .db_blue_slip  import get_blue_slips
-        from .db_pink_slip  import get_pink_slips
-        from .db_green_slip import get_green_slips
-        from .db_students   import get_student
-        from .config        import get_course_college, COLLEGES
-
-        pdf_path = generate_individual_student_report(
-            output_path     = "/tmp/student_123.pdf",
-            student_number  = "2023-001",
-            student_info    = get_student("2023-001"),
-            green_slips     = get_green_slips("2023-001"),
-            pink_slips      = get_pink_slips("2023-001"),
-            blue_slips      = get_blue_slips("2023-001"),
-            get_course_college_fn = get_course_college,
-            colleges_dict   = COLLEGES,
-        )
-
-    Args:
-        output_path           : Destination PDF path
-        student_number        : Student ID string
-        student_info          : Tuple (stud_num, stud_name, stud_course,
-                                       stud_year, school_yr, stud_status)
-        green_slips           : List of green slip tuples
-        pink_slips            : List of pink slip tuples
-        blue_slips            : List of blue slip tuples
-        get_course_college_fn : Callable(course_str) -> college_code_str
-        colleges_dict         : Dict {college_code: college_full_name}
-
-    Returns:
-        output_path on success, None if student_info is falsy
-    """
     if not student_info:
         return None
 
@@ -784,7 +711,6 @@ def generate_individual_student_report(output_path, student_number,
 
     story.append(Spacer(1, 0.25 * inch))
 
-    # ── Student Info ──────────────────────────────────────────────────────────
     story.append(Paragraph("Student Information", styles['section']))
     story.append(Spacer(1, 0.10 * inch))
 
@@ -803,7 +729,6 @@ def generate_individual_student_report(output_path, student_number,
     story.append(info_table)
     story.append(Spacer(1, 0.30 * inch))
 
-    # ── Conduct Summary ───────────────────────────────────────────────────────
     story.append(Paragraph("Conduct Summary", styles['section']))
     story.append(Spacer(1, 0.10 * inch))
 
@@ -822,7 +747,6 @@ def generate_individual_student_report(output_path, student_number,
     story.append(summary_table)
     story.append(Spacer(1, 0.30 * inch))
 
-    # ── Colleges ──────────────────────────────────────────────────────────────
     story.append(Paragraph("Colleges Where Slips Were Availed", styles['section']))
     story.append(Spacer(1, 0.10 * inch))
 
@@ -863,19 +787,16 @@ def generate_individual_student_report(output_path, student_number,
         ))
     story.append(Spacer(1, 0.30 * inch))
 
-    # ── Detailed Slip Pages ───────────────────────────────────────────────────
     def _college_label(slip):
         course = slip[1] if len(slip) > 1 else None
         code   = get_course_college_fn(course) if course else None
         return _safe(code if code else 'Unknown')
 
-    # Green Slips detail
     if green_slips:
         story.append(PageBreak())
         story.append(Spacer(1, 0.25 * inch))
         story.append(Paragraph("Green Slips - Dispensation / Excuse", styles['section']))
         story.append(Spacer(1, 0.10 * inch))
-
         g_headers = ['#', 'Date', 'Type', 'Days / Reason', 'Status', 'College']
         g_col_w   = [0.30*inch, 0.90*inch, 1.00*inch, 2.20*inch, 0.80*inch, 0.90*inch]
         g_rows    = [g_headers]
@@ -895,21 +816,19 @@ def generate_individual_student_report(output_path, student_number,
         story.append(g_table)
         story.append(Spacer(1, 0.25 * inch))
 
-    # Pink Slips detail
     if pink_slips:
         story.append(PageBreak())
         story.append(Spacer(1, 0.25 * inch))
         story.append(Paragraph("Pink Slips - Penalty", styles['section']))
         story.append(Spacer(1, 0.10 * inch))
-
         p_headers = ['#', 'Date', 'Violation', 'Action Taken', 'Status', 'College']
         p_col_w   = [0.30*inch, 0.90*inch, 1.30*inch, 1.90*inch, 0.80*inch, 0.90*inch]
         p_rows    = [p_headers]
         for i, slip in enumerate(pink_slips, 1):
             p_rows.append([
                 str(i),
-                _safe(str(slip[5])[:10] if len(slip) > 5 and slip[5] else None),  # dateIssued_pink
-                _safe(slip[6] if len(slip) > 6 else None),                         # violationType_pink
+                _safe(str(slip[5])[:10] if len(slip) > 5 and slip[5] else None),
+                _safe(slip[6] if len(slip) > 6 else None),
                 _safe(slip[7] if len(slip) > 7 else None),
                 _safe(slip[8] if len(slip) > 8 else 'Active'),
                 _college_label(slip),
@@ -921,25 +840,24 @@ def generate_individual_student_report(output_path, student_number,
         story.append(p_table)
         story.append(Spacer(1, 0.25 * inch))
 
-    # Blue Slips detail
     if blue_slips:
         story.append(PageBreak())
         story.append(Spacer(1, 0.25 * inch))
         story.append(Paragraph("Blue Slips - Violations", styles['section']))
         story.append(Spacer(1, 0.10 * inch))
-
-        b_headers = ['#', 'Date', 'Violation', 'Severity', 'Action Taken', 'Status', 'College']
-        b_col_w   = [0.30*inch, 0.85*inch, 1.15*inch, 0.80*inch, 1.45*inch, 0.75*inch, 0.90*inch]
+        # FIX: added Course column
+        b_headers = ['#', 'Date', 'Course', 'Violation', 'Severity', 'Action Taken', 'Status']
+        b_col_w   = [0.30*inch, 0.85*inch, 0.85*inch, 1.10*inch, 0.75*inch, 1.30*inch, 0.75*inch]
         b_rows    = [b_headers]
         for i, slip in enumerate(blue_slips, 1):
             b_rows.append([
                 str(i),
-                _safe(str(slip[7])[:10] if len(slip) > 7 and slip[7] else None),  # dateOfViolation_blue
-                _safe(slip[5] if len(slip) > 5 else None),                         # violationType_blue
-                _safe(slip[6] if len(slip) > 6 else None),                         # severityLvl_blue
-                _safe(slip[8] if len(slip) > 8 else None),                         # actionTaken_blue
-                _safe(slip[9] if len(slip) > 9 else 'Active'),                     # status_blue
-                _college_label(slip),
+                _safe(str(slip[7])[:10] if len(slip) > 7 and slip[7] else None),  # date
+                _safe(slip[4] if len(slip) > 4 else None),                         # studCourse
+                _safe(slip[5] if len(slip) > 5 else None),                         # violationType
+                _safe(slip[6] if len(slip) > 6 else None),                         # severity
+                _safe(slip[8] if len(slip) > 8 else None),                         # actionTaken
+                _safe(slip[9] if len(slip) > 9 else 'Active'),                     # status
             ])
         b_rows  = [_wrap_table_row(b_rows[0], is_header=True)] + \
                   [_wrap_table_row(row) for row in b_rows[1:]]
