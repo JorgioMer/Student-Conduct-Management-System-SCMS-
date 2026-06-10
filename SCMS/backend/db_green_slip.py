@@ -1,8 +1,9 @@
+import re
 from .db_connection import get_connection
 from .db_students import add_student_if_not_exists
 import datetime as _dt
 from datetime import datetime, date
-import re
+
 
 
 # ---------------------------------------------------------------------------
@@ -43,21 +44,24 @@ def _parse_date(raw):
         except ValueError:
             pass
 
-    # Slash-separated: "M/D/YYYY" or "D/M/YYYY" — trailing time is allowed
-    # FIX: removed $ anchor so "6/1/2026 12:00:00 AM" is matched correctly
+    # Slash-separated: "D/M/YYYY" — your Access DB regional format
     slash_match = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})', raw)
     if slash_match:
         a, b, year = int(slash_match.group(1)), int(slash_match.group(2)), int(slash_match.group(3))
-        if a > 12:
-            try:
-                return datetime(year, b, a)   # D/M/YYYY
-            except ValueError:
-                pass
-        else:
-            try:
-                return datetime(year, a, b)   # M/D/YYYY
-            except ValueError:
-                pass
+    # If first number > 12, it cannot be a month — it is the day (D/M/YYYY)
+    # DEFAULT to D/M/YYYY — Access on this machine stores dates in Philippine/regional format
+    if b > 12:
+        # b can't be a month either, so treat as M/D/YYYY
+        try:
+            return datetime(year, a, b)   # M/D/YYYY
+        except ValueError:
+            pass
+    else:
+        # Default: D/M/YYYY (your Access regional format)
+        try:
+            return datetime(year, b, a)   # D/M/YYYY  ← corrected default
+        except ValueError:
+            pass
 
     # Last-resort strptime fallback
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m-%d-%Y",

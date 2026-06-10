@@ -553,10 +553,10 @@ class GreenSlipPage(BasePage):
                 stud_course = self.disp_course.text().strip() if hasattr(self, 'disp_course') else ""
                 stud_year   = self.disp_year.currentText()
                 slip_type   = "Dispensation"
-                date_avail  = self.disp_date.date().toPyDate()
+                date_avail  = self.disp_date.date().toPyDate().strftime("%Y-%m-%d")   # ← ISO string
                 days        = self.disp_days.value()
                 status      = "Active"
-                expiry      = self.disp_expiry.date().toPyDate()
+                expiry      = self.disp_expiry.date().toPyDate().strftime("%Y-%m-%d") # ← ISO string
                 purpose     = self.disp_reason.toPlainText().strip()
                 semester    = self.disp_semester.currentText()
                 remarks = absence_type = dates_absence = supp_doc = ""
@@ -625,7 +625,7 @@ class GreenSlipPage(BasePage):
                 stud_course   = self.exc_course.text().strip()
                 stud_year     = self.exc_year.currentText()
                 slip_type     = "Excuse"
-                date_avail    = self.exc_date.date().toPyDate()
+                date_avail    = self.exc_date.date().toPyDate().strftime("%Y-%m-%d")   # ← ISO string
                 
                 # Calculate days from date range
                 from datetime import timedelta
@@ -633,7 +633,7 @@ class GreenSlipPage(BasePage):
                 days          = days_diff
                 
                 status        = "Active"
-                expiry        = self.exc_date.date().toPyDate()
+                expiry        = self.exc_date.date().toPyDate().strftime("%Y-%m-%d")   # ← ISO string
                 purpose       = ""
                 remarks       = self.exc_remarks.toPlainText().strip()
                 absence_type  = self.exc_type.currentText()
