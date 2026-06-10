@@ -31,7 +31,7 @@ $DB_SOURCE    = Join-Path $SCMS_DIR "backend\database\SCMSDatabase.accdb"
 $DB_DEST_DIR  = Join-Path $DIST_DIR "SCMS\backend\database"
 $DB_DEST      = Join-Path $DB_DEST_DIR "SCMSDatabase.accdb"
 
-# ── Console helpers ────────────────────────────────────────────────────────
+# -- Console helpers -----------------------------------------------------------
 
 function Write-Header {
     param([string]$Message)
@@ -67,7 +67,7 @@ function Write-Warn {
     Write-Host "  WARN  $Message" -ForegroundColor Magenta
 }
 
-# ── Version helpers ────────────────────────────────────────────────────────
+# -- Version helpers -----------------------------------------------------------
 
 function Get-CurrentVersion {
     if (Test-Path $VERSION_FILE) {
@@ -93,7 +93,7 @@ function Update-Version {
     return "$major.$minor.$patch"
 }
 
-# ── Environment validation ─────────────────────────────────────────────────
+# -- Environment validation ----------------------------------------------------
 
 function Validate-Environment {
     Write-Section "Validating environment..."
@@ -148,18 +148,13 @@ function Validate-Environment {
     return $true
 }
 
-# ── Tests ──────────────────────────────────────────────────────────────────
+# -- Tests ---------------------------------------------------------------------
 
 function Test-Application {
     Write-Section "Running application tests..."
 
     Write-Info "Checking Python syntax..."
 
-    # FIX: Use a flag variable instead of returning inside ForEach-Object.
-    #      'return $false' inside ForEach-Object only exits that iteration,
-    #      not the function — so the function was silently returning $null
-    #      (which PowerShell treats as $false) even after printing "All .py
-    #      files passed syntax check".
     $syntaxOk = $true
 
     Get-ChildItem -Path $SCMS_DIR -Filter "*.py" -Recurse | ForEach-Object {
@@ -178,7 +173,7 @@ function Test-Application {
     return $true
 }
 
-# ── Backup ─────────────────────────────────────────────────────────────────
+# -- Backup --------------------------------------------------------------------
 
 function Create-Backup {
     param([string]$Version)
@@ -188,7 +183,7 @@ function Create-Backup {
     Write-Section "Creating backup of previous dist..."
 
     if (-not (Test-Path $DIST_DIR)) {
-        Write-Info "No existing dist folder — skipping backup"
+        Write-Info "No existing dist folder -- skipping backup"
         return
     }
 
@@ -204,7 +199,7 @@ function Create-Backup {
     Write-Success "Backup created: $backupPath"
 }
 
-# ── Clean ──────────────────────────────────────────────────────────────────
+# -- Clean ---------------------------------------------------------------------
 
 function Clean-BuildArtifacts {
     Write-Section "Cleaning build artifacts..."
@@ -220,7 +215,7 @@ function Clean-BuildArtifacts {
     }
 }
 
-# ── PyInstaller build ──────────────────────────────────────────────────────
+# -- PyInstaller build ---------------------------------------------------------
 
 function Build-Executable {
     param([string]$Version)
@@ -229,7 +224,7 @@ function Build-Executable {
     Write-Info "Version: $Version"
 
     if ($DryRun) {
-        Write-Info "DRY RUN — would execute: pyinstaller scms.spec"
+        Write-Info "DRY RUN -- would execute: pyinstaller scms.spec"
         return $true
     }
 
@@ -271,7 +266,7 @@ function Build-Executable {
     Copy-Item -Force $DB_SOURCE $DB_DEST
 
     if (-not (Test-Path $DB_DEST)) {
-        Write-CustomError "Database copy failed — file not found at: $DB_DEST"
+        Write-CustomError "Database copy failed -- file not found at: $DB_DEST"
         return $false
     }
     Write-Success "Database copied: dist\SCMS\backend\database\SCMSDatabase.accdb"
@@ -279,7 +274,7 @@ function Build-Executable {
     return $true
 }
 
-# ── Inno Setup installer ───────────────────────────────────────────────────
+# -- Inno Setup installer ------------------------------------------------------
 
 function Build-Installer {
     param([string]$Version)
@@ -288,7 +283,7 @@ function Build-Installer {
     Write-Info "Version: $Version"
 
     if ($DryRun) {
-        Write-Info "DRY RUN — would compile Inno Setup script"
+        Write-Info "DRY RUN -- would compile Inno Setup script"
         return $true
     }
 
@@ -323,7 +318,7 @@ function Build-Installer {
     return $true
 }
 
-# ── Version / changelog ────────────────────────────────────────────────────
+# -- Version / changelog -------------------------------------------------------
 
 function Update-VersionFile {
     param([string]$Version)
@@ -331,7 +326,7 @@ function Update-VersionFile {
     Write-Section "Updating version file..."
 
     if ($DryRun) {
-        Write-Info "DRY RUN — would write version $Version to VERSION"
+        Write-Info "DRY RUN -- would write version $Version to VERSION"
         return $true
     }
 
@@ -347,7 +342,7 @@ function Update-Changelog {
     Write-Section "Updating CHANGELOG.md..."
 
     if ($DryRun) {
-        Write-Info "DRY RUN — would prepend changelog entry for $Version"
+        Write-Info "DRY RUN -- would prepend changelog entry for $Version"
         return $true
     }
 
@@ -380,7 +375,7 @@ function Update-Changelog {
     return $true
 }
 
-# ── Summary ────────────────────────────────────────────────────────────────
+# -- Summary -------------------------------------------------------------------
 
 function Show-BuildSummary {
     param([string]$Version, [bool]$Success, [int]$BuildTime)
@@ -428,18 +423,18 @@ function Show-BuildSummary {
     Write-Host ""
 }
 
-# ── Entry point ────────────────────────────────────────────────────────────
+# -- Entry point ---------------------------------------------------------------
 
 function Main {
     $startTime = Get-Date
 
     Write-Header "SCMS BUILD AND PACKAGING AUTOMATION"
     Write-Host "  Mode    : $(if ($DryRun) { 'DRY RUN (no changes written)' } else { 'NORMAL' })" -ForegroundColor Cyan
-    Write-Host "  Version : $(Get-CurrentVersion)  →  bump type: $VersionType" -ForegroundColor Cyan
+    Write-Host "  Version : $(Get-CurrentVersion)  ->  bump type: $VersionType" -ForegroundColor Cyan
     Write-Host ""
 
     if (-not (Validate-Environment)) {
-        Write-CustomError "Environment validation failed — aborting."
+        Write-CustomError "Environment validation failed -- aborting."
         exit 1
     }
 
@@ -449,7 +444,7 @@ function Main {
 
     if (-not $SkipTest) {
         if (-not (Test-Application)) {
-            Write-CustomError "Tests failed — aborting."
+            Write-CustomError "Tests failed -- aborting."
             exit 1
         }
     }
@@ -460,13 +455,13 @@ function Main {
     Clean-BuildArtifacts
 
     if (-not (Build-Executable -Version $newVersion)) {
-        Write-CustomError "Executable build failed — aborting."
+        Write-CustomError "Executable build failed -- aborting."
         exit 1
     }
 
     if (-not $SkipInstallerBuild) {
         if (-not (Build-Installer -Version $newVersion)) {
-            Write-CustomError "Installer build failed — aborting."
+            Write-CustomError "Installer build failed -- aborting."
             exit 1
         }
     }
