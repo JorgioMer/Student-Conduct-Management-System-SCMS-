@@ -1,3 +1,15 @@
+## [1.0.30] - 2026-06-10
+
+### Added
+- Release build automation
+- Automated version management
+- Installer generation
+
+### Changed
+- Updated build process
+
+### Fixed
+- Various bug fixes
 ## [1.0.29] - 2026-06-08
 
 ### Added
@@ -276,6 +288,7 @@
 
 ### Fixed
 - Various bug fixes
+
 
 
 
