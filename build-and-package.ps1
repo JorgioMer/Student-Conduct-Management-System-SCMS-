@@ -5,11 +5,11 @@
 # =============================================================================
 
 param(
-    [string]$VersionType      = "patch",
-    [switch]$SkipTest         = $false,
+    [string]$VersionType        = "patch",
+    [switch]$SkipTest           = $false,
     [switch]$SkipInstallerBuild = $false,
-    [switch]$DryRun           = $false,
-    [switch]$CreateBackup     = $true
+    [switch]$DryRun             = $false,
+    [switch]$CreateBackup       = $true
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,7 +27,6 @@ $CHANGELOG    = Join-Path $projectRoot "CHANGELOG.md"
 $BACKUP_DIR   = Join-Path $projectRoot ".backups"
 $ISCC_PATH    = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
-# FIX: Correct database source path (was missing from this script entirely)
 $DB_SOURCE    = Join-Path $SCMS_DIR "backend\database\SCMSDatabase.accdb"
 $DB_DEST_DIR  = Join-Path $DIST_DIR "SCMS\backend\database"
 $DB_DEST      = Join-Path $DB_DEST_DIR "SCMSDatabase.accdb"
@@ -129,8 +128,6 @@ function Validate-Environment {
     }
     Write-Success "SCMS-Installer.iss found"
 
-    # FIX: Validate the database file exists before we even attempt a build.
-    #      Without this check the build succeeds but the installed app has no DB.
     if (-not (Test-Path $DB_SOURCE)) {
         Write-CustomError "Database not found at: $DB_SOURCE"
         Write-CustomError "The build cannot produce a working package without the database."
@@ -138,8 +135,6 @@ function Validate-Environment {
     }
     Write-Success "Database file found: SCMSDatabase.accdb"
 
-    # FIX: Warn if the Microsoft Access ODBC driver is absent on this machine.
-    #      Target PCs also need it or every slip query will silently return empty.
     $odbcDrivers = Get-OdbcDriver -Name "*Access*" -ErrorAction SilentlyContinue
     if (-not $odbcDrivers) {
         Write-Warn "Microsoft Access ODBC driver NOT found on this machine."
@@ -159,13 +154,27 @@ function Test-Application {
     Write-Section "Running application tests..."
 
     Write-Info "Checking Python syntax..."
-    python -m py_compile $MAIN_PY 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-CustomError "Syntax error detected in main.py"
+
+    # FIX: Use a flag variable instead of returning inside ForEach-Object.
+    #      'return $false' inside ForEach-Object only exits that iteration,
+    #      not the function — so the function was silently returning $null
+    #      (which PowerShell treats as $false) even after printing "All .py
+    #      files passed syntax check".
+    $syntaxOk = $true
+
+    Get-ChildItem -Path $SCMS_DIR -Filter "*.py" -Recurse | ForEach-Object {
+        python -m py_compile $_.FullName 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-CustomError "Syntax error in: $($_.FullName)"
+            $syntaxOk = $false
+        }
+    }
+
+    if (-not $syntaxOk) {
         return $false
     }
-    Write-Success "Syntax validation passed"
 
+    Write-Success "All .py files passed syntax check"
     return $true
 }
 
@@ -178,7 +187,6 @@ function Create-Backup {
 
     Write-Section "Creating backup of previous dist..."
 
-    # Only backup if there is something to back up
     if (-not (Test-Path $DIST_DIR)) {
         Write-Info "No existing dist folder — skipping backup"
         return
@@ -232,8 +240,6 @@ function Build-Executable {
         return $false
     }
 
-    # Let PyInstaller output stream directly — piping/filtering it can
-    # suppress progress and hide real error messages.
     pyinstaller $SPEC_FILE
     $exitCode = $LASTEXITCODE
 
@@ -242,8 +248,7 @@ function Build-Executable {
         return $false
     }
 
-    # Check both possible output locations (COLLECT bundle vs single-file)
-    $exeInFolder  = Join-Path $DIST_DIR "SCMS\SCMS.exe"
+    $exeInFolder   = Join-Path $DIST_DIR "SCMS\SCMS.exe"
     $exeSingleFile = Join-Path $DIST_DIR "SCMS.exe"
 
     if (Test-Path $exeInFolder) {
@@ -260,9 +265,6 @@ function Build-Executable {
     $exeSize = [Math]::Round((Get-Item $exePath).Length / 1MB, 2)
     Write-Success "Executable created: $exePath ($exeSize MB)"
 
-    # FIX: Copy the database into the dist package right after the build.
-    #      This was entirely missing from the original script, which is why
-    #      green (and all) slip records were absent on fresh installs.
     Write-Section "Copying database into dist package..."
 
     New-Item -ItemType Directory -Force -Path $DB_DEST_DIR | Out-Null
@@ -295,7 +297,6 @@ function Build-Installer {
         return $false
     }
 
-    # Patch version string in the .iss file
     $issContent = Get-Content $ISS_SCRIPT -Raw
     $issContent = $issContent -replace '#define MyAppVersion ".*?"', "#define MyAppVersion `"$Version`""
     Set-Content $ISS_SCRIPT -Value $issContent -Force
@@ -304,9 +305,6 @@ function Build-Installer {
     & $ISCC_PATH $ISS_SCRIPT
     $exitCode = $LASTEXITCODE
 
-    # FIX: Original had a duplicate $LASTEXITCODE check after this point.
-    #      The second check always passed because $LASTEXITCODE was already
-    #      captured above. Only one check is needed.
     if ($exitCode -ne 0) {
         Write-CustomError "Inno Setup compilation failed (exit code $exitCode)"
         return $false
@@ -400,8 +398,6 @@ function Show-BuildSummary {
     if ($Success) {
         Write-Host "Deliverables:" -ForegroundColor Cyan
 
-        # FIX: Original checked dist\SCMS.exe (flat) which is wrong for a
-        #      COLLECT-mode PyInstaller build. Correct path is dist\SCMS\SCMS.exe.
         $exePath = Join-Path $DIST_DIR "SCMS\SCMS.exe"
         if (Test-Path $exePath) {
             $exeSize = [Math]::Round((Get-Item $exePath).Length / 1MB, 2)
@@ -458,9 +454,7 @@ function Main {
         }
     }
 
-    # FIX: Backup the OLD dist BEFORE cleaning it, not after.
-    #      Original called Create-Backup after Clean-BuildArtifacts which meant
-    #      the dist folder was already gone and the zip was always empty/skipped.
+    # Backup the OLD dist BEFORE cleaning it, not after
     Create-Backup -Version $currentVersion
 
     Clean-BuildArtifacts

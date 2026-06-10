@@ -1,7 +1,8 @@
 from .db_connection import get_connection
 from .db_students import add_student_if_not_exists
 import datetime as _dt
-from datetime import datetime
+from datetime import datetime, date
+import re
 
 
 # ---------------------------------------------------------------------------
@@ -18,41 +19,55 @@ from datetime import datetime
 # future caller all share exactly the same logic with no duplication.
 # ---------------------------------------------------------------------------
 def _parse_date(raw):
-    """
-    Parse any date value returned by pyodbc into a datetime.date object.
-    Returns None if the value is empty or unparseable.
-
-    FIX: Try DD/MM/YYYY before MM/DD/YYYY because Access on Philippine
-    systems uses DD/MM/YYYY regional format. The previous order caused
-    "01/06/2026" to be parsed as January 6 (MM/DD) instead of June 1 (DD/MM),
-    which placed June records under January in the reports page.
-
-    Format priority:
-      1. YYYY-MM-DD  — ISO/pyodbc native string, always unambiguous
-      2. DD/MM/YYYY  — Access default on Philippine/regional locale
-      3. MM/DD/YYYY  — US locale fallback (rare)
-    """
     if raw is None:
         return None
-    # Native date/datetime objects — no string parsing needed
-    if isinstance(raw, datetime):       # datetime.datetime
-        return raw.date()
-    if isinstance(raw, _dt.date):       # datetime.date (not datetime subclass)
+
+    if isinstance(raw, datetime):
         return raw
-    # String path
-    s = str(raw).strip()
-    if s in ("", "None", "N/A"):
+    if isinstance(raw, date):
+        return datetime(raw.year, raw.month, raw.day)
+
+    raw = str(raw).strip()
+    if not raw or raw in ("None", "N/A", ""):
         return None
-    # Drop any trailing time component ("2026-05-27 00:00:00" -> "2026-05-27")
-    s = s.split()[0]
-    # Try formats in order: ISO first (unambiguous), then DD/MM (regional), then MM/DD (US)
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
+
+    # ISO format: "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS"
+    iso_match = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})', raw)
+    if iso_match:
         try:
-            return datetime.strptime(s, fmt).date()
+            return datetime(
+                int(iso_match.group(1)),
+                int(iso_match.group(2)),
+                int(iso_match.group(3)),
+            )
+        except ValueError:
+            pass
+
+    # Slash-separated: "M/D/YYYY" or "D/M/YYYY" — trailing time is allowed
+    # FIX: removed $ anchor so "6/1/2026 12:00:00 AM" is matched correctly
+    slash_match = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})', raw)
+    if slash_match:
+        a, b, year = int(slash_match.group(1)), int(slash_match.group(2)), int(slash_match.group(3))
+        if a > 12:
+            try:
+                return datetime(year, b, a)   # D/M/YYYY
+            except ValueError:
+                pass
+        else:
+            try:
+                return datetime(year, a, b)   # M/D/YYYY
+            except ValueError:
+                pass
+
+    # Last-resort strptime fallback
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m-%d-%Y",
+                "%m/%d/%Y %I:%M:%S %p", "%d/%m/%Y %I:%M:%S %p"):
+        try:
+            return datetime.strptime(raw, fmt)
         except ValueError:
             continue
-    return None
 
+    return None
 
 def check_and_update_expired_green_slips():
     """
