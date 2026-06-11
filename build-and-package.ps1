@@ -31,8 +31,6 @@ $DB_SOURCE    = Join-Path $SCMS_DIR "backend\database\SCMSDatabase.accdb"
 $DB_DEST_DIR  = Join-Path $DIST_DIR "SCMS\backend\database"
 $DB_DEST      = Join-Path $DB_DEST_DIR "SCMSDatabase.accdb"
 
-# -- Console helpers -----------------------------------------------------------
-
 function Write-Header {
     param([string]$Message)
     Write-Host ""
@@ -67,8 +65,6 @@ function Write-Warn {
     Write-Host "  WARN  $Message" -ForegroundColor Magenta
 }
 
-# -- Version helpers -----------------------------------------------------------
-
 function Get-CurrentVersion {
     if (Test-Path $VERSION_FILE) {
         return (Get-Content $VERSION_FILE).Trim()
@@ -78,22 +74,17 @@ function Get-CurrentVersion {
 
 function Update-Version {
     param([string]$CurrentVersion, [string]$VersionType)
-
     $parts = $CurrentVersion.Split(".")
     $major = [int]$parts[0]
     $minor = [int]$parts[1]
     $patch = [int]$parts[2]
-
     switch ($VersionType) {
         "major" { $major++; $minor = 0; $patch = 0 }
         "minor" { $minor++; $patch = 0 }
         "patch" { $patch++ }
     }
-
     return "$major.$minor.$patch"
 }
-
-# -- Environment validation ----------------------------------------------------
 
 function Validate-Environment {
     Write-Section "Validating environment..."
@@ -148,11 +139,8 @@ function Validate-Environment {
     return $true
 }
 
-# -- Tests ---------------------------------------------------------------------
-
 function Test-Application {
     Write-Section "Running application tests..."
-
     Write-Info "Checking Python syntax..."
 
     $syntaxOk = $true
@@ -165,15 +153,11 @@ function Test-Application {
         }
     }
 
-    if (-not $syntaxOk) {
-        return $false
-    }
+    if (-not $syntaxOk) { return $false }
 
     Write-Success "All .py files passed syntax check"
     return $true
 }
-
-# -- Backup --------------------------------------------------------------------
 
 function Create-Backup {
     param([string]$Version)
@@ -183,7 +167,7 @@ function Create-Backup {
     Write-Section "Creating backup of previous dist..."
 
     if (-not (Test-Path $DIST_DIR)) {
-        Write-Info "No existing dist folder -- skipping backup"
+        Write-Info "No existing dist folder - skipping backup"
         return
     }
 
@@ -199,8 +183,6 @@ function Create-Backup {
     Write-Success "Backup created: $backupPath"
 }
 
-# -- Clean ---------------------------------------------------------------------
-
 function Clean-BuildArtifacts {
     Write-Section "Cleaning build artifacts..."
 
@@ -215,8 +197,6 @@ function Clean-BuildArtifacts {
     }
 }
 
-# -- PyInstaller build ---------------------------------------------------------
-
 function Build-Executable {
     param([string]$Version)
 
@@ -224,7 +204,7 @@ function Build-Executable {
     Write-Info "Version: $Version"
 
     if ($DryRun) {
-        Write-Info "DRY RUN -- would execute: pyinstaller scms.spec"
+        Write-Info "DRY RUN - would execute: pyinstaller scms.spec"
         return $true
     }
 
@@ -266,15 +246,13 @@ function Build-Executable {
     Copy-Item -Force $DB_SOURCE $DB_DEST
 
     if (-not (Test-Path $DB_DEST)) {
-        Write-CustomError "Database copy failed -- file not found at: $DB_DEST"
+        Write-CustomError "Database copy failed - file not found at: $DB_DEST"
         return $false
     }
     Write-Success "Database copied: dist\SCMS\backend\database\SCMSDatabase.accdb"
 
     return $true
 }
-
-# -- Inno Setup installer ------------------------------------------------------
 
 function Build-Installer {
     param([string]$Version)
@@ -283,7 +261,7 @@ function Build-Installer {
     Write-Info "Version: $Version"
 
     if ($DryRun) {
-        Write-Info "DRY RUN -- would compile Inno Setup script"
+        Write-Info "DRY RUN - would compile Inno Setup script"
         return $true
     }
 
@@ -318,15 +296,13 @@ function Build-Installer {
     return $true
 }
 
-# -- Version / changelog -------------------------------------------------------
-
 function Update-VersionFile {
     param([string]$Version)
 
     Write-Section "Updating version file..."
 
     if ($DryRun) {
-        Write-Info "DRY RUN -- would write version $Version to VERSION"
+        Write-Info "DRY RUN - would write version $Version to VERSION"
         return $true
     }
 
@@ -342,7 +318,7 @@ function Update-Changelog {
     Write-Section "Updating CHANGELOG.md..."
 
     if ($DryRun) {
-        Write-Info "DRY RUN -- would prepend changelog entry for $Version"
+        Write-Info "DRY RUN - would prepend changelog entry for $Version"
         return $true
     }
 
@@ -374,8 +350,6 @@ function Update-Changelog {
     Write-Success "CHANGELOG.md updated"
     return $true
 }
-
-# -- Summary -------------------------------------------------------------------
 
 function Show-BuildSummary {
     param([string]$Version, [bool]$Success, [int]$BuildTime)
@@ -423,8 +397,6 @@ function Show-BuildSummary {
     Write-Host ""
 }
 
-# -- Entry point ---------------------------------------------------------------
-
 function Main {
     $startTime = Get-Date
 
@@ -434,7 +406,7 @@ function Main {
     Write-Host ""
 
     if (-not (Validate-Environment)) {
-        Write-CustomError "Environment validation failed -- aborting."
+        Write-CustomError "Environment validation failed - aborting."
         exit 1
     }
 
@@ -444,24 +416,22 @@ function Main {
 
     if (-not $SkipTest) {
         if (-not (Test-Application)) {
-            Write-CustomError "Tests failed -- aborting."
+            Write-CustomError "Tests failed - aborting."
             exit 1
         }
     }
 
-    # Backup the OLD dist BEFORE cleaning it, not after
     Create-Backup -Version $currentVersion
-
     Clean-BuildArtifacts
 
     if (-not (Build-Executable -Version $newVersion)) {
-        Write-CustomError "Executable build failed -- aborting."
+        Write-CustomError "Executable build failed - aborting."
         exit 1
     }
 
     if (-not $SkipInstallerBuild) {
         if (-not (Build-Installer -Version $newVersion)) {
-            Write-CustomError "Installer build failed -- aborting."
+            Write-CustomError "Installer build failed - aborting."
             exit 1
         }
     }
