@@ -141,7 +141,6 @@ Install everything with `python -m pip install -r requirements.txt`.
 | **Pillow (PIL)** | `>=10.0.0` | Image handling for logos and banners |
 | **qtawesome** | `>=1.0.0` | Icons in the PyQt5 interface |
  
-> `qtawesome` is listed twice in `requirements.txt`. It is harmless, but you can remove the duplicate line.
  
 ### Build Tools (only for creating the installer)
  
