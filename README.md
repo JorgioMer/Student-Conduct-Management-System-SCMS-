@@ -18,6 +18,7 @@ Built with **Python**, **PyQt5**, and a **Microsoft Access** (`.accdb`) database
 - [Slip Types at a Glance](#slip-types-at-a-glance)
 - [Installation (End Users)](#installation-end-users)
 - [Getting Started](#getting-started)
+- [Required Software and Dependencies](#required-software-and-dependencies)
 - [Running from Source (Developers)](#running-from-source-developers)
 - [Architecture](#architecture)
 - [Database and File Locations](#database-and-file-locations)
@@ -116,6 +117,48 @@ Default accounts are created when the account table is empty:
  
 ---
  
+## Required Software and Dependencies
+ 
+### System Software
+ 
+| Component | Purpose | Notes |
+|---|---|---|
+| Windows 10/11 | Operating system | Recommended platform |
+| Python 3.12 or 3.13 | Application runtime | Not needed for packaged builds |
+| Microsoft Access Database Engine (ODBC driver) | Lets the app read/write the `.accdb` database | Driver name: `Microsoft Access Driver (*.mdb, *.accdb)`. Must match the Python/app architecture (x86 or x64). Database Engine 2016 is recommended |
+| Git and PowerShell | Cloning the repo and running build scripts | Developers only |
+ 
+### Python Libraries
+ 
+Install everything with `python -m pip install -r requirements.txt`.
+ 
+| Library | Purpose |
+|---|---|
+| **PyQt5** | Desktop GUI framework (windows, pages, dialogs, widgets) |
+| **pyodbc** | Connects Python to the Access database through ODBC |
+| **Matplotlib** | Charts embedded in the UI and rendered into PDF reports |
+| **ReportLab** | PDF generation for reports and student records |
+| **Pillow (PIL)** | Image handling for logos and banners |
+| **qtawesome** | Icons in the PyQt5 interface |
+ 
+### Build Tools (only for creating the installer)
+ 
+| Tool | Purpose |
+|---|---|
+| PyInstaller | Bundles the app into an executable (`scms.spec`) |
+| Inno Setup 6 | Compiles the Windows installer (`SCMS-Installer.iss`) |
+ 
+### Data Storage
+ 
+| Item | Purpose |
+|---|---|
+| `SCMSDatabase.accdb` (Microsoft Access) | Accounts, students, slips, and activity logs |
+| `SCMS/config.json` | School years, semesters, course mappings, thresholds, notification settings |
+ 
+SCMS is a standalone desktop application. It needs no internet connection and no database server.
+ 
+---
+ 
 ## Running from Source (Developers)
  
 ### Prerequisites
@@ -190,6 +233,48 @@ The AppData copy is the live, writable database; the repository file is only a t
 **Main tables:** `Accounts`, `Students`, `Green Slip Record`, `Pink Slip Record`, `Blue Slip Record`, plus the activity-log table created by `db_init_activity_log.py`.
  
 > Always back up `%APPDATA%\SCMS\SCMSDatabase.accdb` before upgrades, migrations, or manual database work.
+ 
+### Opening and Connecting to the Database
+ 
+**You normally don't need to connect manually.** On launch, `SCMS/backend/db_connection.py` verifies that the Access driver is installed, copies the template database to `%APPDATA%\SCMS\` on first use, and opens a pooled `pyodbc` connection to that copy.
+ 
+**1. Check that the Access driver is installed**
+ 
+```powershell
+python -c "import pyodbc; print([d for d in pyodbc.drivers() if 'Access' in d])"
+```
+ 
+The output should include `Microsoft Access Driver (*.mdb, *.accdb)`. If the list is empty, install the Microsoft Access Database Engine (matching your Python architecture: 32-bit or 64-bit) and restart Windows.
+ 
+**2. Open the database directly (optional, for inspection)**
+ 
+- With Microsoft Access: open `%APPDATA%\SCMS\SCMSDatabase.accdb`. Close the app first, because Access is a single-file database and can lock it.
+- With Python (`pyodbc`):
+```python
+import os
+import pyodbc
+ 
+db_path = os.path.expandvars(r"%APPDATA%\SCMS\SCMSDatabase.accdb")
+conn = pyodbc.connect(
+    r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};"
+    rf"DBQ={db_path};"
+)
+cursor = conn.cursor()
+cursor.execute("SELECT TOP 5 * FROM Students")
+print(cursor.fetchall())
+conn.close()
+```
+ 
+- With the repo helpers: `python check_db.py` inspects the database, and `python dump_schema.py` writes the schema to `schema.md`.
+**3. Start the application**
+ 
+Follow [Running from Source](#running-from-source-developers) (`python .\SCMS\main.py`) or launch the installed `SCMS.exe`, then sign in with a [default account](#getting-started).
+ 
+**4. Start over with a fresh database**
+ 
+Close SCMS, back up `%APPDATA%\SCMS\SCMSDatabase.accdb`, then remove it. SCMS copies the template again on the next launch. Template and default accounts are described in [Database and File Locations](#database-and-file-locations).
+ 
+> Always experiment on a copy of the database, never your live AppData file.
  
 ---
  
@@ -540,5 +625,5 @@ python .\test_green_slip_save.py
 | Release workflow | `.github\workflows\build-release.yml` |
  
 ---
-
+ 
 *Developed for the Cor Jesu College Office of the Prefect.*
