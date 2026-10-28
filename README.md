@@ -132,14 +132,16 @@ Default accounts are created when the account table is empty:
  
 Install everything with `python -m pip install -r requirements.txt`.
  
-| Library | Purpose |
-|---|---|
-| **PyQt5** | Desktop GUI framework (windows, pages, dialogs, widgets) |
-| **pyodbc** | Connects Python to the Access database through ODBC |
-| **Matplotlib** | Charts embedded in the UI and rendered into PDF reports |
-| **ReportLab** | PDF generation for reports and student records |
-| **Pillow (PIL)** | Image handling for logos and banners |
-| **qtawesome** | Icons in the PyQt5 interface |
+| Library | Version | Purpose |
+|---|---|---|
+| **PyQt5** | `==5.15.9` | Desktop GUI framework (windows, pages, dialogs, widgets) |
+| **pyodbc** | `>=5.3.0` | Connects Python to the Access database through ODBC |
+| **Matplotlib** | `>=3.5.0` | Charts embedded in the UI and rendered into PDF reports |
+| **ReportLab** | `>=4.0.0` | PDF generation for reports and student records |
+| **Pillow (PIL)** | `>=10.0.0` | Image handling for logos and banners |
+| **qtawesome** | `>=1.0.0` | Icons in the PyQt5 interface |
+ 
+> `qtawesome` is listed twice in `requirements.txt`. It is harmless, but you can remove the duplicate line.
  
 ### Build Tools (only for creating the installer)
  
@@ -625,5 +627,6 @@ python .\test_green_slip_save.py
 | Release workflow | `.github\workflows\build-release.yml` |
  
 ---
+
  
 *Developed for the Cor Jesu College Office of the Prefect.*
